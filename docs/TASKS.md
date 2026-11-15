@@ -52,6 +52,12 @@ Status: `todo` → `doing` → `review` (report sent to Claude) → `done`. Move
 - V1 cleanup follow-up: remove unattached `voice-notes` uploads older than 24 hours through the Storage API, with an attachment re-check. Pending uploads remain unreadable. Never delete attached recordings or manipulate Storage metadata to delete blobs.
 | ID | Task | Owner | Done when |
 |---|---|---|---|
+| RV-plan | Regional vessels and Landmarks plan (`docs/design/regional-vessels.md`) | Claude → Roy | Roy picks the vessels, Landmarks, tram colour and whether new vessels start switched off. |
+| RV-R1 | Regional art batch 1: `pineapple-cake` (test vessel), `rwb-bag`, `tiffin`, `egg-tart` | Codex art (`codex/vessels-regional-1`) | Roy approves the pineapple-cake test vessel, then the art-only PR; merged. No wiring, migration or deploy. |
+| RV-R2 | Regional art batch 2: `tea-tin`, `sky-lantern`, `bolo-box`, `tram`, `kamcheng`, `shophouse`, `azulejo-box`, `pedicab` | Codex art (`codex/vessels-regional-2`) | Starts after RV-R1 merges and Roy's tram colour decision; art-only PR approved by Roy and merged. |
+| RV-R3 | Earned Landmark vessels and stamps for the Landmarks Roy picks (`north-gate`, `durian-dome`, `lighthouse`, optional `red-house`, `stone-facade`) | Codex art (`codex/vessels-regional-3`) | Starts after Roy picks Landmarks; first vessel is the test stop; art-only PR merged. |
+| RV-W | Wire each merged regional batch: `vessels` rows, spawn-rule tier/region tags, i18n, `VesselKind`, `vesselParts` | Codex (held) | Held until that batch's art is merged. Spawn rules support several vessels per tier per region; an empty tier falls back; app released before the catalogue migration. |
+| RV-L | New Landmarks: `places` + Landmark Waypost, monument per `docs/sop/landmark-monument.md`; TST Clock Tower Waypost; TST and Merlion monuments | Codex (held) | Held until Roy picks Landmarks; Roy approves each monument's screenshots. |
 | O1 | City Orienteering: timed daily system hunts | Codex `T` + Claude U1 | Live with migration `20261114033941`. Xinyi check-in, countdown, time-up, same-day restart, return and both time records were verified. |
 | O2 | Private hunts: organizer and player | Codex + Claude | Live. Both accounts passed the 375 px browser checks. Phone camera QR and photo upload in Expo Go remain for Roy. |
 | O3 | Private hunts phase 2: photo missions with organizer review, teams, broadcasts, score adjustment, public listing | Roy decides moderation → Claude designs → Codex | Not started; waits for the moderation decision. |
