@@ -1,7 +1,7 @@
 // Small pieces every admin page shares, in the app's own look: paper, serif numbers, ink-blue controls,
 // brass only for private hunts and precious vessels, Landmarks in the map's navy, wax red for what removes something.
 import React, { useCallback, useEffect, useState } from "react";
-import { Image, Pressable, ScrollView, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
+import { Image, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type TextInputProps, type ViewStyle } from "react-native";
 import { vesselParts } from "../../art/manifest";
 import type { VesselKind } from "../../components/Vessel";
 import { SealLoader } from "../../components/SealLoader";
@@ -155,3 +155,78 @@ export const timeAgo = (iso: string, lang: "zh" | "en", now = Date.now()) => {
   if (h < 48) return lang === "zh" ? `${h} 小時前` : `${h} h ago`;
   return shortDate(iso, lang);
 };
+
+/** A labelled text box in the admin's paper style. */
+export function Field({ label, hint, style, ...input }: TextInputProps & { label: string; hint?: string }) {
+  return <View style={{ gap: 4 }}>
+    <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{label}{hint ? <Text style={{ color: C.muted }}> · {hint}</Text> : null}</Text>
+    <TextInput accessibilityLabel={label} placeholderTextColor={C.muted} {...input}
+      style={[{ fontFamily: sans, fontSize: 15, color: C.ink, borderWidth: 1, borderColor: C.line, borderRadius: radii.sm, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: C.paper }, style as any]} />
+  </View>;
+}
+
+/** A short message in a tinted box: info (blue), warn (brass) or stop (wax). */
+export function Notice({ tone = "info", text }: { tone?: "info" | "warn" | "stop"; text: string }) {
+  const t = tone === "stop" ? { fg: C.wax, bg: "#FBF0F3", line: "#E9C6D0" } : tone === "warn" ? { fg: "#7A5A1E", bg: "#FBF6EA", line: "#E8D8B4" } : { fg: C.blue, bg: "#EEF3F9", line: "#D3E0EE" };
+  return <View accessibilityRole={tone === "info" ? undefined : "alert"} style={{ backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderRadius: radii.sm, paddingHorizontal: 12, paddingVertical: 9 }}>
+    <Text style={{ fontFamily: sans, fontSize: 13, lineHeight: 19, color: t.fg }}>{text}</Text>
+  </View>;
+}
+
+/** A tick box with its sentence. */
+export function Check({ on, onChange, label }: { on: boolean; onChange: (on: boolean) => void; label: string }) {
+  return <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: on }} onPress={() => onChange(!on)} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+    <View style={{ width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: on ? C.blue : C.muted, backgroundColor: on ? C.blue : C.white, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+      {on && <Text style={{ color: C.white, fontSize: 13, lineHeight: 15, fontFamily: sans }}>✓</Text>}
+    </View>
+    <Text style={{ flex: 1, fontFamily: sans, fontSize: 13, lineHeight: 19, color: C.ink }}>{label}</Text>
+  </Pressable>;
+}
+
+/** Pills to pick one value. */
+export function Choice<T extends string | number>({ options, value, onChange }: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+  return <View accessibilityRole="radiogroup" style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+    {options.map((o) => {
+      const on = o.value === value;
+      return <Pressable key={String(o.value)} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => onChange(o.value)}
+        style={{ borderRadius: radii.pill, borderWidth: 1, borderColor: on ? C.blue : C.line, backgroundColor: on ? C.blue : C.white, paddingHorizontal: 12, paddingVertical: 6 }}>
+        <Text style={{ fontFamily: sans, fontSize: 13, color: on ? C.white : C.ink }}>{o.label}</Text>
+      </Pressable>;
+    })}
+  </View>;
+}
+
+/** A small − value + control for whole numbers. */
+export function Stepper({ value, onChange, min, max, step = 1, format = String, label }: {
+  value: number; onChange: (v: number) => void; min: number; max: number; step?: number; format?: (v: number) => string; label: string;
+}) {
+  const btn = (d: number, glyph: string) => <Pressable accessibilityRole="button" accessibilityLabel={`${label} ${glyph}`} disabled={value + d < min || value + d > max}
+    onPress={() => onChange(Math.min(max, Math.max(min, value + d)))}
+    style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: C.line, backgroundColor: C.white, alignItems: "center", justifyContent: "center", opacity: value + d < min || value + d > max ? 0.4 : 1 }}>
+    <Text style={{ fontFamily: sans, fontSize: 16, color: C.blue }}>{glyph}</Text>
+  </Pressable>;
+  return <View accessibilityLabel={label} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+    {btn(-step, "−")}
+    <Text style={{ minWidth: 44, textAlign: "center", fontFamily: serif, fontSize: 17, color: C.ink }}>{format(value)}</Text>
+    {btn(step, "+")}
+  </View>;
+}
+
+/** A panel over the page: centred on wide screens, rising from the bottom on phones. */
+export function Sheet({ title, onClose, children, footer }: { title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode }) {
+  const wide = useWide();
+  const { height } = useWindowDimensions();
+  return <Modal visible transparent animationType={wide ? "fade" : "slide"} onRequestClose={onClose}>
+    <Pressable accessibilityLabel="close" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(22,38,63,.35)", justifyContent: wide ? "center" : "flex-end", alignItems: "center", padding: wide ? spacing.lg : 0 }}>
+      <Pressable onPress={() => {}} style={{ width: "100%", maxWidth: 560, maxHeight: wide ? height * 0.86 : height * 0.92, backgroundColor: C.paper,
+        borderRadius: radii.lg, borderBottomLeftRadius: wide ? radii.lg : 0, borderBottomRightRadius: wide ? radii.lg : 0, overflow: "hidden", ...shadows.card }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.md, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.line, backgroundColor: C.white }}>
+          <Text accessibilityRole="header" style={{ flex: 1, fontFamily: serif, fontSize: 18, color: C.ink }}>{title}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="close" onPress={onClose} hitSlop={10}><Text style={{ fontFamily: sans, fontSize: 22, color: C.muted }}>×</Text></Pressable>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}>{children}</ScrollView>
+        {footer && <View style={{ padding: spacing.md, borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.white }}>{footer}</View>}
+      </Pressable>
+    </Pressable>
+  </Modal>;
+}

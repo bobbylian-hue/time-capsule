@@ -1,42 +1,57 @@
 // Which vessels turn up as Corrupted Capsules, and where (docs/design/admin.md). The same rules seen two
-// ways: by place (country → city) and by vessel. View only until phase 2.
+// ways: by place (country → city) and by vessel. Owners and admins can switch to editing (phase 2).
 import React, { useMemo, useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useLanguage } from "../../i18n";
 import { VESSELS } from "../shop/strings";
-import { admin, type Region, type SpawnRule, type Spawning } from "../../services/admin";
+import { ADMIN_EDIT, admin, can, type Region, type SpawnRule, type Spawning } from "../../services/admin";
 import { C, radii, sans, serif, spacing } from "../../theme";
 import { useAdmin } from "./AdminShell";
 import { useAdminText, type AdminText } from "./strings";
-import { Card, Failed, Loading, Page, Pill, Section, Segmented, Stat, VesselThumb, useColumns, useLoad, type Tone } from "./ui";
+import { AButton, Card, Failed, Loading, Page, Pill, Section, Segmented, Stat, VesselThumb, useColumns, useLoad, type Tone } from "./ui";
+import { PlaceEditor, RuleSheet, WaveEditButtons } from "./SpawnEditor";
 
 const RARITY_TONE: Record<string, Tone> = { common: "blue", uncommon: "plum", rare: "brass" };
 const vesselName = (v: string, lang: "zh" | "en") => (VESSELS as any)[v]?.name[lang] ?? v;
 
 export default function CapsulesScreen() {
   const a = useAdminText();
-  const { cities } = useAdmin();
+  const { cities, role, refresh } = useAdmin();
+  const mayEdit = ADMIN_EDIT && can(role, "edit");
+  const [editing, setEditing] = useState(false);
   const { place } = useLocalSearchParams<{ place?: string }>();
   const [view, setView] = useState<"place" | "vessel">("place");
-  const data = useLoad(admin.spawning);
+  const data = useLoad(admin.spawning, [role]);
+  // A saved change also moves the city cards and the sidebar's numbers.
+  const saved = () => { data.reload(); refresh(); };
+  const on = mayEdit && editing;
   return <Page title={a.nav.capsules} note={a.capsulesNote}
-    right={<Segmented value={view} onChange={setView} options={[{ value: "place", label: a.byPlace }, { value: "vessel", label: a.byVessel }]} />}>
+    right={<View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm }}>
+      <Segmented value={view} onChange={setView} options={[{ value: "place", label: a.byPlace }, { value: "vessel", label: a.byVessel }]} />
+      {mayEdit && <AButton small tone={editing ? "blue" : "ghost"} title={editing ? a.ed.done : a.ed.edit} onPress={() => setEditing((x) => !x)} />}
+    </View>}>
     {data.error ? <Failed onRetry={data.reload} /> : !data.data ? <Loading /> : <>
-      <WaveSettings config={data.data.config} />
-      {view === "place" ? <ByPlace data={data.data} cities={cities} focus={place} /> : <ByVessel data={data.data} cities={cities} />}
-      <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted, textAlign: "center" }}>{a.editSpawnLater}</Text>
+      <WaveSettings config={data.data.config}>{on && <WaveEditButtons data={data.data} cities={cities} onSaved={saved} />}</WaveSettings>
+      {view === "vessel" ? <ByVessel data={data.data} cities={cities} onSaved={on ? saved : undefined} />
+        : on ? <PlaceEditor data={data.data} cities={cities} onSaved={saved} />
+        : <ByPlace data={data.data} cities={cities} focus={place} />}
+      {!mayEdit && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted, textAlign: "center" }}>{ADMIN_EDIT ? a.ed.viewOnly : a.editSpawnLater}</Text>}
     </>}
   </Page>;
 }
 
-function WaveSettings({ config }: { config: Spawning["config"] }) {
+function WaveSettings({ config, children }: { config: Spawning["config"]; children?: React.ReactNode }) {
   const a = useAdminText();
+  const next = config.next_length;
+  const at = next ? new Date(next.starts_at) : null;
   const items = [a.waveEvery(config.wave_minutes), a.showChance(Math.round(config.spawn_chance * 100)),
     a.weights(config.weights.common, config.weights.uncommon, config.weights.rare), a.nearbyMax(config.nearby_max)];
   return <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" }}>
     <Text style={{ fontFamily: serif, fontSize: 14, color: C.ink, marginRight: 4 }}>{a.waveSettings}</Text>
     {items.map((x) => <Pill key={x} label={x} />)}
+    {next && at && <Pill tone="blue" label={a.ed.nextLength(next.minutes, `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`)} />}
+    {children}
   </View>;
 }
 
@@ -90,7 +105,8 @@ function ByPlace({ data, cities, focus }: { data: Spawning; cities: Region[]; fo
   </View>;
 }
 
-function ByVessel({ data, cities }: { data: Spawning; cities: Region[] }) {
+function ByVessel({ data, cities, onSaved }: { data: Spawning; cities: Region[]; onSaved?: () => void }) {
+  const [rule, setRule] = useState<SpawnRule | null>(null);
   const a = useAdminText();
   const { language } = useLanguage();
   const order = Object.keys(VESSELS);
@@ -118,9 +134,13 @@ function ByVessel({ data, cities }: { data: Spawning; cities: Region[] }) {
                   {r.regions.length ? `${a.appearsIn} ${r.regions.map(place).join("、")}` : a.nowhere}
                 </Text>
                 {(r.rarity || r.hours || r.dates || r.habitat) && <RuleLine rule={r} a={a} />}
+                {onSaved && r.regions.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel={a.ed.rules(vesselName(r.vessel, language))} onPress={() => setRule(r)}>
+                  <Text style={{ fontFamily: sans, fontSize: 13, color: C.blue }}>{a.ed.edit} ›</Text>
+                </Pressable>}
               </>}
         </View>)}
       </View>
     </Section>)}
+    {rule && onSaved && <RuleSheet rule={rule} cities={cities} onClose={() => setRule(null)} onSaved={() => { setRule(null); onSaved(); }} />}
   </View>;
 }

@@ -204,6 +204,12 @@ html,body,#map{margin:0;height:100%;width:100%;background:${C.paper};overflow:hi
 /* Ready to spin: the blue gem art. Spun: the purple one (the app swaps the file). */
 .pin.waypost.near:not(.done) .post{filter:drop-shadow(0 0 6px ${C.lightBlue}) brightness(1.08)}
 .pin.waypost.near:not(.done) .disc{background:radial-gradient(${C.lightBlue}AA,transparent 70%)}
+/* Admin only: a hidden Waypost, and a Corrupted Capsule spawn spot (a small plum dot; faded when hidden). */
+.pin.waypost.locked .post{opacity:.35;filter:grayscale(.85);animation:none}
+.pin.spot{width:16px;height:16px}
+.pin.spot .dot{position:absolute;left:3px;top:3px;width:10px;height:10px;border-radius:50%;background:${C.plum};box-shadow:0 0 0 2px #fff,0 1px 3px rgba(22,38,63,.35)}
+.pin.spot.locked .dot{background:#fff;box-shadow:0 0 0 2px ${C.plum}66}
+.pin.spot.sel .dot{box-shadow:0 0 0 3px ${C.brass}}
 /* The Letter Keeper: a person, with a brass wax seal over his head (! or ✓). */
 .pin.keeper{width:56px;height:100px;z-index:6}
 .pin.keeper .disc{left:10px;width:36px;height:10px}
@@ -346,7 +352,7 @@ function visiblePins(){
   const canvas=map.getCanvas(), cells=new Set(), pins=[];
   const thin=map.getZoom()<pickupZoom(map.getCenter().lat,100)-1;
   for(const p of state.pins){
-    if(p.kind==='corrupted'&&!p.selected){
+    if((p.kind==='corrupted'||p.kind==='spot')&&!p.selected){
       const {x,y}=map.project([p.lng,p.lat]);
       if(x<-32||y<-32||x>canvas.clientWidth+32||y>canvas.clientHeight+32)continue;
       if(thin){
@@ -383,6 +389,7 @@ function render(){
     const html=p.kind==='keeper'?'<div class="pin-body"><div class="disc"></div>'+(p.figure?'<div class="fig full" style="background-image:url('+p.figure+')"></div>':'<div class="fig">'+face(p.portrait)+'</div>')+(p.mark?'<div class="seal">'+p.mark+'</div>':'')+'</div>'
       :p.kind==='landmark'?'<div class="pin-body"><div class="badge"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 1.5C12.8 8.2 15.8 11.2 22.5 12 15.8 12.8 12.8 15.8 12 22.5 11.2 15.8 8.2 12.8 1.5 12 8.2 11.2 11.2 8.2 12 1.5Z"/></svg></div></div>'
       :p.kind==='quest'?'<div class="pin-body"><div class="disc"></div><div class="photo"><div class="drop"><div class="ph" style="background-image:url('+p.photo+')"></div></div>'+(p.done?'<div class="badge">'+glyphBadge('done')+'</div>':'')+'</div>'+(p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>'
+      :p.kind==='spot'?'<div class="pin-body"><div class="dot"></div></div>'
       :p.kind==='waypost'?'<div class="pin-body"><div class="disc"></div>'+'<div class="post" style="background-image:url('+p.vessel+')"></div></div>':'<div class="pin-body"><div class="disc"></div><img class="v" src="'+p.vessel+'">'+(p.kind==='corrupted'&&p.cracks?'<img class="v cracks" src="'+p.cracks+'">':'')+(p.portrait!==undefined&&(p.portrait||p.private)?'<div class="who">'+face(p.portrait)+(p.private?'<div class="lock">'+PADLOCK+'</div>':'')+'</div>':'')+(p.timer?'<div class="tag timer">'+HOURGLASS+p.timer+'</div>':p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>';
     const cls='pin '+(p.kind||'')+(p.near?' near':'')+(p.far?' far':'')+(p.selected?' sel':'')+(p.sealed?' sealed':'')+(p.rarity?' '+p.rarity:'')+(p.done?' done':'')+(p.hunt?' hunt':'')+(p.lift?' top':'')+(p.private?' private':'')+(p.opened?' opened':'')+(p.locked?' locked':'');
     let m=marks.get(p.id);
