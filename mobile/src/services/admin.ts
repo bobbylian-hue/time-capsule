@@ -8,7 +8,7 @@ export const ADMIN_BACKEND = true;
 /** Development builds without the backend read the sample, so the screens can be built and checked. */
 export const ADMIN_SAMPLE = !ADMIN_BACKEND && typeof __DEV__ !== "undefined" && __DEV__;
 /** Phase 2 editing (Wayposts, spots, spawning, undo). Turn on once Codex's edit functions are live. */
-export const ADMIN_EDIT_BACKEND = false;
+export const ADMIN_EDIT_BACKEND = true;
 /** Whether the edit controls show: with the live edit functions, or on the development sample. */
 export const ADMIN_EDIT = ADMIN_EDIT_BACKEND || ADMIN_SAMPLE;
 
@@ -210,7 +210,7 @@ export const adminEdit = {
 };
 
 /** Kinds of change Undo can put back. */
-export const undoable = (action: string) => /^(waypost|spot|spawn|config)\./.test(action);
+export const undoable = (action: string) => /^(waypost|spawn|config)\./.test(action);
 
 /** When a new wave length would start: the next moment that ends a wave under both lengths (the server decides; this is for showing it). */
 export function nextLengthStart(from: number, to: number, now = Date.now()) {
