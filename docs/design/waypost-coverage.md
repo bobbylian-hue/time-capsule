@@ -1,6 +1,6 @@
 # Waypost coverage: filling in the four regions
 
-Status: plan, waiting for Roy. Claude wrote it on 2026-11-15; Codex builds it.
+Status: approved. Claude wrote it on 2026-11-15 and Roy accepted all five choices below the same day; Codex builds it.
 
 ## Why
 
@@ -139,7 +139,7 @@ One branch, one PR, separate migrations so each can be checked on its own:
 
 Each data migration inserts Wayposts and their spots for one region. All migrations stay unapplied until Claude reviews and Roy approves. Then they are applied in order, each followed by its density check.
 
-## Roy to confirm
+## Roy's choices (confirmed 2026-11-15)
 
 1. Fill in inside today's tiles only. Growing the metro areas or covering all of Taiwan is a separate decision, with a measured size first.
 2. The five categories (adding gardens, squares, waterfront promenades and outdoor public art to park paths) and the two extra exclusions (railway tracks, construction sites).
