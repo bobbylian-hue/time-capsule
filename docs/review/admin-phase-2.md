@@ -37,3 +37,17 @@ The edit RPCs and existing read RPCs follow the screen contract in PR #145. Supa
 Hosted rollback compared 18,156 live spot-and-wave pairs before and after the final migration. All matched. The four-city preview measured 3.17 seconds, above the two-second target. The rollback suite checks permissions, error codes, city guards, hide/show and drop eligibility, pending wave changes, preview rollback, and undo.
 
 Apply the migration and `supabase/tests/admin-phase-two.sql` inside one rollback transaction. Against local Supabase with the migration loaded, run `node supabase/tests/admin-phase-two-api.mjs` with the local test keys. The JWT test waits for a real wave boundary and removes its two disposable users.
+
+The final resolver also matched all 435,744 spot-and-wave pairs for a full day against the local production-data fixture.
+
+## Edit screens release
+
+PR #145 enables `ADMIN_EDIT_BACKEND`. The browser checks used Roy’s account at `http://localhost:8088/admin` with production Supabase. TypeScript and all 198 tests passed. The editor requires a current successful preview to save, explains an empty preview for a place without spawn spots, and supports keyboard selection of named Waypost and Corrupted Capsule spot pins.
+
+| Width and language | Production-backed checks |
+|---|---|
+| Desktop English | Created, renamed, moved, hid and showed a test Waypost. Hid and restored a Corrupted Capsule spot. Added and removed a Kaohsiung placement. Saved and undid habitat and nearby-limit changes. Scheduled a 60-minute wave and undid it before activation. |
+| Desktop Traditional Chinese | Opened the Add, rename and Move forms. Hid and showed the test Waypost. Hid and restored the same spot. Checked rule, placement and four-city settings previews. Added and removed the Kaohsiung placement. Checked the shared-boundary time and Activity. |
+| 375 px in both languages | Checked the Add and Move drafts, safety checks and Waypost visibility. Hid and restored the same spot. Opened the rule, placement, wave settings and wave length forms, and exercised live previews. Saved a placement in each language and undid it from Activity. |
+
+Production cleanup left the test Waypost hidden in the audit history, restored the spot and removed the temporary placement. Production showed ten-minute waves, no pending change, a nearby limit of six, the original vessel rule and zero disposable users.

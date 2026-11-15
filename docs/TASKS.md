@@ -82,6 +82,8 @@ Status: `todo` → `doing` → `review` (report sent to Claude) → `done`. Move
 
 ## Done
 
+- Admin phase 2 — backend PR #146 (`3357f7d`) and edit screens PR #145 (`059eca2`) are merged. Supabase migration `20261115153118` is applied. Roy’s account checked the production-backed editor at 375 px and desktop in zh and en. The editor is enabled. Hosted rollback, real-JWT and browser checks are recorded in the [review report](review/admin-phase-2.md).
+
 - RV-MO — Roy approved Macau wave 1 in [PR #138](https://github.com/royai202600-cyber/time-capsule/pull/138). The set contains the egg tart, Portuguese rooster and Macau pedicab with the canopy folding behind the bench. The main refresh preserved the approved art byte for byte. Art-only delivery.
 
 - WC1 — Waypost coverage is live. PR #136 squash-merged as `029fbea` and all five migrations are applied. Each region’s production density matched all five staged samples. Production real-JWT checks passed for Civic Square discovery, a new spin in each region and an eligible public capsule drop. The fixture account and all its rows were removed. Owner follow-up `c96ec35` regenerated the live types. Roy deferred the signed-in 375 px Hong Kong and Singapore Waypost checks after Chrome blocked location. [Coverage report](review/waypost-coverage.md)
