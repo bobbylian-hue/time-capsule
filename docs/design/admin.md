@@ -169,6 +169,15 @@ Names may change if Codex has a better fit; report the final ones. Every write R
 
 **Activity names:** `waypost.add`, `waypost.move`, `waypost.edit`, `waypost.hide`, `waypost.show`, `spot.hide`, `spot.show`, `config.wave_length`, `spawn.place_add`, `spawn.place_remove`, `spawn.rule`, `config.wave`, `undo`.
 
+**What the edit screens expect** (`mobile/src/services/admin.ts`, `adminEdit`; PR "Admin phase 2 screens"). They run on the development sample until `ADMIN_EDIT_BACKEND` is turned on:
+
+- `admin_spawning` also returns `places`: every place a vessel can be assigned to, countries included (`{ id, parent, name_zh, name_en, country_zh, country_en, has_spots }`), and each rule gets `places`, the region ids it is assigned to directly. `regions` stays the cities it reaches. Without these the screens can't tell a Taiwan-wide vessel from a Taipei one.
+- `admin_spawning().config.next_length` is `{ minutes, starts_at }` while a new wave length is waiting to start, otherwise null.
+- `admin_city_map` Wayposts carry `scene` and `hidden_at`; spots carry `hidden_at`.
+- Hours: the screens show and send the last hour included (as `admin_spawning` already returns them). `admin_spawn_rule_set` receives `p_end_hour` as the hour it stops at, the way the table stores it.
+- `admin_spawn_preview(p_change)` takes `{ call: 'place_add' | 'place_remove' | 'rule' | 'wave', args: <that call's arguments without p_note> }` and returns `{ regions: [{ region, before: { vessel: count }, after: { vessel: count } }] }`, one entry per city the change reaches.
+- Write calls return the saved row for Wayposts and spots; `admin_wave_length_set` returns the start time.
+
 **Tests:** hosted rollback for each role (only owner and admin can write), every error code, the 250 m warning and override, the coverage refusal, the hunt guard, the spawning guard, preview leaving no trace, and undo including `stale`. Real-JWT: an added Waypost appears in `game_nearby` for a player at that spot and disappears when hidden; a spawning change shows up in the next wave and not the current one.
 
 ## Build order

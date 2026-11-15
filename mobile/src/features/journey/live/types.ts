@@ -1,8 +1,8 @@
 import { Image, type ImageSourcePropType } from "react-native";
 import type { PrivateHuntQuestType } from "../../../services/questTypes";
 
-export type PinKind = "publicCapsule" | "place" | "corrupted" | "waypost" | "landmark" | "keeper" | "quest";
-export type LivePin = { id: string; lat: number; lng: number; vessel: string; cracks?: string; portrait?: string | null; tag?: string; kind: PinKind; hunt?: boolean;
+export type PinKind = "publicCapsule" | "place" | "corrupted" | "waypost" | "landmark" | "keeper" | "quest" | "spot";
+export type LivePin = { id: string; lat: number; lng: number; vessel: string; label?: string; cracks?: string; portrait?: string | null; tag?: string; kind: PinKind; hunt?: boolean;
   /** Which map filter shows this pin, when not its kind's (a private hunt's guide is drawn as a Keeper but belongs to private hunts). */
   filterAs?: PinKind;
   /** Private-hunt quests (kind "quest"): which glyph the brass pin carries, and whether the route still locks it. */

@@ -2,7 +2,8 @@
 // Counts and vessel sets follow what is live; pin positions are scattered around each city and are not
 // real Wayposts. Changes made here last until the page reloads.
 import type {
-  ActivityRow, AdminRole, CityMap, MapWaypost, Member, Person, QueueItem, QueueKind, Rarity, Region, SpawnRule, Spawning, WaveCapsule,
+  ActivityRow, AdminRole, CityMap, MapSpot, MapWaypost, Member, Person, QueueItem, QueueKind, Rarity, Region, Scene, SpawnChange, SpawnPlace,
+  SpawnPreview, SpawnRule, Spawning, WaveCapsule, WaveConfig, WaypostCheck,
 } from "./admin";
 import { STARTER_VESSELS } from "./vesselAccess";
 import { VESSELS } from "../features/shop/strings";
@@ -67,21 +68,155 @@ function scatter(seed: string, n: number, center: { lat: number; lng: number }, 
   });
 }
 
-const SAMPLE_WAVE_MINUTES = 10;
-
-function waveEnd(slot: number, step: number) {
-  return new Date((slot + 1) * step).toISOString();
+function waveEnd(now = Date.now()) {
+  const step = config.wave_minutes * 60000;
+  return new Date(Math.floor(now / step) * step + step).toISOString();
+}
+/** A stable number in [0, 1) for a key, so the same spot and wave always roll the same. */
+function roll(key: string) {
+  let h = 2166136261;
+  for (const ch of key) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return h / 2 ** 32;
+}
+/** What one spot shows in one wave, following the same steps as the server: show or not, a rarity, then a vessel from the place's pool (falling back to neighbouring rarities). */
+function resolve(region: string, spot: string, slot: number, pool: SpawnRule[], cfg: WaveConfig): SpawnRule | null {
+  if (roll(`${spot}:${slot}:show`) >= cfg.spawn_chance) return null;
+  const hour = new Date(slot * cfg.wave_minutes * 60000).getUTCHours();
+  const md = new Date(slot * cfg.wave_minutes * 60000).toISOString().slice(5, 10);
+  const open = pool.filter((r) => (!r.hours || (r.hours[0] <= r.hours[1] ? hour >= r.hours[0] && hour <= r.hours[1] : hour >= r.hours[0] || hour <= r.hours[1]))
+    && (!r.dates || (r.dates[0] <= r.dates[1] ? md >= r.dates[0] && md <= r.dates[1] : md >= r.dates[0] || md <= r.dates[1])));
+  if (!open.length) return null;
+  const total = cfg.weights.common + cfg.weights.uncommon + cfg.weights.rare;
+  const x = roll(`${spot}:${slot}:rarity`) * total;
+  const want: Rarity = x < cfg.weights.common ? "common" : x < cfg.weights.common + cfg.weights.uncommon ? "uncommon" : "rare";
+  const order: Rarity[] = want === "common" ? ["common", "uncommon", "rare"] : want === "uncommon" ? ["uncommon", "common", "rare"] : ["rare", "uncommon", "common"];
+  return [...open].sort((p, q) => order.indexOf(p.rarity ?? "common") - order.indexOf(q.rarity ?? "common")
+    || roll(`${spot}:${slot}:vessel:${p.vessel}`) - roll(`${spot}:${slot}:vessel:${q.vessel}`))[0];
 }
 function wave(region: Region): WaveCapsule[] {
-  const spots = scatter(`${region.id}-spots`, region.corrupted_spots, region.center, 1.6);
-  const step = SAMPLE_WAVE_MINUTES * 60_000;
-  const slot = Math.floor(Date.now() / step);
-  return spots.flatMap((s, i) => {
-    const roll = ((i + 1) * 7919 + slot * 104729) % 100;
-    if (roll >= 22) return [];
-    const r = roll < 14 ? 0 : roll < 20 ? 1 : 2;
-    return [{ spot: `${region.id}-spot-${i}`, vessel: region.vessels[r], rarity: RARITY[r], lat: s.lat, lng: s.lng, expires_at: waveEnd(slot, step), caught: roll % 5 === 0 }];
+  const slot = Math.floor(Date.now() / (config.wave_minutes * 60000));
+  const pool = poolFor(region.id, ruleState);
+  return spotsFor(region).filter((s) => !s.hidden_at).flatMap((s) => {
+    const picked = resolve(region.id, s.id, slot, pool, config);
+    if (!picked) return [];
+    return [{ spot: s.id, vessel: picked.vessel, rarity: picked.rarity ?? "common", lat: s.lat, lng: s.lng, expires_at: waveEnd(), caught: roll(`${s.id}:${slot}:caught`) < 0.2 }];
   });
+}
+
+// Places vessels can be assigned to. Taipei's set sits on Taiwan, so it reaches every Taiwan city.
+const PLACES: SpawnPlace[] = [
+  { id: "taiwan", parent: null, name_zh: "台灣", name_en: "Taiwan", country_zh: "台灣", country_en: "Taiwan", has_spots: true },
+  { id: "taipei", parent: "taiwan", name_zh: "台北", name_en: "Taipei", country_zh: "台灣", country_en: "Taiwan", has_spots: true },
+  { id: "hong-kong", parent: null, name_zh: "香港", name_en: "Hong Kong", country_zh: "香港", country_en: "Hong Kong", has_spots: true },
+  { id: "singapore", parent: null, name_zh: "新加坡", name_en: "Singapore", country_zh: "新加坡", country_en: "Singapore", has_spots: true },
+  { id: "macau", parent: null, name_zh: "澳門", name_en: "Macau", country_zh: "澳門", country_en: "Macau", has_spots: true },
+];
+const parentOf = (id: string) => PLACES.find((p) => p.id === id)?.parent ?? null;
+/** The vessels a city can spawn: its own and its country's. */
+const poolFor = (city: string, list: SpawnRule[]) => list.filter((r) => (r.places ?? []).some((p) => p === city || p === parentOf(city)));
+const withRegions = (list: SpawnRule[]) => list.map((r) => ({ ...r, regions: REGIONS.filter((c) => (r.places ?? []).some((p) => p === c.id || p === parentOf(c.id))).map((c) => c.id) }));
+
+let config: WaveConfig = { wave_minutes: 10, spawn_chance: 0.55, weights: { common: 70, uncommon: 25, rare: 5 }, nearby_max: 6, next_length: null };
+const postState = new Map<string, MapWaypost[]>();
+const spotState = new Map<string, MapSpot[]>();
+function postsFor(region: Region): MapWaypost[] {
+  if (!postState.has(region.id)) {
+    const scenes: Scene[] = ["park", "garden", "waterfront", "square", "publicArt"];
+    postState.set(region.id, [
+      ...scatter(`${region.id}-posts`, region.wayposts.common, region.center, 1.8).map((p, i): MapWaypost => ({
+        id: `${region.id}-wp-${i}`, name_zh: `${region.name_zh}公園 ${i + 1}`, name_en: `${region.name_en} Park ${i + 1}`, ...p, kind: "common", game_enabled: true,
+        scene: scenes[i % scenes.length], hidden_at: null, source_ref: `osm:way/${100000 + i}`,
+      })),
+      ...(LANDMARKS[region.id] ?? []),
+    ]);
+  }
+  return postState.get(region.id)!;
+}
+function spotsFor(region: Region): MapSpot[] {
+  if (!spotState.has(region.id)) {
+    spotState.set(region.id, scatter(`${region.id}-spots`, region.corrupted_spots, region.center, 1.6).map((p, i) => ({ id: `${region.id}-spot-${i}`, ...p, habitat: null, hidden_at: null })));
+  }
+  return spotState.get(region.id)!;
+}
+const regionOfPost = (id: string) => REGIONS.find((r) => postsFor(r).some((w) => w.id === id));
+const regionOfSpot = (id: string) => REGIONS.find((r) => spotsFor(r).some((w) => w.id === id));
+
+/** Refuses the way the server does, with the same codes. */
+const fail = (code: string): never => { throw new Error(code); };
+function nearestPost(region: Region, at: { lat: number; lng: number }, skip?: string) {
+  let best: { w: MapWaypost; m: number } | null = null;
+  for (const w of postsFor(region)) {
+    if (!w.game_enabled || w.id === skip) continue;
+    const m = distance(at, w);
+    if (!best || m < best.m) best = { w, m };
+  }
+  return best;
+}
+function distance(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const r = 6371000, rad = Math.PI / 180;
+  const h = Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(((b.lng - a.lng) * rad) / 2) ** 2;
+  return 2 * r * Math.asin(Math.sqrt(h));
+}
+/** In the sample a City Hunt's area is 800 m around its Keeper and its spin quest needs 3 Wayposts. */
+function huntsAround(region: Region, at: { lat: number; lng: number }, skip?: string) {
+  return (KEEPERS[region.id] ?? []).filter((k) => distance(k, at) <= 800).map((k) => ({
+    id: k.hunt, name_zh: k.name_zh, name_en: k.name_en, wayposts_needed: 3,
+    wayposts_left: postsFor(region).filter((w) => w.game_enabled && w.kind === "common" && w.id !== skip && distance(k, w) <= 800).length,
+  }));
+}
+function checkSpot(region: Region, at: { lat: number; lng: number }, skip?: string): WaypostCheck {
+  const near = nearestPost(region, at, skip);
+  return {
+    inside_coverage: distance(region.center, at) <= 5000,
+    nearest: near ? { id: near.w.id, name_zh: near.w.name_zh, name_en: near.w.name_en, meters: Math.round(near.m) } : null,
+    live_hunts: huntsAround(region, at, skip),
+  };
+}
+function guardWaypost(region: Region, at: { lat: number; lng: number }, note: string | null, skip?: string) {
+  const c = checkSpot(region, at, skip);
+  if (!c.inside_coverage) fail("outside_coverage");
+  if (c.nearest && c.nearest.meters < 250 && !note?.trim()) fail("too_close");
+}
+const hasChinese = (x: string) => /[\u3400-\u9fff]/.test(x);
+/** Every place with spots keeps a vessel that can appear at any hour on any date, or its spots sit empty part of the day. */
+function guardPools(list: SpawnRule[]) {
+  for (const place of PLACES.filter((p) => p.has_spots && p.parent !== null || (p.has_spots && !PLACES.some((c) => c.parent === p.id)))) {
+    if (!poolFor(place.id, list).some((r) => !r.hours && !r.dates)) fail("place_needs_vessel");
+  }
+}
+function applyChange(list: SpawnRule[], cfg: WaveConfig, c: SpawnChange): { list: SpawnRule[]; cfg: WaveConfig } {
+  if (c.call === "wave") return { list, cfg: { ...cfg, spawn_chance: c.spawn_chance, weights: c.weights, nearby_max: c.nearby_max } };
+  const rule = list.find((r) => r.vessel === c.vessel);
+  if (!rule) fail("not_found");
+  if (rule!.never) fail("not_spawnable");
+  if (c.call === "place_add") return { cfg, list: list.map((r) => r.vessel === c.vessel ? { ...r, rarity: r.rarity ?? "common", places: [...new Set([...(r.places ?? []), c.region])] } : r) };
+  if (c.call === "place_remove") return { cfg, list: list.map((r) => r.vessel === c.vessel ? { ...r, places: (r.places ?? []).filter((p) => p !== c.region) } : r) };
+  if (c.call !== "rule") return { list, cfg };
+  if (c.hours && (c.hours.some((h) => !Number.isInteger(h) || h < 0 || h > 23))) fail("bad_rule");
+  if (c.dates && c.dates.some((d) => !/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(d))) fail("bad_rule");
+  return { cfg, list: list.map((r) => r.vessel === c.vessel ? { ...r, rarity: c.rarity, habitat: c.habitat, hours: c.hours, dates: c.dates } : r) };
+}
+/** Counts over the next day (every 6th wave), as the server's preview does. */
+function dayCounts(region: Region, list: SpawnRule[], cfg: WaveConfig) {
+  const counts: Record<string, number> = {};
+  const pool = poolFor(region.id, list);
+  for (const r of pool) counts[r.vessel] = 0;
+  const first = Math.floor(Date.now() / (cfg.wave_minutes * 60000)) + 1;
+  const waves = Math.round((24 * 60) / cfg.wave_minutes);
+  for (let w = 0; w < waves; w += 6) {
+    for (const s of spotsFor(region)) {
+      if (s.hidden_at) continue;
+      const picked = resolve(region.id, s.id, first + w, pool, cfg);
+      if (picked) counts[picked.vessel] = (counts[picked.vessel] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+/** The cities a change reaches. */
+function reached(c: SpawnChange, list: SpawnRule[]) {
+  if (c.call === "wave") return REGIONS;
+  if (c.call === "rule") return REGIONS.filter((r) => poolFor(r.id, list).some((x) => x.vessel === c.vessel)).slice(0, 2);
+  return REGIONS.filter((r) => r.id === c.region || parentOf(r.id) === c.region);
 }
 
 const hoursAgo = (h: number) => new Date(Date.now() - h * 3600000).toISOString();
@@ -110,18 +245,31 @@ let viewAs: AdminRole = "owner";
 const log = (row: Omit<ActivityRow, "id" | "actor" | "at">) => {
   activity = [{ ...row, id: (activity[0]?.id ?? 0) + 1, actor: ROY, at: new Date().toISOString() }, ...activity];
 };
+const canEdit = () => viewAs === "owner" || viewAs === "admin" ? true : fail("forbidden");
+const label = (w: MapWaypost) => w.name_zh;
+const snapshot = (w: MapWaypost) => ({ name_zh: w.name_zh, name_en: w.name_en, lat: w.lat, lng: w.lng, scene: w.scene ?? null, game_enabled: w.game_enabled, hidden_at: w.hidden_at ?? null });
+const ruleSnapshot = (r: SpawnRule) => ({ rarity: r.rarity, habitat: r.habitat, hours: r.hours, dates: r.dates, places: r.places ?? [] });
+const waveSnapshot = (c: WaveConfig) => ({ spawn_chance: c.spawn_chance, weights: c.weights, nearby_max: c.nearby_max });
 const pause = <T,>(value: T) => new Promise<T>((done) => setTimeout(() => done(value), 120));
 
 function rules(): SpawnRule[] {
   const live = Object.entries(SETS).flatMap(([region, set]) => set.map((vessel, i): SpawnRule => ({
-    vessel, rarity: RARITY[i], habitat: null, hours: null, dates: null, regions: [region], never: null,
+    vessel, rarity: RARITY[i], habitat: null, hours: null, dates: null, regions: [region], places: [region === "taipei" ? "taiwan" : region], never: null,
   })));
   const listed = new Set(live.map((r) => r.vessel));
   const rest = Object.keys(VESSELS).filter((v) => !listed.has(v)).map((vessel): SpawnRule => ({
-    vessel, rarity: null, habitat: null, hours: null, dates: null, regions: [],
+    vessel, rarity: null, habitat: null, hours: null, dates: null, regions: [], places: [],
     never: STARTER_VESSELS.includes(vessel) ? "starter" : EARNED.includes(vessel) ? "earned" : vessel === "maison" ? "brand" : null,
   }));
   return [...live, ...rest];
+}
+let ruleState: SpawnRule[] = rules();
+
+/** A region with what is live in the sample right now: its vessel pool, counts and wave. */
+function regionNow(r: Region): Region {
+  const posts = postsFor(r).filter((w) => w.game_enabled);
+  return { ...r, vessels: poolFor(r.id, ruleState).map((x) => x.vessel), wayposts: { common: posts.filter((w) => w.kind === "common").length, landmark: posts.filter((w) => w.kind === "landmark").length },
+    corrupted_spots: spotsFor(r).filter((x) => !x.hidden_at).length, out_now: wave(r).filter((w) => !w.caught).length };
 }
 
 export const sample = {
@@ -129,21 +277,20 @@ export const sample = {
   /** Development only: look at the screens as another role. */
   viewAs: (role: AdminRole) => { viewAs = role; },
   role: () => viewAs,
-  cities: () => pause(REGIONS.map((r) => ({ ...r, out_now: wave(r).filter((w) => !w.caught).length }))),
+  cities: () => pause(REGIONS.map(regionNow)),
   cityMap: (id: string): Promise<CityMap> => {
     const region = REGIONS.find((r) => r.id === id) ?? REGIONS[0];
-    const posts = scatter(`${region.id}-posts`, region.wayposts.common, region.center, 1.8).map((s, i): MapWaypost => ({
-      id: `${region.id}-wp-${i}`, name_zh: `${region.name_zh} Waypost ${i + 1}`, name_en: `${region.name_en} Waypost ${i + 1}`, ...s, kind: "common", game_enabled: true,
-    }));
-    const spots = scatter(`${region.id}-spots`, region.corrupted_spots, region.center, 1.6).map((s, i) => ({ id: `${region.id}-spot-${i}`, ...s, habitat: null }));
+    const posts = postsFor(region);
+    const spots = spotsFor(region);
     const quests = region.id === "macau"
       ? scatter("ybawml", 6, { lat: 22.1545, lng: 113.556 }, 0.25).map((s, i) => ({ id: `q${i}`, hunt: "YBAWML", hunt_name: "氹仔中央公園定向日", ...s }))
       : [];
-    return pause({ region: { ...region, out_now: wave(region).filter((w) => !w.caught).length }, wayposts: [...posts, ...(LANDMARKS[region.id] ?? [])], spots, wave: wave(region), keepers: KEEPERS[region.id] ?? [], private_quests: quests });
+    return pause({ region: regionNow(region), wayposts: posts.map((w) => ({ ...w })), spots: spots.map((x) => ({ ...x })), wave: wave(region), keepers: KEEPERS[region.id] ?? [], private_quests: quests });
   },
   spawning: (): Promise<Spawning> => pause({
-    config: { wave_minutes: SAMPLE_WAVE_MINUTES, spawn_chance: 0.55, weights: { common: 70, uncommon: 25, rare: 5 }, nearby_max: 6 },
-    rules: rules(),
+    config: { ...config },
+    rules: withRegions(ruleState),
+    places: PLACES,
     stats: Object.fromEntries(REGIONS.map((r, i) => [r.id, { out_now: wave(r).filter((w) => !w.caught).length, caught_today: 12 + i * 7, caught_week: 80 + i * 31 }])),
   }),
   queue: (status: "open" | "done") => pause(queue.filter((q) => q.status === status).map((q) =>
@@ -183,4 +330,119 @@ export const sample = {
     await pause(null);
   },
   activity: (before?: number) => pause(activity.filter((a) => before == null || a.id < before)),
+  // Phase 2 edits.
+  checkWaypost: (regionId: string, lat: number, lng: number, id?: string) => {
+    const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
+    return pause(checkSpot(region, { lat, lng }, id));
+  },
+  addWaypost: async (regionId: string, w: { lat: number; lng: number; name_zh: string; name_en: string; scene: Scene }, checked: boolean, note: string | null) => {
+    canEdit();
+    const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
+    if (!checked) fail("not_checked");
+    if (!w.name_zh.trim() || !w.name_en.trim() || !hasChinese(w.name_zh)) fail("bad_name");
+    guardWaypost(region, w, note);
+    const id = `admin-${Date.now().toString(36)}`;
+    const post: MapWaypost = { id, ...w, name_zh: w.name_zh.trim(), name_en: w.name_en.trim(), kind: "common", game_enabled: true, hidden_at: null, source_ref: `admin:${id}` };
+    postState.set(region.id, [...postsFor(region), post]);
+    log({ action: "waypost.add", target_type: "waypost", target_id: id, target_label: label(post), before: null, after: snapshot(post), note });
+    return pause({ ...post });
+  },
+  updateWaypost: async (id: string, w: Partial<{ lat: number; lng: number; name_zh: string; name_en: string; scene: Scene }>, note: string | null) => {
+    canEdit();
+    const region = regionOfPost(id) ?? fail("not_found");
+    const old = postsFor(region).find((x) => x.id === id)!;
+    if (old.kind === "landmark") fail("landmark");
+    const next = { ...old, ...Object.fromEntries(Object.entries(w).filter(([, v]) => v != null)) } as MapWaypost;
+    if (!next.name_zh.trim() || !next.name_en.trim() || !hasChinese(next.name_zh)) fail("bad_name");
+    const moved = next.lat !== old.lat || next.lng !== old.lng;
+    if (moved) guardWaypost(region, next, note, id);
+    postState.set(region.id, postsFor(region).map((x) => x.id === id ? next : x));
+    log({ action: moved ? "waypost.move" : "waypost.edit", target_type: "waypost", target_id: id, target_label: label(next), before: snapshot(old), after: snapshot(next), note });
+    return pause({ ...next });
+  },
+  setWaypostVisible: async (id: string, visible: boolean, note: string | null) => {
+    canEdit();
+    const region = regionOfPost(id) ?? fail("not_found");
+    const old = postsFor(region).find((x) => x.id === id)!;
+    if (old.kind === "landmark") fail("landmark");
+    if (!visible && huntsAround(region, old, id).some((h) => h.wayposts_left < h.wayposts_needed)) fail("hunt_needs_wayposts");
+    const next = { ...old, game_enabled: visible, hidden_at: visible ? null : new Date().toISOString() };
+    postState.set(region.id, postsFor(region).map((x) => x.id === id ? next : x));
+    log({ action: visible ? "waypost.show" : "waypost.hide", target_type: "waypost", target_id: id, target_label: label(next), before: snapshot(old), after: snapshot(next), note });
+    return pause({ ...next });
+  },
+  setSpotVisible: async (id: string, visible: boolean, note: string | null) => {
+    canEdit();
+    const region = regionOfSpot(id) ?? fail("not_found");
+    const old = spotsFor(region).find((x) => x.id === id)!;
+    const next = { ...old, hidden_at: visible ? null : new Date().toISOString() };
+    spotState.set(region.id, spotsFor(region).map((x) => x.id === id ? next : x));
+    log({ action: visible ? "spot.show" : "spot.hide", target_type: "spot", target_id: id, target_label: `${region.name_zh} · ${old.lat.toFixed(4)}, ${old.lng.toFixed(4)}`,
+      before: { hidden_at: old.hidden_at ?? null }, after: { hidden_at: next.hidden_at }, note });
+    return pause({ ...next });
+  },
+  preview: (c: SpawnChange): Promise<SpawnPreview> => {
+    const after = applyChange(ruleState, config, c);
+    const regions = reached(c, c.call === "place_add" ? after.list : ruleState);
+    return pause({ regions: regions.map((r) => ({ region: r.id, before: dayCounts(r, ruleState, config), after: dayCounts(r, after.list, after.cfg) })) });
+  },
+  change: async (c: SpawnChange, note: string | null) => {
+    canEdit();
+    const next = applyChange(ruleState, config, c);
+    if (c.call === "wave") {
+      const total = c.weights.common + c.weights.uncommon + c.weights.rare;
+      if (total <= 0 || c.spawn_chance < 0.1 || c.spawn_chance > 1 || c.nearby_max < 1 || c.nearby_max > 12) fail("bad_rule");
+    }
+    guardPools(next.list);
+    if (c.call === "wave") {
+      log({ action: "config.wave", target_type: "config", target_id: "wave", target_label: "wave", before: waveSnapshot(config), after: waveSnapshot(next.cfg), note });
+    } else {
+      const old = ruleState.find((r) => r.vessel === c.vessel)!;
+      const now = next.list.find((r) => r.vessel === c.vessel)!;
+      const name = (VESSELS as any)[c.vessel]?.name.zh ?? c.vessel;
+      const where = c.call === "rule" ? null : PLACES.find((p) => p.id === c.region)?.name_zh ?? c.region;
+      log({ action: c.call === "rule" ? "spawn.rule" : `spawn.${c.call}`, target_type: "vessel", target_id: c.vessel,
+        target_label: where ? `${name} · ${where}` : name, before: ruleSnapshot(old), after: ruleSnapshot(now), note });
+    }
+    ruleState = next.list; config = next.cfg;
+    await pause(null);
+  },
+  setWaveLength: async (minutes: number, note: string | null) => {
+    canEdit();
+    if (![5, 10, 15, 20, 30, 60].includes(minutes)) fail("bad_rule");
+    const gcd = (x: number, y: number): number => y ? gcd(y, x % y) : x;
+    const step = (config.wave_minutes * minutes / gcd(config.wave_minutes, minutes)) * 60000;
+    const starts_at = new Date(Math.floor(Date.now() / step) * step + step).toISOString();
+    const before = config.next_length ?? null;
+    config = { ...config, next_length: minutes === config.wave_minutes ? null : { minutes, starts_at } };
+    log({ action: "config.wave_length", target_type: "config", target_id: "wave_length", target_label: "wave length",
+      before: { wave_minutes: config.wave_minutes, next: before }, after: { wave_minutes: config.wave_minutes, next: config.next_length }, note });
+    return pause(starts_at);
+  },
+  undo: async (actionId: number, note: string | null) => {
+    canEdit();
+    const row = activity.find((r) => r.id === actionId) ?? fail("not_found");
+    if (!/^(waypost|spot|spawn|config)\./.test(row.action)) fail("not_undoable");
+    if (activity.some((r) => r.id > actionId && r.target_id === row.target_id && r.target_type === row.target_type)) fail("stale");
+    const before = row.before as any;
+    if (row.target_type === "waypost") {
+      const region = regionOfPost(row.target_id) ?? fail("not_found");
+      postState.set(region.id, before == null
+        ? postsFor(region).filter((w) => w.id !== row.target_id)
+        : postsFor(region).map((w) => w.id === row.target_id ? { ...w, ...before } : w));
+    } else if (row.target_type === "spot") {
+      const region = regionOfSpot(row.target_id) ?? fail("not_found");
+      spotState.set(region.id, spotsFor(region).map((x) => x.id === row.target_id ? { ...x, hidden_at: before.hidden_at } : x));
+    } else if (row.target_type === "vessel") {
+      const list = ruleState.map((r) => r.vessel === row.target_id ? { ...r, ...before } : r);
+      guardPools(list);
+      ruleState = list;
+    } else if (row.target_id === "wave") {
+      config = { ...config, ...before };
+    } else {
+      config = { ...config, next_length: before.next };
+    }
+    log({ action: "undo", target_type: row.target_type, target_id: row.target_id, target_label: row.target_label, before: row.after, after: row.before, note: note ?? `#${row.id}` });
+    await pause(null);
+  },
 };

@@ -1,9 +1,10 @@
 // The action log (docs/design/admin.md): every admin change, who made it and when, with before and after.
+// Owners and admins can undo the newest change to a Waypost, spawn spot, vessel or wave setting.
 import React, { useMemo, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { Avatar } from "../../components/Avatar";
 import { useLanguage } from "../../i18n";
-import { admin, type ActivityRow } from "../../services/admin";
+import { ADMIN_EDIT, admin, adminEdit, can, undoable, type ActivityRow } from "../../services/admin";
 import { C, radii, sans, spacing } from "../../theme";
 import { useAdmin } from "./AdminShell";
 import { useAdminText } from "./strings";
@@ -11,7 +12,8 @@ import { Card, Empty, Failed, Loading, Page, timeAgo, useLoad } from "./ui";
 
 export default function ActivityScreen() {
   const a = useAdminText();
-  const { role } = useAdmin();
+  const { role, refresh } = useAdmin();
+  const mayUndo = ADMIN_EDIT && can(role, "edit");
   const list = useLoad(() => admin.activity(), [role]);
   const [who, setWho] = useState<string | null>(null);
   const people = useMemo(() => [...new Map((list.data ?? []).map((r) => [r.actor.id, r.actor])).values()], [list.data]);
@@ -24,7 +26,7 @@ export default function ActivityScreen() {
     {list.error ? <Failed onRetry={list.reload} />
       : !list.data ? <Loading />
       : !rows.length ? <Empty text={a.noActivity} />
-      : <Card style={{ padding: 0, gap: 0 }}>{rows.map((r, i) => <Row key={r.id} row={r} first={i === 0} />)}</Card>}
+      : <Card style={{ padding: 0, gap: 0 }}>{rows.map((r, i) => <Row key={r.id} row={r} first={i === 0} onUndone={mayUndo && undoable(r.action) ? () => { list.reload(); refresh(); } : undefined} />)}</Card>}
   </Page>;
 }
 
@@ -36,10 +38,17 @@ function Filter({ label, avatar, on, onPress }: { label: string; avatar?: Record
   </Pressable>;
 }
 
-function Row({ row, first }: { row: ActivityRow; first: boolean }) {
+function Row({ row, first, onUndone }: { row: ActivityRow; first: boolean; onUndone?: () => void }) {
   const a = useAdminText();
   const { language } = useLanguage();
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const undo = async () => {
+    if (Platform.OS === "web" && !window.confirm(a.undoConfirm)) return;
+    setBusy(true); setError(null);
+    try { await adminEdit.undo(row.id, null); onUndone?.(); } catch (e) { setError(a.error[(e as Error)?.message] ?? a.error.failed); } finally { setBusy(false); }
+  };
   const say = a.action[row.action];
   const sentence = say ? say(row.actor.name, row.target_label) : a.actionFallback(row.actor.name, row.action, row.target_label);
   const roleWord = (v: unknown) => v && typeof v === "object" && "role" in (v as any) ? a.role[(v as any).role as keyof typeof a.role] : null;
@@ -55,7 +64,11 @@ function Row({ row, first }: { row: ActivityRow; first: boolean }) {
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((x) => !x)}>
             <Text style={{ fontFamily: sans, fontSize: 12, color: C.blue }}>{a.details} {open ? "▴" : "▾"}</Text>
           </Pressable>
+          {onUndone && <Pressable accessibilityRole="button" disabled={busy} onPress={undo}>
+            <Text style={{ fontFamily: sans, fontSize: 12, color: C.wax, opacity: busy ? 0.5 : 1 }}>{a.undo}</Text>
+          </Pressable>}
         </View>
+        {error && <Text accessibilityRole="alert" style={{ fontFamily: sans, fontSize: 12, color: C.wax }}>{error}</Text>}
       </View>
     </View>
     {open && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginLeft: 52 }}>
