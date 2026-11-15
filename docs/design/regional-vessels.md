@@ -162,7 +162,7 @@ Each batch is its own Codex session, branch and PR, so all of them can run at on
 | **RV-SG2** | `codex/vessels-regional-sg2` | `kopi-bag`, `beaded-slipper`, `bumboat` | |
 | **RV-MO2** | `codex/vessels-regional-mo2` | `almond-cookie`, `sardine-can`, `street-lamp` | |
 | **RV-L-art** | `codex/vessels-regional-landmarks` | `north-gate` (test), `durian`, `lighthouse` + stamps `beimen`, `esplanade`, `guia` | Art only; Landmark rows, Wayposts and monuments (RV-L) wait for Roy's Landmark picks |
-| **RV-W** | per merged batch | Catalogue rows, spawn-rule tags, i18n, `VesselKind`, `vesselParts`, crack overlays | Held until that batch's art is merged |
+| **RV-W** | `codex/regional-wiring` | Catalogue rows, spawn-rule tags, i18n, `VesselKind`, `vesselParts`, crack overlays | **Done for wave 1** (PR #141, `d52ab46`); wave 2 repeats it after its art merges |
 | **RV-L** | later | `places` + Landmark Waypost per picked Landmark; monuments for TST, Merlion and new ones | Each monument needs Roy's screenshot OK |
 
 **Parallel rules.** Each batch touches only its own vessel files plus the shared `manifest.json`, art README table, contact sheet, `docs/TASKS.md` and the Decisions log. PRs merge one at a time, in whatever order Roy approves them. Before merging, a later branch refreshes from main and re-adds its own entries to the shared files and regenerates the contact sheet, keeping every approved art file byte-identical. Every opening type used (A, B, C, D, F, H, J, K) already exists in the app, so no batch needs new motion code.
@@ -183,7 +183,7 @@ Coordination: the Waypost coverage plan is a separate session. Landmark Waypost 
 1. ~~**What a vessel is, parallel batches**~~: decided 2026-11-15 (the place's signature thing, not its packaging; existing vessels unchanged). Swap any vessel you don't like before Codex starts that batch.
 2. **Landmarks**: which to add: Taipei North Gate, Esplanade, Guia Lighthouse (recommended); Ximen Red House (needs a tile extension); Ruins of St Paul's (religious heritage, with the care rule above); Supertree Grove (owned attraction). Also: add the missing Landmark Waypost for the TST Clock Tower and monuments for TST and the Merlion?
 3. ~~**Tram colour**~~: muted tram green approved 2026-11-15.
-4. **Pools**: when a batch is wired, should new vessels start switched off (empty `regions`, Roy turns them on in the admin page) or with the proposed pools above?
+4. ~~**Pools**~~: wave 1 went live 2026-11-15 with the proposed pools switched on (there is no admin page yet). RV-W PR #141 (`d52ab46`), migration `20261115103807_wave_1_regional_vessels`; an empty tier falls back to the nearest tier. North Gate, Durian and Lighthouse are registered in the app and wait for RV-L.
 
 ## Appendix: Codex prompts
 The nine art prompts were handed to Roy in chat on 2026-11-15; each names its batch, branch and vessels and points to this doc. RV-W stays as outlined below.
