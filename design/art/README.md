@@ -462,6 +462,15 @@ Option variation: Calm bright overcast light, airy broad slightly irregular tree
 | `vessels/vessel-red-bird-box.png` | Red Bird Sundial Box — box | 1024×1024 | pending Roy; see manifest |
 | `vessels/vessel-red-bird-lid.png` | Red Bird Sundial Box — lid | 1024×1024 | pending Roy; see manifest |
 | `vessels/vessel-red-bird-shadow.png` | Red Bird Sundial Box — shadow | 1024×1024 | pending Roy; see manifest |
+| `vessels/vessel-bolo-bun.png` | 菠蘿油 / Pineapple bun with butter — closed pastry | 1024×1024 | RV-HK uncommon. Inspected Peachyeung316’s [Pineapple bun from Heung Heung Bakery HK.jpg](https://commons.wikimedia.org/wiki/File:Pineapple_bun_from_Heung_Heung_Bakery_HK.jpg) for the crackled dome, cut and butter slab. [Motion](_checks/bolo-bun-motion.png) · [40/120 px](_checks/bolo-bun-silhouette.png) |
+| `vessels/vessel-bolo-bun-bottom.png` | Pineapple bun with butter — lower bread, complete cut crumb and butter | 1024×1024 | Fills the revealed interior beneath the letter. |
+| `vessels/vessel-bolo-bun-top.png` | Pineapple bun with butter — cracked upper half | 1024×1024 | Rotates back around the measured rear hinge. |
+| `vessels/vessel-bolo-bun-letter.png` | Pineapple bun with butter — folded cream letter | 1024×1024 | Revealed beside the butter. |
+| `vessels/vessel-bolo-bun-steam.png` | Pineapple bun with butter — idle steam wisps | 1024×1024 | Separate translucent particles drift upward over a 4.2-second loop. |
+| `vessels/vessel-tram.png` | 叮叮電車 / Ding-ding tram — closed Hong Kong double-decker | 1024×1024 | RV-HK rare. Geometry reference: Roy’s chat photo attachment `tram hk.jpeg`, showing the narrow front and long side, warm timber sashes, destination box and advertising-panel placement, angled trolley pole and bottom fender tray. Roy’s palette exception applies to this vessel only: muted dark tram green covers the entire painted body and flat roof. Warm brown wood is used for the actual window frames. The cream panels and destination box are unmarked. [Motion](_checks/tram-motion.png) · [40/120 px](_checks/tram-silhouette.png) |
+| `vessels/vessel-tram-body.png` | Ding-ding tram — dark open timber windows, fender tray and upper-deck letter compartment | 1024×1024 | One brass headlight and a dark lower band. The cream-lined compartment holds a folded letter. |
+| `vessels/vessel-tram-roof.png` | Ding-ding tram — flat green roof, blank cream destination box and trolley pole | 1024×1024 | Lifts straight up and fades to reveal the letter. |
+| `vessels/vessel-tram-bell.png` | Ding-ding tram — brass bell | 1024×1024 | Ticks 8° around its mount while the whole tram bobs 2.8% on a 4.2-second loop. |
 | `vessels/vessel-north-gate.png` | Miniature North Gate / 北門城樓, closed | 1024×1024 | Roy approved test · idle roof peek added |
 | `vessels/vessel-north-gate-base.png` | Miniature North Gate, stationary stone and wax-red gate | 1024×1024 | see manifest |
 | `vessels/vessel-north-gate-interior.png` | Miniature North Gate, roof recess and lit parchment reveal | 1024×1024 | see manifest |
