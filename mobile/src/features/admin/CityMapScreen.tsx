@@ -92,7 +92,7 @@ function CityMapView({ map }: { map: CityMap }) {
     </View>
     <View style={{ flexDirection: "row", gap: spacing.sm }}>
       <Stat label={a.wayposts} value={map.region.wayposts.common} tone={C.blue} />
-      <Stat label={a.landmarks} value={map.region.wayposts.landmark} tone="#8A6A2E" />
+      <Stat label={a.landmarks} value={map.region.wayposts.landmark} tone={C.ink} />
       <Stat label={a.outNow} value={out.length} tone={C.plum} />
     </View>
     <View style={{ gap: spacing.sm }}>
@@ -152,7 +152,7 @@ function Detail({ map, id, now }: { map: CityMap; id: string; now: number }) {
   if (kind === "w") {
     const w = map.wayposts.find((x) => x.id === key); if (!w) return null;
     return <Card style={{ gap: 6 }}>
-      <Pill tone={w.kind === "landmark" ? "brass" : "blue"} label={w.kind === "landmark" ? a.landmark : a.commonWaypost} />
+      <Pill tone={w.kind === "landmark" ? "ink" : "blue"} label={w.kind === "landmark" ? a.landmark : a.commonWaypost} />
       <Text style={{ fontFamily: serif, fontSize: 18, color: C.ink }}>{zh ? w.name_zh : w.name_en}</Text>
       <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{zh ? w.name_en : w.name_zh} · {coords(w.lat, w.lng)}</Text>
     </Card>;

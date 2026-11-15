@@ -76,7 +76,7 @@ Run the web app (`cd mobile && npm run web` → http://localhost:8088, with `EXP
 - [ ] At the default Journey zoom and tilt, someone who knows the place would name it from the screenshot.
 - [ ] The seal sits on top while you drag, rotate and tilt the map.
 - [ ] Tapping any part opens that Landmark's card; tapping beside it doesn't.
-- [ ] No grey building pokes through the brass.
+- [ ] No grey building pokes through the monument.
 - [ ] The pickup circle and nearby capsules can still be seen and tapped.
 - [ ] No console errors; dragging the map stays smooth.
 - [ ] TypeScript and `npm test` pass.

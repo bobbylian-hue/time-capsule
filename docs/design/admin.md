@@ -1,6 +1,6 @@
 # Admin (管理後台)
 
-Status: Roy approved the plan on 2026-11-15. PR #133 supplies the screens. The stacked A1 branch enables the RPCs with migration `20261115111007_admin_phase_one`, applied in production.
+Status: Roy approved the plan on 2026-11-15. Phase 1 is live (PR #135, migration `20261115111007_admin_phase_one`, release `020ed02`). Phase 2 below is planned and waits for Roy's OK.
 
 Screens: `mobile/app/admin/` routes, `mobile/src/features/admin/` (shell, Overview, Corrupted Capsules, City map, Review, Members, Activity), `mobile/src/services/admin.ts` (types and RPC calls the screens expect). Run `cd mobile && npm run web` and open http://localhost:8088/admin. For local design work, set `ADMIN_BACKEND` to `false`. The sample opens without signing in and has a **View as** switch for each role.
 
@@ -11,7 +11,7 @@ Roy can't see which cities are open, which Corrupted Capsules are out, or what i
 ## Decisions in this plan
 
 - **Where it lives:** a hidden `/admin` route inside the existing Expo web app (`mobile/app/admin/`), web only. It shares sign-in, the Supabase client, translations and the theme, and needs no second Vercel project. Native builds show nothing at `/admin`.
-- **Look:** the Time Capsule look, not a generic dashboard. Cool paper background, Noto Serif TC headings and numbers, Noto Sans TC body, ink blue for controls, brass only for precious things (Landmarks, vessels), wax red for remove/destructive actions, the same cards, pills and portraits as the app. Both languages, switchable.
+- **Look:** the Time Capsule look, not a generic dashboard. Cool paper background, Noto Serif TC headings and numbers, Noto Sans TC body, ink blue for controls, brass only for private hunts and precious things such as vessels; Landmarks are blue like the map, wax red for remove/destructive actions, the same cards, pills and portraits as the app. Both languages, switchable.
 - **Responsive:** phone first like the app (375 px works for checking a report on the go). From 900 px a left sidebar replaces the bottom tabs, and lists become tables with a detail panel beside them. The map fills the free space.
 - **Security is on the server.** Hiding the link doesn't protect anything. Every admin RPC checks the caller's role, and each successful write appends one action log entry. The client only reads `admin_me()` to decide what to show.
 - **Three shared parts** that every later feature plugs into: members and roles, the action log, and one review queue.
@@ -34,7 +34,7 @@ A member is added by the email of an existing app account. Each role is a fixed 
 
 1. **Gate.** `/admin` checks `admin_me()`. Not a member: a plain "No access" page with a link home. Signed out: the normal sign-in, then back to `/admin`.
 2. **Overview (首頁).** One card per city: Wayposts (common / Landmark), Corrupted Capsule spots, the three vessels that can appear (vessel art), Corrupted Capsules out right now, City Hunts live, private hunts published, map coverage (yes/no and size). A row of review queue counts at the top. Tapping a city opens its map.
-3. **City map (城市地圖).** MapLibre with our map style. Layers you can switch: Wayposts (blue gem, Landmark brass), Corrupted Capsule spots, the current wave (vessel picture with minutes left; caught ones faded), City Hunt Keeper and Landmark, private hunt quests (brass teardrop). Tap a pin for a detail card. View only in phase 1.
+3. **City map (城市地圖).** MapLibre with our map style. Layers you can switch: Wayposts (blue gem; Landmarks in our blues), Corrupted Capsule spots, the current wave (vessel picture with minutes left; caught ones faded), City Hunt Keeper and Landmark, private hunt quests (brass teardrop). Tap a pin for a detail card. View only in phase 1.
 4. **Corrupted Capsules (破損膠囊).** Which vessels can appear where. Two views of the same rules:
    - **By place:** each country, then its cities (Taiwan → Taipei, Hong Kong, Singapore, Macau today). Each shows its spawnable vessels as art with rarity (common / uncommon / rare), any habitat (park, water, square), hour window and date window, plus how many are out right now and caught today and this week.
    - **By vessel:** every vessel in the catalogue, in Album order, with where it can appear. Vessels that can't appear anywhere sit in their own group, and earned (Landmark) and starter vessels are marked as never spawning.
@@ -46,11 +46,45 @@ A member is added by the email of an existing app account. Each role is a fixed 
 
 ### Phase 2: Waypost editing
 
-On the city map: tap the map to add a Waypost (both names, kind), drag to move, edit names, hide or show. Remove = hide (`game_enabled = false`), so spin history stays and it can be undone from Activity. The server warns when a Waypost is closer than 250 m to another one or outside the city's map coverage; an admin can override with a note. The OSM safety filter (schools, temples, hospitals, private land, roads) still runs only in the seed script, so new Wayposts by hand carry the note "checked by hand".
+Owner and admin only; moderators and viewers keep the read-only map. Everything happens on the city map, on phones and desktops alike.
+
+- **Edit mode.** An **Edit Wayposts** button on the map's toolbar. In edit mode the Wayposts layer is always on, and hidden Wayposts show faded with a crossed-out eye so they can be brought back. A thin ink-blue bar at the top says you're editing; **Done** leaves.
+- **Add.** Tap **＋ Waypost**, then tap the map. A draft gem drops there and the detail card (side panel on desktop, bottom sheet on phones) asks for:
+  - Chinese name and English name, both required. The Chinese name follows the coverage rule: Chinese only, Traditional.
+  - Scene, picked from the five scene pictures (park, garden, waterfront, square, public art). This is the picture players see when they spin.
+  - A required tick: "I checked this is a public outdoor walkway, not a school, place of worship, hospital, private land or road." The OSM safety filter only runs in the seed script, so this tick is the hand check, and the server stores it with the Waypost (`source_ref = admin:<id>`).
+  - Kind is always common. A Landmark Waypost has a monument, a fight and rewards, so it still comes through the Landmark SOP.
+- **Move.** Select a Waypost, tap **Move**, tap the new place, **Save**. Tapping is easier than dragging on a phone and never moves a pin by accident.
+- **Edit.** Names and scene, from the same card.
+- **Hide and show.** **Hide** (wax red) sets `game_enabled = false`. Nothing is ever deleted, so spin history stays. **Show** brings it back. A hidden Waypost that is also a public capsule drop place stays a drop place.
+- **Checks, shown in the card before saving:**
+  - Closer than 250 m to another Waypost: a warning naming it and the distance. Saving anyway needs a note.
+  - Outside the city's map coverage: refused. Beyond the tiles there's no 3D map, so a new area goes through the City Hunt SOP like a new city.
+  - Hiding a Waypost inside a live City Hunt area: refused if the hunt would have fewer Wayposts than its spin quest needs; otherwise a warning naming the hunt.
+- **Landmarks** show a blue "Landmark" pill and are view only. A Landmark has a monument, a fight, an earned vessel and a Passport stamp, so agents create and change it through the Landmark SOP.
+- **When players see it.** At once: Journey reloads nearby Wayposts every 30 seconds.
+- Hand-added Wayposts are public capsule drop places like every other safe point (see the drop rule below).
+- **Corrupted Capsule spots** show on the map in edit mode with **Hide** and **Show**, for a park closed for construction. New spots still come from the seed script, because it does the safety check.
 
 ### Phase 2: Corrupted Capsule spawning
 
-On the Corrupted Capsules page an admin can add a vessel to a place or take it away, set its rarity, habitat and hour/date windows, and change the shared wave settings. Each change shows a preview first (what this place's wave would look like) and lands in Activity, so it can be undone. Changes apply from the next wave; capsules already out keep going until their wave ends. Earned and starter vessels can't be added.
+Owner and admin only, on the Corrupted Capsules page. Both views get an **Edit** button.
+
+- **By place.** Each place card (Taiwan, then its cities, then Hong Kong, Singapore, Macau) lists its vessels with a remove ×, and **Add vessel** opens a picker of the catalogue in Album order with the art. A vessel added to Taiwan appears in every Taiwan city. Earned (Landmark), starter and brand vessels aren't in the picker.
+- **By vessel.** Each vessel's rules: rarity (common, uncommon, rare), habitat (any, park, water, square), hours (any, or from–to local time) and dates (any, or from–to day of year, for festival vessels). **A vessel's rules apply everywhere it appears**, which is how spawning works today; the card says so. A vessel added to a place for the first time starts as common, any habitat, any time.
+- **Wave settings** at the top: chance a spot shows a capsule (10–100%), the three rarity weights, and how many appear near a player (1–12).
+- **Wave length:** pick 5, 10, 15, 20, 30 or 60 minutes. Uncaught capsules already disappear at the end of each wave, so a change waits for a moment that ends a wave under both lengths and starts there: the next 10-minute mark for 5 minutes, otherwise the next full hour. The card says when ("starts at 15:00"). How long a capsule stays visible follows the wave length. Catches stay safe: each capsule is named by its spot and wave number, and a new length uses numbers never used before.
+- **Preview before saving.** Every change opens a preview of the place it touches: out of the next day's capsules there, how many of each vessel would appear, now versus after the change. It's computed on the server with the real spawn rules, so it matches what players will get.
+- **Guard.** A place with Corrupted Capsule spots must keep at least one vessel that can appear at any hour and on any date, or its spots would sit empty part of the day. The server refuses the change and says why.
+- **When it applies.** From the next wave. Capsules already out stay until their wave ends.
+
+### Phase 2: Undo
+
+Each Waypost and spawning row in Activity gets **Undo**, which puts back the "before" state and is logged too. Undo only works on the newest change to that Waypost, vessel or setting. If something changed since, it says so and you edit it by hand instead.
+
+### Public capsule drop rule (Roy, 2026-11-15)
+
+Separate from admin, and goes first. A dropped public capsule lands on the nearest safe public point **within 100 m** of the sender: a Waypost, a Corrupted Capsule spot or a drop place, all of which passed the seed script's safety check (public paths in parks and squares, away from schools, places of worship, hospitals, roads and private land). That's a 1–2 minute walk, it never shows the sender's exact spot, and the finder is never sent somewhere private. With no safe point within 100 m, the app says to walk to a nearby park or square. This replaces the nearest of a few hand-picked drop places within 3 km.
 
 **Levels:** country → city now. A smaller **area** level (one park, one campus such as HKUST) comes later only if we need it: an area is a drawn shape inside a city whose rules replace the city's rules there. A new country or city still starts through the City Hunt SOP, because it needs Wayposts, capsule spots and map tiles first.
 
@@ -107,10 +141,40 @@ spawn selection rules still use their own existing game RPCs.
 The map can render bundled quest pictures. Organizer uploads retain the
 existing private Storage rules.
 
+## Backend contract for phase 2 (Codex)
+
+Names may change if Codex has a better fit; report the final ones. Every write RPC requires `admin_can('edit')`, locks the row it changes, appends one `admin_actions` row with before and after in the same transaction, and returns the saved row. Grants as in phase 1.
+
+**Wayposts** (`public.public_capsule_spots`, `game_enabled` rows and hidden ones):
+
+- `admin_waypost_check(p_region, p_lat, p_lng, p_id default null)`: read only, for the card before saving. Returns `{ inside_coverage, nearest: { id, name_zh, name_en, meters } | null, live_hunts: [{ id, name_zh, name_en, wayposts_left, wayposts_needed }] }`. `p_id` excludes the Waypost being moved.
+- `admin_waypost_add(p_region, p_lat, p_lng, p_name_zh, p_name_en, p_scene, p_checked boolean, p_note)`: `kind = 'common'`, `game_enabled = true`, `public_drop = true`, `city_zh/en` from the region, `source_ref = 'admin:' || id`. Errors: `forbidden`, `not_checked` (tick missing), `outside_coverage`, `too_close` (under 250 m with no note), `bad_scene`, `bad_name` (empty, or `name_zh` with no Chinese characters).
+- `admin_waypost_update(p_id, p_lat, p_lng, p_name_zh, p_name_en, p_scene, p_note)`: null leaves a field as it is. Same checks for a move. Refuses `kind = 'landmark'` with `landmark`.
+- `admin_waypost_set_visible(p_id, p_visible, p_note)`: sets `game_enabled`, and sets `hidden_at` when hiding or clears it when showing. Hiding refuses `hunt_needs_wayposts` when a live City Hunt's area would drop below what its spin quest needs, and refuses Landmarks.
+- Add `hidden_at timestamptz` to `public_capsule_spots`. Rows that are only public capsule drop places also have `game_enabled = false` and `kind = 'common'`, so this column is how a hidden Waypost is told apart from them. `admin_city_map` also returns rows with `hidden_at` set, so edit mode can show them; it still leaves drop-only rows out.
+- Coverage check: inside the region's `game_map_coverage` bounds.
+
+- `admin_spot_set_visible(p_id, p_visible, p_note)` for `public.corrupted_spots`, with a `hidden_at` column the spawn code skips. `admin_city_map` returns hidden spots too.
+
+**Spawning:**
+
+- `admin_spawn_place_add(p_region, p_vessel, p_note)` and `admin_spawn_place_remove(p_region, p_vessel, p_note)` on `private.vessel_spawn_places`. Adding a vessel with no `vessel_spawn_rules` row creates one (common, no habitat, no windows). Refuse starter, earned and brand vessels with `not_spawnable`.
+- `admin_spawn_rule_set(p_vessel, p_rarity, p_habitat, p_start_hour, p_end_hour, p_md_start, p_md_end, p_note)`: validate values (`bad_rule`); hour and date windows are both-or-neither.
+- `admin_wave_config_set(p_spawn_chance, p_common_weight, p_uncommon_weight, p_rare_weight, p_nearby_target, p_note)`: ranges as in the screens; weights not all zero.
+- `admin_wave_length_set(p_minutes, p_note)`: one of 5, 10, 15, 20, 30, 60. Stores the new length with its start time (the next moment that is a wave boundary under both lengths) instead of changing it at once; every wave calculation uses the length in force at that time, and visible minutes follow it. Returns the start time. Before building it, find every place (server and app) that assumes 10 minutes and report them.
+- Guard on every spawning write: each region with Corrupted Capsule spots keeps at least one assigned vessel (its own or its parent's) with no hour or date window. Refuse with `place_needs_vessel`.
+- `admin_spawn_preview(p_change jsonb)`: applies the proposed change inside a subtransaction that is always rolled back, resolves the next 24 hours of waves for the affected region with the real `private.resolve_spawn` (sampling every 6th wave is fine if a full day is too slow; aim for under 2 seconds), and returns per-vessel counts before and after. `p_change` names one of the write calls above and its arguments.
+
+**Undo:** `admin_undo(p_action_id, p_note)` for `waypost.*`, `spawn.*` and `config.*` actions. It puts the target back to the action's `before`, runs the same checks as a normal edit, and logs `undo` with a link to the original action. Refuse `stale` if a newer action touched the same target, and `not_undoable` for other kinds.
+
+**Activity names:** `waypost.add`, `waypost.move`, `waypost.edit`, `waypost.hide`, `waypost.show`, `spot.hide`, `spot.show`, `config.wave_length`, `spawn.place_add`, `spawn.place_remove`, `spawn.rule`, `config.wave`, `undo`.
+
+**Tests:** hosted rollback for each role (only owner and admin can write), every error code, the 250 m warning and override, the coverage refusal, the hunt guard, the spawning guard, preview leaving no trace, and undo including `stale`. Real-JWT: an added Waypost appears in `game_nearby` for a player at that spot and disappears when hidden; a spawning change shows up in the next wave and not the current one.
+
 ## Build order
 
 1. Codex: phase 1 backend (above). Claude, in parallel: phase 1 screens against a development mock behind `ADMIN_BACKEND = false`, then switched on when the RPCs land.
-2. Phase 2 Waypost editing and Corrupted Capsule spawning.
+2. Phase 2 Waypost editing, Corrupted Capsule spawning and undo. Codex: the phase 2 backend contract. Claude, in parallel: the edit screens against the development sample behind an `ADMIN_EDIT_BACKEND` switch, stacked on Codex's branch once its RPCs land. The two land together; nothing about phase 2 shows before both are merged.
 3. Phase 3 ODB import: Codex agrees the dataset contract with the ODB side first.
 4. Phase 4 moderation, before the iPhone release.
 
@@ -123,3 +187,15 @@ existing private Storage rules.
 5. Spawning is set per country and city now, with areas (one park, one campus) only later if needed.
 
 OpenDashboard datasets come later (Roy, 2026-11-15).
+
+### Phase 2: Roy to confirm
+
+Defaults apply unless Roy changes them.
+
+Roy answered on 2026-11-15:
+
+1. Agreed: outside the city's map coverage, adding or moving a Waypost is refused. A new area goes through the City Hunt SOP.
+2. Agreed: a vessel's rarity, habitat and time windows are the same everywhere it appears.
+3. Replaced by the public capsule drop rule above: every safe point within 100 m can take a dropped capsule, hand-added Wayposts included.
+4. The wave length is adjustable, switching at a moment that ends a wave under both lengths.
+5. Landmarks are blue and stay with agents and the Landmark SOP. Corrupted Capsule spots get Hide and Show only.

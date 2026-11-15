@@ -1,5 +1,5 @@
 // Small pieces every admin page shares, in the app's own look: paper, serif numbers, ink-blue controls,
-// brass only for precious things, wax red for what removes something.
+// brass only for private hunts and precious vessels, Landmarks in the map's navy, wax red for what removes something.
 import React, { useCallback, useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { vesselParts } from "../../art/manifest";
@@ -69,6 +69,7 @@ export function Stat({ label, value, tone = C.ink, small }: { label: string; val
 const TONES = {
   blue: { fg: C.blue, bg: "#E6EEF7" },
   brass: { fg: "#8A6A2E", bg: "#F6EEDC" },
+  ink: { fg: C.ink, bg: C.glass },
   wax: { fg: C.wax, bg: "#F6E4E9" },
   plum: { fg: C.plum, bg: "#F1E6EA" },
   muted: { fg: C.muted, bg: "#EEF1F5" },
