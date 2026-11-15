@@ -395,7 +395,16 @@ function render(){
     let m=marks.get(p.id);
     if(!m){const el=document.createElement('div');el.addEventListener('click',ev=>{ev.stopPropagation();tapPin(p.id)});m={marker:new maplibregl.Marker({element:el,anchor:'bottom',rotationAlignment:'viewport',pitchAlignment:'viewport'}).setLngLat([p.lng,p.lat]).addTo(map),html:'',cls:''};marks.set(p.id,m)}
     const el=m.marker.getElement();
-    if(p.label)el.setAttribute('aria-label',p.label);
+    if(p.label){
+      el.setAttribute('aria-label',p.label);
+      if(el.tabIndex!==0){
+        el.tabIndex=0;
+        el.addEventListener('keydown',ev=>{
+          if(ev.key!=='Enter'&&ev.key!==' ')return;
+          ev.preventDefault();ev.stopPropagation();fold();send({type:'select',id:p.id});
+        });
+      }
+    }
     if(m.html!==html){el.innerHTML=html;m.html=html}
     if(m.cls!==cls){if(m.cls)el.classList.remove(...m.cls.split(' '));el.classList.add(...cls.split(' '));m.cls=cls}
     el.style.zIndex=p.selected?20:p.kind==="keeper"?8:p.near?5:1;
