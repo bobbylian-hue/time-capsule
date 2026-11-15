@@ -26,7 +26,6 @@ Status: `todo` → `doing` → `review` (report sent to Claude) → `done`. Move
 ## Review
 | ID | Task | Owner | Note |
 |---|---|---|---|
-| L2 | Web location keeps streaming: one GPS timeout or brief signal loss no longer stops the browser watch (`location.ts` `watchWeb`) | Codex | TypeScript, 186 tests, the Expo dependency check and web export passed. At 375 px, Chromium with simulated GPS and a mocked signed-in session and API followed six fixes through timeout, a three-second signal-loss retry and tab return. The player stayed on the map with no document reload, duplicate watch or same-cell nearby request. Cross-cell movement brought one nearby request. Physical phone check remains with Roy’s colleague. |
 | Orienteering P2 | Private hunt player backend | Codex / Roy | Released in #120. Migration `20261114054459` is applied. The signed-in browser verified typed QR, spin, puzzle, leaderboard and Passport. |
 | Orienteering P1 | Private hunt organizer backend | Codex / Roy | Released in #119. Migration `20261114034030` is applied. A disposable pilot organizer verified creation, template and photo quests, publishing, review, and the first-join edit lock. |
 | HKUST stamps | Place stamp triangle fix + HKUST City Hunt double-ring stamp | Codex / Roy | PR #101 revised for Roy: script clears only 1467 triangle pixels; every other place-master pixel identical. New GPT Image 2 hunt stamp, normalized alone; place/hunt/Xinyi review at 24/40/64/120 px. Only app edit is the hunt image entry in mobile art manifest. Other stamps preserved; pending Roy’s OK again. No migration, deployment or merge. |
@@ -70,6 +69,8 @@ Status: `todo` → `doing` → `review` (report sent to Claude) → `done`. Move
 - Send a capsule to a friend on Roy's phone and confirm it reaches the friend's Inbox.
 
 ## Done
+
+- L2 — web location keeps streaming on Journey. PR #130 passed CI 43696272275 and Roy’s owner account squash-merged it as `af56ca3`. A timeout keeps the browser watch and last fix. Signal loss keeps the fix and retries in three seconds. Tab return resumes a stopped watch without duplicating it, and denial clears the saved choice. TypeScript, 186 tests, Expo dependency check and web export passed. At 375 px on localhost, Chromium with simulated GPS and a mocked signed-in session and API followed six fixes without a reload or a location card. Same-cell fixes made zero additional nearby requests. Crossing a cell made one. No migration. Physical phone verification remains with Roy’s colleague.
 
 - Old Street is enabled as the sixth private-hunt quest picture. Migration `20261114065634` adds only `tpl:oldStreet` to the image constraint. Hosted rollback verified all six templates, an existing-format photo path and rejection of an unknown template. Live generated types matched. PR #122 merged as `f0eed21`, and the approved template wiring in PR #121 merged as `0c5804c`.
 
