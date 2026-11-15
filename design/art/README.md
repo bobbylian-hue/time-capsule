@@ -120,6 +120,10 @@ Option variation: Calm bright overcast light, airy broad slightly irregular tree
 
 - HKUST Passport stamps: single-ring place stamp and double-ring HKUST City Hunt stamp, both ink blue with the curved academic building motif. Roy’s review removes only the place stamp’s inverted triangle by script (1467 pixels); all other place-master pixels are identical. The hunt stamp is a new GPT Image 2 drawing, normalized only with `--only hunt-hkust-2026-11`. Other stamps are byte-identical. Only the hunt image is registered in `mobile/src/art/manifest.ts`; no migration, deployment or merge. Await Roy’s OK.
 
+- RV-SG test vessel, Peranakan kamcheng jar (娘惹金正瓷罐). Roy approved a palette exception for this kamcheng only on 2026-11-15. Soft pink porcelain, a painted jade-green shoulder band and leaf-green foliage, with plum, wax red and brass in the phoenix and peonies. The brass fittings and plum outlines retain the original drawing. The domed lid lifts to reveal the complete interior and rolled letter. At idle the lid rises 2.5% and settles over 4200 ms, with one sparkle on the peach-shaped brass knob. Physical photographs inspected before generation: [Kamcheng with peonies and phoenix from China ca 1900 IMG 9805 singapore peranakan museum.jpg, Bjoertvedt, Wikimedia Commons, CC BY-SA 4.0](https://commons.wikimedia.org/wiki/File:Kamcheng_with_peonies_and_phoenix_from_China_ca_1900_IMG_9805_singapore_peranakan_museum.jpg) and [Asian Civilisations Museum accession 2006-00992, 1143330.jpg](https://www.roots.gov.sg/api/media/8e926041-9e91-445d-a9a9-c24f9cebb8d5/1143330.jpg). [Opening overlay](_checks/kamcheng-motion.png) · [Idle poses](_checks/kamcheng-idle.png) · [40/120 px](_checks/kamcheng-sizes.png).
+
+- RV-SG Orchid bloom (胡姬花). The arched stem carries two smaller open Miss Joaquim flowers and a closed terminal bud. The large bud unfolds to reveal a smooth, round violet-rose lip, a darker centre and pale petals around a rolled letter. The original glazed pot stays fixed while the teal plant sways 3.25° over 4200 ms. Physical references inspected before drawing: [NParks Flora&FaunaWeb, Jennie Tang Yurue, Singapore Botanic Gardens, 0ae6d864a6c74f288c035f07418a4dc4.jpg](https://www.nparks.gov.sg/-/media/ffw/migrated/round2/flora/2539/0ae6d864a6c74f288c035f07418a4dc4.jpg) and [Papilionanthe (Vanda) Miss Joaquim 'Agnes'.jpg, Toh Garden, CC BY-SA 4.0](https://commons.wikimedia.org/wiki/File:Papilionanthe_(Vanda)_Miss_Joaquim_%27Agnes%27.jpg). [Opening overlay](_checks/orchid-motion.png) · [Idle poses](_checks/orchid-idle.png) · [40/120 px](_checks/orchid-sizes.png).
+
 ## Masters
 
 | File | What | Size | Notes |
@@ -515,6 +519,17 @@ Option variation: Calm bright overcast light, airy broad slightly irregular tree
 | `vessels/vessel-pedicab-hinge-pin.png` | Upper brass button travelling with the roof bow | 1024×1024 | Hinge |
 | `vessels/vessel-pedicab-rear-bow.png` | Rear canopy bow and lower seat-frame pivot | 1024×1024 | Hinge |
 | `vessels/vessel-pedicab-folded-hood.png` | Gathered wax-red cloth and nested brass-piped pleats | 1024×1024 | Folds down behind the bench |
+| `vessels/vessel-kamcheng.png` | Peranakan kamcheng — closed pink porcelain jar with phoenix and peonies | 1024×1024 | RV-SG test · see manifest |
+| `vessels/vessel-kamcheng-jar.png` | Peranakan kamcheng — jar with complete glazed porcelain interior and rolled letter | 1024×1024 | RV-SG test · see manifest |
+| `vessels/vessel-kamcheng-lid.png` | Peranakan kamcheng — lift-off porcelain lid with brass peach knob | 1024×1024 | RV-SG test · see manifest |
+| `vessels/vessel-orchid.png` | Orchid bloom — arching Miss Joaquim orchid with two open blooms and one large closed bud | 1024×1024 | RV-SG · see manifest |
+| `vessels/vessel-orchid-pot.png` | Orchid bloom — glazed pot with completed inner rim, held steady during sway | 1024×1024 | RV-SG · see manifest |
+| `vessels/vessel-orchid-stem.png` | Orchid bloom — arched teal stem, two smaller Miss Joaquim blooms, and narrow leaves | 1024×1024 | RV-SG · see manifest |
+| `vessels/vessel-orchid-left.png` | Orchid bloom — left side petals and sepal, unfolded face | 1024×1024 | RV-SG · see manifest |
+| `vessels/vessel-orchid-right.png` | Orchid bloom — right side petals and sepal, unfolded face | 1024×1024 | RV-SG · see manifest |
+| `vessels/vessel-orchid-throat.png` | Orchid bloom — pale upper sepal, round violet-rose lip and complete cream scroll | 1024×1024 | RV-SG · see manifest |
+| `vessels/vessel-orchid-bud-left.png` | Orchid bloom — left curled outside bud petals, isolated along the original ink seam | 1024×1024 | RV-SG · see manifest |
+| `vessels/vessel-orchid-bud-right.png` | Orchid bloom — right curled outside bud petals, isolated along the original ink seam | 1024×1024 | RV-SG · see manifest |
 
 ## Review
 

@@ -26,6 +26,7 @@ Status: `todo` → `doing` → `review` (report sent to Claude) → `done`. Move
 ## Review
 | ID | Task | Owner | Note |
 |---|---|---|---|
+| RV-SG | Singapore wave 1 vessel art | Codex / Roy | Roy approved kamcheng and the revised Miss Joaquim orchid in PR #139 at `36471e1`. Refreshed from main with every approved PNG and WebP byte-identical. Owner-account squash merge follows green CI. Tingkat landed separately in #134. Art only. |
 | RV-L-art | Earned Landmark vessels and Passport stamps | Codex / Roy | Roy approved the North Gate test in #137 and requested its 2.5% idle roof lift. The complete art batch includes Durian, Guia Lighthouse, and ink-blue Beimen, Esplanade and Guia stamps. Roy approved the full set at `543b9cc` in #137. Refreshed from main with the approved art preserved. Green CI precedes owner-account squash merge. |
 | Orienteering P2 | Private hunt player backend | Codex / Roy | Released in #120. Migration `20261114054459` is applied. The signed-in browser verified typed QR, spin, puzzle, leaderboard and Passport. |
 | Orienteering P1 | Private hunt organizer backend | Codex / Roy | Released in #119. Migration `20261114034030` is applied. A disposable pilot organizer verified creation, template and photo quests, publishing, review, and the first-join edit lock. |
