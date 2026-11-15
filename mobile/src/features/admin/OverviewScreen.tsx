@@ -56,7 +56,7 @@ function CityCard({ city }: { city: Region }) {
     </View>
     <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: spacing.md, columnGap: spacing.sm }}>
       <Stat label={a.wayposts} value={city.wayposts.common} tone={C.blue} />
-      <Stat label={a.landmarks} value={city.wayposts.landmark} tone="#8A6A2E" />
+      <Stat label={a.landmarks} value={city.wayposts.landmark} tone={C.ink} />
       <Stat label={a.spots} value={city.corrupted_spots} />
       <Stat label={a.outNow} value={city.out_now} tone={C.plum} />
       <Stat label={a.cityHunts} value={city.city_hunts_live} />
