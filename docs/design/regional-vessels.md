@@ -1,6 +1,6 @@
 # Regional vessels and Landmarks: plan
 
-Status: **proposal, waiting for Roy's picks** (2026-11-15). Nothing is drawn yet. Every new vessel follows [design/art/STYLE.md](../../design/art/STYLE.md) and [design/art/VESSEL-SOP.md](../../design/art/VESSEL-SOP.md); every new monument follows [docs/sop/landmark-monument.md](../sop/landmark-monument.md).
+Status: **batch 1 (R1) approved by Roy on 2026-11-15**; the rest is a proposal waiting for his picks. Nothing is drawn yet. Every new vessel follows [design/art/STYLE.md](../../design/art/STYLE.md) and [design/art/VESSEL-SOP.md](../../design/art/VESSEL-SOP.md); every new monument follows [docs/sop/landmark-monument.md](../sop/landmark-monument.md).
 
 ## Why
 Roy is building an admin page to choose by hand which Corrupted Capsules spawn where. Today each of the four regions has exactly three spawnable vessels (one per tier), and most of them are not local: Singapore's set is lucky stars, mixtape and instant camera. This plan gives each region **six local choices (two per tier)** plus **an earned Landmark vessel for each major Landmark**, so the admin page has real options and each city feels like itself.
@@ -145,14 +145,14 @@ Coordination: the Waypost coverage plan is a separate session. Landmark Waypost 
 
 ## Decisions for Roy
 1. **Vessel picks**: approve the 12 regional vessels, or swap any (section 1).
-2. **Batch 1**: approve R1 (pineapple-cake as the test vessel, then rwb-bag, tiffin, egg-tart).
+2. ~~**Batch 1**~~: approved 2026-11-15.
 3. **Landmarks**: which to add: Taipei North Gate, Esplanade, Guia Lighthouse (recommended); Ximen Red House (needs a tile extension); Ruins of St Paul's (religious heritage, with the care rule above); Supertree Grove (owned attraction). Also: add the missing Landmark Waypost for the TST Clock Tower and monuments for TST and the Merlion?
 4. **Colours**: the tram's real green is outside our palette. Draw it in navy and cream (no exception), or approve a muted tram green as a palette exception? Kamcheng is planned in palette blues (no exception).
 5. **Pools**: when a batch is wired, should new vessels start switched off (empty `regions`, Roy turns them on in the admin page) or with the proposed pools above?
 
 ## Appendix: Codex prompts
 
-### RV-R1: regional art batch 1 (send after Roy approves R1)
+### RV-R1: regional art batch 1 (approved 2026-11-15, ready to send)
 
 ```
 Repository: royai202600-cyber/time-capsule (GitHub). Task RV-R1: regional vessel art, batch 1. ART ONLY.
