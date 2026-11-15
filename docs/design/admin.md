@@ -1,6 +1,8 @@
 # Admin (管理後台)
 
-Status: plan, waiting for Roy's OK. Claude designs and builds the screens; Codex builds everything on the server.
+Status: Roy approved the plan on 2026-11-15. Phase 1 screens are built against a development sample (`mobile/src/services/adminSample.ts`, `ADMIN_BACKEND = false`); the backend below is Codex's. Claude designs and builds the screens; Codex builds everything on the server.
+
+Screens: `mobile/app/admin/` routes, `mobile/src/features/admin/` (shell, Overview, Corrupted Capsules, City map, Review, Members, Activity), `mobile/src/services/admin.ts` (types and RPC calls the screens expect). Run `cd mobile && npm run web` and open http://localhost:8088/admin; in development the sample opens without signing in and has a **View as** switch for each role.
 
 ## Why
 
