@@ -153,9 +153,9 @@ Each batch is its own Codex session, branch and PR, so all of them can run at on
 
 | Batch | Branch | Vessels (test first) | Notes |
 |---|---|---|---|
-| **RV-TW** | `codex/vessels-regional-1` (draft PR #134, reused) | `pineapple-cake`, `teapot`, `sky-lantern` | The pastry replaces the unapproved pineapple-cake box test in #134 |
-| **RV-HK** | `codex/vessels-regional-hk` | `rwb-bag`, `bolo-bun`, `tram` | |
-| **RV-SG** | `codex/vessels-regional-sg` | `tiffin`, `kamcheng`, `orchid` | |
+| **RV-TW** | `codex/vessels-regional-1` (draft PR #134, reused) | `pineapple-cake`, `teapot`, `sky-lantern`, plus `rwb-bag` and `tiffin` already drawn there | The pastry replaces the pineapple-cake box; the egg-tart box is removed (RV-MO owns `egg-tart`) |
+| **RV-HK** | `codex/vessels-regional-hk` | `bolo-bun`, `tram` (`rwb-bag` is in #134) | |
+| **RV-SG** | `codex/vessels-regional-sg` | `kamcheng`, `orchid` (`tiffin` is in #134) | |
 | **RV-MO** | `codex/vessels-regional-mo` | `egg-tart`, `rooster`, `pedicab` | |
 | **RV-TW2** | `codex/vessels-regional-tw2` | `marble-soda`, `diabolo`, `blue-magpie` | |
 | **RV-HK2** | `codex/vessels-regional-hk2` | `egg-waffle`, `bird-cage`, `junk-boat` | |
