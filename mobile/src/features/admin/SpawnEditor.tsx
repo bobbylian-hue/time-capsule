@@ -27,34 +27,37 @@ export function placesOf(data: Spawning, cities: Region[]): SpawnPlace[] {
 const direct = (r: SpawnRule) => r.places ?? r.regions;
 
 /** One change with its preview, a note and Save. `children` is the form for changes that have one. */
-export function ChangeSheet({ title, change, cities, children, onClose, onSaved }: {
-  title: string; change: SpawnChange; cities: Region[]; children?: React.ReactNode; onClose: () => void; onSaved: () => void;
+export function ChangeSheet({ title, change, cities, children, invalid, onClose, onSaved }: {
+  title: string; change: SpawnChange; cities: Region[]; children?: React.ReactNode; invalid?: boolean; onClose: () => void; onSaved: () => void;
 }) {
   const a = useAdminText();
   const { language } = useLanguage();
-  const [preview, setPreview] = useState<SpawnPreview | null>(null);
+  const [result, setResult] = useState<{ key: string; preview: SpawnPreview } | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const key = JSON.stringify(change);
+  const preview = result?.key === key ? result.preview : null;
   useEffect(() => {
     let live = true;
-    setPreview(null); setError(null);
-    const timer = setTimeout(() => adminEdit.preview(change).then((p) => live && setPreview(p), (e) => live && setError(errorText(a, e))), 300);
+    setResult(null); setError(null);
+    const timer = setTimeout(() => adminEdit.preview(change).then((p) => live && setResult({ key, preview: p }), (e) => live && setError(errorText(a, e))), 300);
     return () => { live = false; clearTimeout(timer); };
   }, [key]);
   const save = async () => {
+    if (busy || invalid || !preview) return;
     setBusy(true); setError(null);
     try { await adminEdit.change(change, note.trim() || null); onSaved(); } catch (e) { setError(errorText(a, e)); } finally { setBusy(false); }
   };
   return <Sheet title={title} onClose={onClose} footer={<View style={{ flexDirection: "row", gap: spacing.sm, justifyContent: "flex-end" }}>
     <AButton small tone="ghost" title={a.ed.cancel} onPress={onClose} />
-    <AButton small title={busy ? a.ed.saving : a.ed.save} disabled={busy} onPress={save} />
+    <AButton small title={busy ? a.ed.saving : a.ed.save} disabled={busy || invalid || !preview} onPress={save} />
   </View>}>
     {children}
     <View style={{ gap: spacing.sm }}>
       <Text style={{ fontFamily: serif, fontSize: 15, color: C.ink }}>{a.ed.preview}</Text>
-      {!preview ? <Text style={{ fontFamily: sans, fontSize: 13, color: C.muted }}>{a.ed.previewLoading}</Text>
+      {!preview ? !error && <Text style={{ fontFamily: sans, fontSize: 13, color: C.muted }}>{a.ed.previewLoading}</Text>
+        : !preview.regions.length ? <Text style={{ fontFamily: sans, fontSize: 13, color: C.muted }}>{a.ed.previewNoSpots}</Text>
         : preview.regions.map((r) => {
           const city = cities.find((c) => c.id === r.region);
           const vessels = [...new Set([...Object.keys(r.before), ...Object.keys(r.after)])].sort((x, y) => (r.after[y] ?? 0) - (r.after[x] ?? 0));
@@ -104,7 +107,7 @@ export function RuleSheet({ rule, cities, onClose, onSaved }: { rule: SpawnRule;
     // The whole day is the same as no window.
     hours: hours && !(hours[0] === 0 && hours[1] === 23) ? hours : null, dates: datesOk ? dates : rule.dates };
   const hour = (h: number) => `${h}:00`;
-  return <ChangeSheet title={a.ed.rules(vesselName(rule.vessel, language))} change={change} cities={cities} onClose={onClose} onSaved={onSaved}>
+  return <ChangeSheet title={a.ed.rules(vesselName(rule.vessel, language))} change={change} cities={cities} invalid={!datesOk} onClose={onClose} onSaved={onSaved}>
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
       <VesselThumb kind={rule.vessel} size={56} />
       <Text style={{ flex: 1, fontFamily: sans, fontSize: 13, lineHeight: 19, color: C.muted }}>{a.ed.rulesEverywhere}</Text>
