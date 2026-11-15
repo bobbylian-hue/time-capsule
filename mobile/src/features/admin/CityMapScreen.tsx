@@ -72,10 +72,12 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     ...(layers.wayposts || editing ? map.wayposts.filter((w) => w.game_enabled || editing).map<LivePin>((w) => {
       const moved = mode === "move" && draft && selected === `w:${w.id}`;
       return { id: `w:${w.id}`, lat: moved ? draft.lat : w.lat, lng: moved ? draft.lng : w.lng, kind: w.kind === "landmark" ? "landmark" : "waypost",
+        label: zh ? w.name_zh : w.name_en,
         vessel: assetUri(w.kind === "landmark" ? gameArt.landmarkGem : gameArt.waypostGemBlue) ?? "", selected: selected === `w:${w.id}`, locked: !w.game_enabled, near: !!moved };
     }) : []),
     ...(editing && mode === "add" && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "waypost", vessel: assetUri(gameArt.waypostGemBlue) ?? "", selected: true, near: true } as LivePin] : []),
-    ...(editing && layers.spots ? map.spots.map<LivePin>((x) => ({ id: `s:${x.id}`, lat: x.lat, lng: x.lng, kind: "spot", vessel: "", locked: !!x.hidden_at, selected: selected === `s:${x.id}` })) : []),
+    ...(editing && layers.spots ? map.spots.map<LivePin>((x) => ({ id: `s:${x.id}`, lat: x.lat, lng: x.lng, kind: "spot", vessel: "",
+      label: `${a.ed.spotTitle} ${x.lat.toFixed(5)}, ${x.lng.toFixed(5)}`, locked: !!x.hidden_at, selected: selected === `s:${x.id}` })) : []),
     ...(layers.wave ? map.wave.map<LivePin>((c) => ({
       id: `c:${c.spot}`, lat: c.lat, lng: c.lng, kind: "corrupted", vessel: vesselUri(c.vessel),
       cracks: assetUri(crackOverlays[c.vessel]) ?? undefined, rarity: c.rarity, done: c.caught, selected: selected === `c:${c.spot}`,
@@ -84,7 +86,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
       ...map.keepers.map<LivePin>((k) => ({ id: `k:${k.hunt}`, lat: k.lat, lng: k.lng, kind: "keeper", vessel: "", portrait: assetUri(keeperPortrait), figure: assetUri(characters.keeper) })),
       ...map.private_quests.map<LivePin>((q) => ({ id: `q:${q.id}`, lat: q.lat, lng: q.lng, kind: "quest", vessel: "", quest: "arrive", photo: questImageUri(q.picture) })),
     ] : []),
-  ], [map, layers, selected, editing, mode, draft]);
+  ], [map, layers, selected, editing, mode, draft, zh, a.ed.spotTitle]);
   const state = useMemo(() => ({ you: null, reach: CITY_REACH, pins }), [pins]);
 
   const focus = (pinId: string, lat: number, lng: number) => { setSelected(pinId); ref.current?.focus(lat, lng); };

@@ -94,6 +94,6 @@ describe("admin editing (sample)", () => {
     expect(nextLengthStart(10, 5, at).toISOString()).toBe("2026-11-15T14:30:00.000Z");
     expect(nextLengthStart(10, 15, at).toISOString()).toBe("2026-11-15T14:30:00.000Z");
     expect(nextLengthStart(10, 60, at).toISOString()).toBe("2026-11-15T15:00:00.000Z");
-    expect(undoable("waypost.hide") && undoable("config.wave") && !undoable("member.add")).toBe(true);
+    expect(undoable("waypost.hide") && undoable("config.wave") && !undoable("member.add") && !undoable("spot.hide")).toBe(true);
   });
 });
