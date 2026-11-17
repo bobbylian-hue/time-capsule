@@ -372,7 +372,7 @@ export type Database = {
         Row: {
           city: string
           done: boolean
-          guesses: NonNullable<Json>
+          guesses: Json
           play_date: string
           question_id: number
           reward: number | null
@@ -382,7 +382,7 @@ export type Database = {
         Insert: {
           city: string
           done?: boolean
-          guesses?: NonNullable<Json>
+          guesses?: Json
           play_date: string
           question_id: number
           reward?: number | null
@@ -392,7 +392,7 @@ export type Database = {
         Update: {
           city?: string
           done?: boolean
-          guesses?: NonNullable<Json>
+          guesses?: Json
           play_date?: string
           question_id?: number
           reward?: number | null
@@ -549,7 +549,7 @@ export type Database = {
         Insert: {
           city: string
           habitat: string
-          hidden_at: string | null
+          hidden_at?: string | null
           id?: string
           lat: number
           lng: number
@@ -1387,6 +1387,112 @@ export type Database = {
     Functions: {
       accept_invite: { Args: { p_code: string }; Returns: string }
       acquire_vessel: { Args: { p_vessel: string }; Returns: number }
+      admin_activity: {
+        Args: { p_before: number; p_limit: number }
+        Returns: Json
+      }
+      admin_cities: { Args: never; Returns: Json }
+      admin_city_map: { Args: { p_region: string }; Returns: Json }
+      admin_me: { Args: never; Returns: Json }
+      admin_member_add: {
+        Args: { p_email: string; p_role: string }
+        Returns: undefined
+      }
+      admin_member_remove: { Args: { p_user: string }; Returns: undefined }
+      admin_member_set_role: {
+        Args: { p_role: string; p_user: string }
+        Returns: undefined
+      }
+      admin_members_list: { Args: never; Returns: Json }
+      admin_queue: { Args: { p_status: string }; Returns: Json }
+      admin_queue_resolve: {
+        Args: {
+          p_decision: string
+          p_id: string
+          p_kind: string
+          p_note: string
+        }
+        Returns: undefined
+      }
+      admin_spawn_place_add: {
+        Args: { p_note?: string; p_region: string; p_vessel: string }
+        Returns: Json
+      }
+      admin_spawn_place_remove: {
+        Args: { p_note?: string; p_region: string; p_vessel: string }
+        Returns: Json
+      }
+      admin_spawn_preview: { Args: { p_change: Json }; Returns: Json }
+      admin_spawn_rule_set: {
+        Args: {
+          p_end_hour: number
+          p_habitat: string
+          p_md_end: string
+          p_md_start: string
+          p_note?: string
+          p_rarity: string
+          p_start_hour: number
+          p_vessel: string
+        }
+        Returns: Json
+      }
+      admin_spawning: { Args: never; Returns: Json }
+      admin_spot_set_visible: {
+        Args: { p_id: string; p_note?: string; p_visible: boolean }
+        Returns: Json
+      }
+      admin_undo: {
+        Args: { p_action_id: number; p_note?: string }
+        Returns: Json
+      }
+      admin_wave_config_set: {
+        Args: {
+          p_common_weight: number
+          p_nearby_target: number
+          p_note?: string
+          p_rare_weight: number
+          p_spawn_chance: number
+          p_uncommon_weight: number
+        }
+        Returns: Json
+      }
+      admin_wave_length_set: {
+        Args: { p_minutes: number; p_note?: string }
+        Returns: string
+      }
+      admin_waypost_add: {
+        Args: {
+          p_checked: boolean
+          p_lat: number
+          p_lng: number
+          p_name_en: string
+          p_name_zh: string
+          p_note?: string
+          p_region: string
+          p_scene: string
+        }
+        Returns: Json
+      }
+      admin_waypost_check: {
+        Args: { p_id?: string; p_lat: number; p_lng: number; p_region: string }
+        Returns: Json
+      }
+      admin_waypost_set_visible: {
+        Args: { p_id: string; p_note?: string; p_visible: boolean }
+        Returns: Json
+      }
+      admin_waypost_update: {
+        Args: {
+          p_id: string
+          p_lat?: number
+          p_lng?: number
+          p_name_en?: string
+          p_name_zh?: string
+          p_note?: string
+          p_scene?: string
+        }
+        Returns: Json
+      }
       city_hunt_check_in: {
         Args: {
           p_accuracy: number
@@ -1411,10 +1517,7 @@ export type Database = {
         Args: { p_city: string; p_usd: number }
         Returns: Json
       }
-      city_puzzle_today: {
-        Args: never
-        Returns: Json
-      }
+      city_puzzle_today: { Args: never; Returns: Json }
       corrupted_capsule_throw: {
         Args: {
           p_accuracy: number
