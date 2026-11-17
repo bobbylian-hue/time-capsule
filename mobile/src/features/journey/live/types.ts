@@ -12,6 +12,8 @@ export type LiveState = { you: { lat: number; lng: number } | null; heading?: nu
   route?: { lat: number; lng: number }[] };
 /** walk: the player's figure strolls to a spot inside the pickup circle (a picture only; the real position and the server's checks never change). */
 export type LiveMapHandle = { recenter: () => void; focus: (lat: number, lng: number) => void; walk: (lat: number, lng: number) => void;
+  /** Fly to another city and look around it from above its buildings (the City Explorer). */
+  city: (lat: number, lng: number) => void;
   /** Frame every point on screen (the quest editor shows the whole hunt). */
   fit: (points: { lat: number; lng: number }[]) => void };
 export type LiveMapProps = {

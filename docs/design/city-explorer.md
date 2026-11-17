@@ -1,6 +1,6 @@
 # City Explorer and the daily puzzle
 
-Claude, 2026-11-17. Status: proposal for Roy. Clickable demo: [`demos/city-explorer.html`](demos/city-explorer.html). Open the file directly in a browser and add `#en` to the URL for English. The demo is disposable and its code is not for porting. Its prices and counts are sample data, not checked facts.
+Claude, 2026-11-17. Status: Roy approved the demo; the screens are built against sample data and the backend is with Codex. Clickable demo: [`demos/city-explorer.html`](demos/city-explorer.html). Open the file directly in a browser and add `#en` to the URL for English. The demo is disposable and its code is not for porting. It was made before Roy chose US dollars for guessing, so it still guesses in local money. Its prices and counts are sample data, not checked facts.
 
 ## Why
 Everything in the game today needs you to be standing in Taipei, Hong Kong, Singapore or Macau. Someone in New York has nothing to do. The answer Roy chose:
@@ -64,10 +64,11 @@ The reference is Costcodle: a picture, guess the price, "higher" or "lower", six
 
 ### Rules
 - Each playable city has **one puzzle a day, the same for everyone**. All four cities are in the same time zone, so every puzzle changes at 00:00 Taipei time.
-- The puzzle shows a picture, a question such as 「在台北，一杯珍珠奶茶大概多少錢？」 and the local currency.
+- The puzzle shows a picture and a question such as 「在台北，一杯珍珠奶茶大概多少錢？」.
+- **You guess in US dollars** (Roy, 2026-11-17). A player from Singapore may not know what Indonesian or Taiwanese money is worth, so one reference currency works for every city. Each guess is also shown in the city's own money (`US$ 2 ≈ NT$ 64`), and the puzzle shows the rate (`US$ 1 ≈ NT$ 32`), so you learn the local money as you play.
 - You have **six guesses**. After each one you see ↑ higher or ↓ lower, plus 很接近 / Close when you are within 25%.
-- You win when your guess is **within 10%** of the answer. Prices are "typical" prices, so an exact match would be unfair.
-- Win or lose, the result shows the price, one line about the item, and where the price came from with the date it was checked.
+- You win when your guess is **within 10%** of the answer in US dollars. Prices are "typical" prices, so an exact match would be unfair.
+- Win or lose, the result shows the price in US dollars and local money, one line about the item, and where the price came from with the date it was checked.
 - No retries. Tomorrow has a new one.
 
 ### Rewards
@@ -84,16 +85,22 @@ The reference is Costcodle: a picture, guess the price, "higher" or "lower", six
 ### Content
 - About 30 questions per city to start, repeating in order when they run out.
 - Things the city is known for: food, a tram or ferry fare, a market snack, a souvenir. Where we already have the vessel art (bubble tea, egg tart, pineapple bun, pineapple cake, tram) the question uses it.
-- Each question stores: city, item name in Chinese and English, picture, typical price, currency, one-line fact in both languages, source link and the date checked.
+- Each question stores: city, question in Chinese and English, picture, typical local price, currency, the US dollar rate on the day it was checked, one-line fact in both languages, source and the date checked. The US dollar answer is the local price divided by that stored rate, so it never drifts with live exchange rates.
 - Prices must come from a checkable source, never from memory or a guess. A question with no source is not published.
 - Pictures follow `design/art/STYLE.md`. No AI imitation photos of real places.
 
 ### What the server does
-The answer never reaches the phone before the puzzle is finished.
-- **Today's puzzles:** returns each city's question, picture, currency, your guesses so far and the arrows you were given. No price.
-- **Guess:** takes a city and a number, returns higher, lower or solved, and whether it was close. On the last guess or a solve it also returns the price, fact and source, and pays the wax balls once.
-- **Read-only city view:** returns a city's Landmarks and Wayposts for the Explorer map, without needing your location to be there.
+The answer never reaches the phone before the puzzle is finished. The app's side of this contract is `mobile/src/services/cityPuzzle.ts`.
+- **`city_puzzle_today()`** returns `{ puzzles, streak }`. Each puzzle has `city`, `no`, `question_zh`, `question_en`, `vessel` (the picture), `currency`, `rate`, `guesses` (each `{ usd, hint, close }`), `done`, `won`, `answer` and `reward`. `answer` and `reward` are null until the puzzle is finished.
+- **`city_puzzle_guess(p_city, p_usd)`** records one guess and returns `{ puzzle, streak, state }`. `hint` is `higher`, `lower` or `solved`. On a solve or the sixth guess it fills `answer` (`usd`, `local`, `fact_zh`, `fact_en`, `source`, `checked_on`) and `reward`, pays the wax balls once, and returns the player's game state. Errors: `already_done`, `bad_guess`.
 - Streak and results are stored per player per day.
+- **Later:** a read-only city view that returns a city's Wayposts for the Explorer map without needing your location to be there. Until then the Explorer shows the map and its Landmark buildings only.
+
+### What is built (2026-11-17)
+- `mobile/src/features/explorer/`: the city cards over the Journey map and the Guess the price screen.
+- Journey has the city chip, opens on the Explorer when you are outside every covered city, and offers the Explorer on the location screen, so it works with location off.
+- The map has a `city` command that flies to a city and sits above its Landmark.
+- `CITY_PUZZLE_BACKEND` is off. Development builds play four sample questions kept in memory; production builds hide the whole feature until the backend is on.
 
 ## Part C: Jigsaw lock on public capsules (phase 2)
 Rules agreed with Roy on 2026-11-17. Screens come later.
@@ -108,8 +115,5 @@ Rules agreed with Roy on 2026-11-17. Screens come later.
 ## Not in this plan
 Stickers and albums, word guess, guess the place, voting for the next city, paid extras, and any change to Corrupted Capsules.
 
-## For Roy to confirm
-1. Reward sizes: 3 wax balls for a solve, 1 for a miss.
-2. Winning margin: within 10%.
-3. Showing the six coming-soon cities. The default is yes.
-4. The jigsaw sizes in Part C.
+## Still open
+Roy approved the demo on 2026-11-17 with these defaults in it: 3 wax balls for a solve and 1 for a miss, a 10% winning margin, and the six coming-soon cities shown. The jigsaw sizes in Part C are confirmed when phase 2 is designed.

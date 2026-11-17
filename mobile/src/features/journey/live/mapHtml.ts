@@ -419,6 +419,8 @@ function recv(m){
   if(m.type==='fit'&&m.points.length){follow=false;send({type:'follow',follow:false});
     if(m.points.length===1)map.easeTo({center:[m.points[0].lng,m.points[0].lat],zoom:pickupZoom(m.points[0].lat,100)-1,duration:700});
     else{const b=new maplibregl.LngLatBounds();for(const p of m.points)b.extend([p.lng,p.lat]);map.fitBounds(b,{padding:{top:70,bottom:70,left:50,right:50},maxZoom:pickupZoom(m.points[0].lat,100)-1,duration:700})}}
+  // The City Explorer: fly to a city and sit above its Landmark, clear of the city cards at the bottom.
+  if(m.type==='city'){follow=false;send({type:'follow',follow:false});map.flyTo({center:[m.lng,m.lat],zoom:15.2,pitch:55,bearing:-14,padding:{top:80,bottom:300,left:0,right:0},duration:still?0:2600,essential:true})}
   if(m.type==='focus'){follow=false;send({type:'follow',follow:false});map.easeTo({center:[m.lng,m.lat],zoom:pickupZoom(m.lat,state.reach||100),duration:700})}
 }
 window.__tcmap=recv;

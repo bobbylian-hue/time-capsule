@@ -11,6 +11,7 @@ import { Vessel, type VesselKind } from "../../components/Vessel";
 import { useLanguage } from "../../i18n";
 import { goBack } from "../../navigation";
 import { useAuth } from "../../services/auth";
+import { CITIES, CITY_EXPLORER, cityAt, cityPuzzle, type ExplorerCity, type GuessResult, type PuzzleDay } from "../../services/cityPuzzle";
 import { HuntError, hunt as hunts, keeperMark, onHuntChange, type Hunt } from "../../services/cityHunt";
 import { distanceMeters } from "../../services/data";
 import type { PassportHunt } from "../../services/game";
@@ -22,6 +23,9 @@ import { organizer } from "../../services/privateHuntOrganizer";
 import { MAP_PMTILES_URL, PUBLIC_CAPSULE_ENABLED, PUBLIC_CAPSULE_PICKUP_RADIUS_M, PUBLIC_CAPSULE_RECIPIENT, publicCapsule, PublicCapsuleError, type PublicCapsule } from "../../services/publicCapsule";
 import { supabase } from "../../services/supabase";
 import { C, radii, sans, serif, shadows, spacing } from "../../theme";
+import { CityExplorer } from "../explorer/CityExplorer";
+import { PriceGuessScreen } from "../explorer/PriceGuessScreen";
+import { useExplorerText } from "../explorer/strings";
 import { SpinScreen } from "../game/SpinScreen";
 import { errorKey, useGameText } from "../game/strings";
 import { ThrowScreen } from "../game/ThrowScreen";
@@ -102,6 +106,35 @@ export default function JourneyScreen() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [youLabel, setYouLabel] = useState(false);
   const h = useHuntText();
+  // City Explorer: look around any city from anywhere and play its daily puzzle (docs/design/city-explorer.md).
+  const x = useExplorerText();
+  const [exploring, setExploring] = useState(false);
+  const [cityIndex, setCityIndex] = useState(0);
+  const [puzzleDay, setPuzzleDay] = useState<PuzzleDay | null>(null);
+  const [playing, setPlaying] = useState<string | null>(null);
+  const here = cityAt(fix ? { lat: fix.lat, lng: fix.lng } : null);
+  // After the render, so it also works when opening the Explorer is what puts the map on screen.
+  useEffect(() => { if (exploring) map.current?.city(CITIES[cityIndex].lat, CITIES[cityIndex].lng); }, [exploring, cityIndex]);
+  const openExplorer = () => {
+    setSelectedId(null); setGameCard(null); setKeeperOpen(false); setGuideOpen(null); setFilterOpen(false); setWalkTo(null);
+    setExploring(true);
+    if (here) setCityIndex(CITIES.indexOf(here));
+    void cityPuzzle.today().then(setPuzzleDay).catch(() => {});
+  };
+  const closeExplorer = () => { setExploring(false); setPlaying(null); map.current?.recenter(); };
+  const onGuess = (r: GuessResult) => {
+    setPuzzleDay((day) => day && { streak: r.streak, puzzles: day.puzzles.map((p) => p.city === r.puzzle.city ? r.puzzle : p) });
+    if (r.state) setGameState(r.state);
+  };
+  // Outside every covered city there is nothing to do on the map, so Journey opens on the Explorer, once.
+  const offered = useRef(false);
+  useEffect(() => {
+    if (!CITY_EXPLORER || !fix || offered.current) return;
+    offered.current = true;
+    if (!here) openExplorer();
+  }, [!!fix]);
+  const playingCity: ExplorerCity | null = CITIES.find((c) => c.id === playing) ?? null;
+  const playingPuzzle = puzzleDay?.puzzles.find((p) => p.city === playing) ?? null;
   // Private capsule pins show their sender's profile picture and a small countdown while still on a timer.
   const [senders, setSenders] = useState<Record<string, unknown>>({});
   const [now, setNow] = useState(Date.now());
@@ -201,7 +234,8 @@ export default function JourneyScreen() {
   const { questPins, guidePins, guides } = usePrivateQuestPins(privateList, you, h);
   const gamePins = useGamePins(nearby, throwing, you);
 
-  const html = useMemo(() => mapHtml({ pmtiles: MAP_PMTILES_URL, center: you ?? FALLBACK }), [!!you]);
+  // The Explorer can open the map before a position is known; the page is then kept when one arrives.
+  const html = useMemo(() => mapHtml({ pmtiles: MAP_PMTILES_URL, center: you ?? FALLBACK }), [!!you || exploring]);
   // A private capsule: its own vessel, the sender's picture with a wax seal (public ones are always the bottle,
   // with no seal), and only while it is still on its timer, a tiny countdown. No place name: the card has it.
   const placePin = (i: Extract<Item, { kind: "place" }>): LivePin => {
@@ -453,18 +487,25 @@ export default function JourneyScreen() {
 
   return <JourneyViewport>
     <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: 0 }}>
-    {you
-      ? <LiveMap ref={map} html={html} state={mapState} onSelect={onPin}
-        onTap={(lat, lng) => { if (filterOpen) setFilterOpen(false); else if (keeperOpen) setKeeperOpen(false); else if (guideOpen) setGuideOpen(null); else if (gameCard) setGameCard(null); else if (selectedId) setSelectedId(null);
+    {you || exploring
+      ? <LiveMap ref={map} html={html} state={mapState} onSelect={(id) => { if (!exploring) onPin(id); }}
+        // Another city is for looking only: nothing on the map answers a tap while exploring.
+        onTap={(lat, lng) => { if (exploring) return; if (filterOpen) setFilterOpen(false); else if (keeperOpen) setKeeperOpen(false); else if (guideOpen) setGuideOpen(null); else if (gameCard) setGameCard(null); else if (selectedId) setSelectedId(null);
           // Inside the pickup circle your figure walks there (only the picture moves); outside, only the test account can jump.
           else if (you && distanceMeters(you.lat, you.lng, lat, lng) <= PUBLIC_CAPSULE_PICKUP_RADIUS_M) { setWalkTo(null); map.current?.walk(lat, lng); }
           else if (__DEV__ || isTestLocationUser(userId)) setWalkTo({ lat, lng }); }} />
-      : <LocationGate status={status} onAllow={() => void location.request()} onSettings={() => void location.openSettings()} />}
+      : <LocationGate status={status} onAllow={() => void location.request()} onSettings={() => void location.openSettings()}
+          explore={CITY_EXPLORER ? { title: x.exploreFirst, onPress: openExplorer } : undefined} />}
     </View>
 
-    <SafeAreaView edges={["top", "left", "right"]} pointerEvents="box-none" style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 30, display: throwing ? "none" : "flex" }}>
+    <SafeAreaView edges={["top", "left", "right"]} pointerEvents="box-none" style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 30, display: throwing || exploring ? "none" : "flex" }}>
       <View pointerEvents="box-none" style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
         <Chip onPress={goBack} label={t("back")}><ArtIcon name="back" size={22} /></Chip>
+        {CITY_EXPLORER && <Pressable accessibilityRole="button" accessibilityLabel={x.title} onPress={() => { void haptics.tap(); openExplorer(); }}
+          style={{ height: 44, paddingLeft: 14, paddingRight: 10, borderRadius: 22, backgroundColor: "rgba(246,248,251,.94)", flexDirection: "row", alignItems: "center", gap: 4, ...shadows.card }}>
+          <Text style={{ fontFamily: serif, fontSize: 15, color: C.blue }}>{here ? (language === "zh" ? here.name_zh : here.name_en) : x.explore}</Text>
+          <ArtIcon name="down" size={16} color={C.blue} />
+        </Pressable>}
         <View style={{ flex: 1 }} pointerEvents="none" />
         <RunChip hunt={activeHunt} onPress={() => setQuestOpen(true)} />
         {privateList.map((ph) => <RunChip key={ph.id} hunt={ph} onPress={() => setQuestOpen(true)} />)}
@@ -474,7 +515,7 @@ export default function JourneyScreen() {
       </View>
     </SafeAreaView>
 
-    <SafeAreaView edges={["bottom", "left", "right"]} pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 20, display: throwing ? "none" : "flex" }}>
+    <SafeAreaView edges={["bottom", "left", "right"]} pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 20, display: throwing || exploring ? "none" : "flex" }}>
       <View pointerEvents="box-none" style={{ width: "100%", alignSelf: "center", paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: spacing.sm }}>
         <View pointerEvents="box-none" style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
           {walkTo ? <Pill onPress={() => { setFakeLocation(walkTo); setWalkTo(null); void haptics.tick(); }} label={s("devWalk")} /> : <View />}
@@ -531,6 +572,10 @@ export default function JourneyScreen() {
         <Text style={{ fontFamily: serif, fontSize: 15, color: C.white }}>{g("close")}</Text>
       </Pressable>
     </View>}
+    {exploring && <CityExplorer day={puzzleDay} index={cityIndex} onIndex={setCityIndex} balls={gameState?.wax_balls ?? null} language={language}
+      onClose={closeExplorer} onPlay={(c) => setPlaying(c.id)} />}
+    {exploring && playingCity && playingPuzzle && <PriceGuessScreen city={playingCity} puzzle={playingPuzzle} streak={puzzleDay?.streak ?? 0} language={language}
+      onResult={onGuess} onClose={() => setPlaying(null)} />}
     {spinning && <SpinScreen waypost={spinning} language={language} onState={setGameState} onClose={() => { setSpinning(null); void loadGame(); }} />}
     {throwing && gameState && <ThrowScreen capsule={throwing} landmark={fight ?? undefined} state={gameState} onState={setGameState}
       onClose={() => { setThrowing(null); setFight(null); map.current?.recenter(); void loadGame(); }} />}
