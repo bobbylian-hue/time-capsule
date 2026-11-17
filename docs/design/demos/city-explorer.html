@@ -1,0 +1,307 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>City Explorer Demo</title>
+<!-- Disposable demo of docs/design/city-explorer.md. Open this file directly in a browser. Add #en to the URL for English. Art loads from public/art. Prices, counts and streaks are sample data, not checked facts. The demo map uses plain OpenStreetMap tiles; the app keeps its own Journey map. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+/* Layout: a phone-width column. The map fills it; a top bar and the city cards float over the map; the puzzle is a full sheet above everything. Tokens are the app's own (mobile/src/theme.ts). */
+:root {
+  --paper: #F6F8FB; --ink: #16263F; --blue: #2F5D8A; --light-blue: #5A8FD0; --plum: #6E2B3F;
+  --brass: #C9A15A; --wax: #A3364F; --line: #D5DDE7; --muted: #748195; --glass: #DCE8F2; --white: #FFFFFF;
+  --serif: "Noto Serif TC", "Songti TC", Georgia, serif;
+  --sans: "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--glass); color: var(--ink); font-family: var(--sans); font-size: 15px; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--light-blue); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.phone { max-width: 430px; height: 100dvh; margin: 0 auto; position: relative; overflow: hidden; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+#map { position: absolute; inset: 0; }
+.maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { display: none; }
+.credit { position: absolute; left: 8px; top: calc(env(safe-area-inset-top, 0px) + 62px); font-size: 9.5px; color: var(--muted); z-index: 2; }
+
+/* Top bar */
+.top { position: absolute; z-index: 3; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px; display: grid; grid-template-columns: 42px 1fr auto; gap: 10px; align-items: center; background: linear-gradient(rgba(246,248,251,.94), rgba(246,248,251,0)); }
+.round { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.9); display: grid; place-items: center; padding: 0; }
+.title { font: 700 18px var(--serif); }
+.pills { display: flex; gap: 6px; align-items: center; }
+.balls { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,.9); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px 5px 6px; font: 700 14px var(--serif); }
+.balls img { width: 24px; height: 24px; }
+.lang { border: 1px solid var(--line); background: rgba(255,255,255,.9); border-radius: 999px; padding: 7px 10px; font-size: 12.5px; color: var(--blue); }
+
+/* Landmark pin on the map */
+.gem { width: 46px; height: 46px; filter: drop-shadow(0 4px 6px rgba(22,38,63,.3)); }
+.gem-name { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); white-space: nowrap; font: 500 11.5px var(--sans); background: rgba(255,255,255,.92); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+
+/* City cards */
+.bottom { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; padding: 30px 0 calc(env(safe-area-inset-bottom, 0px) + 16px); background: linear-gradient(rgba(246,248,251,0), rgba(246,248,251,.96) 34%); }
+.cards { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 24px 12px; scrollbar-width: none; }
+.cards::-webkit-scrollbar { display: none; }
+.card { flex: 0 0 calc(100% - 28px); scroll-snap-align: center; background: var(--white); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; min-height: 148px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 8px 22px rgba(22,38,63,.1); transition: opacity .25s, transform .25s; opacity: .62; transform: scale(.97); }
+.card.on { opacity: 1; transform: none; border-color: var(--ink); }
+.card.soon { background: #FBFCFD; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.city { font: 700 27px/1.15 var(--serif); }
+.soon .city { color: var(--muted); }
+.streak { font-size: 12px; color: var(--plum); white-space: nowrap; display: flex; align-items: center; gap: 5px; }
+.streak i { width: 8px; height: 8px; border-radius: 50%; background: var(--wax); display: inline-block; }
+.known { color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+.fact { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; color: var(--ink); background: var(--paper); }
+.fact.done { border-color: var(--brass); color: var(--plum); background: #FBF4E6; }
+.dots { display: flex; justify-content: center; gap: 6px; padding-bottom: 12px; }
+.dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--line); transition: width .2s, background .2s; }
+.dots i.on { width: 14px; background: var(--ink); }
+.action-wrap { padding: 0 24px; }
+.action { width: 100%; border: 0; border-radius: 16px; background: var(--blue); color: var(--white); padding: 15px 18px; font: 500 16.5px var(--sans); display: flex; align-items: center; justify-content: space-between; box-shadow: 0 6px 16px rgba(47,93,138,.28); }
+.action.ghost { background: var(--white); color: var(--blue); border: 1.5px solid var(--blue); box-shadow: none; }
+.action[disabled] { background: #E6EBF1; color: var(--muted); box-shadow: none; cursor: default; }
+
+/* Puzzle sheet */
+.sheet { position: absolute; inset: 0; z-index: 6; background: var(--paper); display: flex; flex-direction: column; transform: translateY(102%); transition: transform .32s cubic-bezier(.2,.8,.2,1); }
+.sheet.open { transform: none; }
+.sheet-top { display: grid; grid-template-columns: 42px 1fr 42px; align-items: center; padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 8px; }
+.sheet-title { text-align: center; }
+.sheet-title b { display: block; font: 700 17px var(--serif); }
+.sheet-title span { font-size: 12px; color: var(--muted); }
+.sheet-body { flex: 1; overflow-y: auto; padding: 4px 22px 22px; display: flex; flex-direction: column; gap: 12px; }
+.item { display: flex; align-items: center; gap: 14px; background: var(--white); border: 1px solid var(--line); border-radius: 18px; padding: 12px 16px; }
+.item img { width: 96px; height: 96px; object-fit: contain; flex: none; }
+.item q { quotes: none; font: 500 18px/1.5 var(--serif); }
+.rows { display: grid; gap: 6px; }
+.row { display: flex; align-items: center; justify-content: space-between; min-height: 40px; border: 1px dashed var(--line); border-radius: 12px; padding: 6px 14px; color: var(--muted); font-size: 13px; }
+.row.used { border-style: solid; background: var(--white); color: var(--ink); }
+.row .amt { font: 700 16px var(--serif); }
+.hint { display: flex; align-items: center; gap: 6px; color: var(--blue); font-weight: 500; }
+.hint em { font-style: normal; font-size: 11.5px; color: var(--plum); border: 1px solid var(--brass); background: #FBF4E6; border-radius: 999px; padding: 1px 7px; }
+.row.win { border-color: var(--brass); background: #FBF4E6; }
+.row.win .hint { color: var(--plum); }
+.entry { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.money { display: flex; align-items: center; gap: 8px; background: var(--white); border: 1.5px solid var(--line); border-radius: 14px; padding: 0 14px; }
+.money:focus-within { border-color: var(--blue); }
+.money span { font: 700 16px var(--serif); color: var(--muted); }
+.money input { border: 0; outline: 0; background: none; width: 100%; padding: 13px 0; font: 700 20px var(--serif); }
+.guess { border: 0; border-radius: 14px; background: var(--blue); color: var(--white); padding: 0 20px; font-weight: 500; }
+.guess[disabled] { background: #E6EBF1; color: var(--muted); cursor: default; }
+.left { font-size: 12.5px; color: var(--muted); text-align: center; }
+.result { background: var(--white); border: 1px solid var(--brass); border-radius: 18px; padding: 16px 18px; display: grid; gap: 8px; }
+.result h3 { margin: 0; font: 700 19px var(--serif); }
+.price { font: 700 30px var(--serif); color: var(--plum); }
+.result p { margin: 0; line-height: 1.6; font-size: 14px; }
+.src { font-size: 12px; color: var(--muted); }
+.won { display: flex; align-items: center; gap: 8px; font: 700 15px var(--serif); border-top: 1px solid var(--line); padding-top: 10px; }
+.won img { width: 30px; height: 30px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn { border-radius: 14px; padding: 13px; font-weight: 500; border: 1.5px solid var(--blue); background: var(--white); color: var(--blue); }
+.btn.fill { background: var(--blue); color: var(--white); }
+.toast { position: absolute; z-index: 9; left: 50%; bottom: 96px; transform: translateX(-50%); background: var(--ink); color: var(--white); border-radius: 999px; padding: 8px 16px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+.toast.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .sheet, .card { transition: none; } }
+</style>
+
+<div class="phone">
+  <div id="map"></div>
+  <div class="credit">Demo map © OpenStreetMap</div>
+
+  <header class="top">
+    <button class="round" id="back" aria-label="Back to my location">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16263F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="title" id="title"></div>
+    <div class="pills">
+      <div class="balls"><img src="../../../public/art/game/ball-wax.webp" alt=""><span id="balls"></span></div>
+      <button class="lang" id="lang"></button>
+    </div>
+  </header>
+
+  <div class="bottom">
+    <div class="cards" id="cards"></div>
+    <div class="dots" id="dots"></div>
+    <div class="action-wrap"><button class="action" id="action"></button></div>
+  </div>
+
+  <section class="sheet" id="sheet" aria-modal="true" role="dialog">
+    <div class="sheet-top">
+      <button class="round" id="close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16263F" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div class="sheet-title"><b id="p-title"></b><span id="p-sub"></span></div>
+      <span></span>
+    </div>
+    <div class="sheet-body" id="p-body"></div>
+  </section>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const ART = "../../../public/art/";
+const MAX = 6, WIN = 0.10, CLOSE = 0.25;
+
+// Sample data only. Real questions need a checked source (see the design doc).
+const CITIES = [
+  { id: "taipei", zh: "台北", en: "Taipei", center: [121.5648, 25.0337], knownZh: "珍珠奶茶、鳳梨酥、平溪天燈", knownEn: "Bubble tea, pineapple cake, sky lanterns", lmZh: "台北101", lmEn: "Taipei 101", lm: [121.56481, 25.033667], no: 12,
+    q: { img: "vessels/vessel-bubble-tea.webp", cur: "NT$", price: 60, zh: "在台北，一杯珍珠奶茶大概多少錢？", en: "In Taipei, about how much is a cup of bubble tea?", factZh: "珍珠奶茶在 1980 年代誕生於台灣，手搖飲料店幾乎每條街都有。", factEn: "Bubble tea was invented in Taiwan in the 1980s, and there is a tea shop on almost every street." } },
+  { id: "hongkong", zh: "香港", en: "Hong Kong", center: [114.1717, 22.2940], knownZh: "菠蘿油、叮叮車、點心", knownEn: "Pineapple bun, the Ding-ding tram, dim sum", lmZh: "香港科技大學", lmEn: "HKUST", lm: [114.2629606, 22.3374255], no: 12,
+    q: { img: "vessels/vessel-bolo-bun.webp", cur: "HK$", price: 14, zh: "在香港的茶餐廳，一個菠蘿油大概多少錢？", en: "In a Hong Kong café, about how much is a pineapple bun with butter?", factZh: "菠蘿包裡其實沒有菠蘿，名字來自表面像菠蘿的酥皮。", factEn: "There is no pineapple in it. The name comes from the crust, which looks like one." } },
+  { id: "macau", zh: "澳門", en: "Macau", center: [113.5399, 22.1937], knownZh: "葡式蛋撻、葡國公雞、三輪車", knownEn: "Egg tarts, the Portuguese rooster, pedicabs", lmZh: "議事亭前地", lmEn: "Senado Square", lm: [113.539890, 22.193683], no: 12,
+    q: { img: "vessels/vessel-egg-tart.webp", cur: "MOP", price: 11, zh: "在澳門，一個葡式蛋撻大概多少錢？", en: "In Macau, about how much is one Portuguese egg tart?", factZh: "澳門的葡式蛋撻表面焦香，和里斯本的原版是近親。", factEn: "Macau's egg tart has a scorched top and is a close cousin of the Lisbon original." } },
+  { id: "singapore", zh: "新加坡", en: "Singapore", center: [103.8545, 1.2868], knownZh: "榴槤、卓錦萬代蘭、娘惹瓷", knownEn: "Durian, the Miss Joaquim orchid, Peranakan porcelain", lmZh: "魚尾獅", lmEn: "Merlion", lm: [103.8545, 1.2868], no: 12,
+    q: { img: "vessels/vessel-durian.webp", cur: "S$", price: 25, zh: "在新加坡，一公斤貓山王榴槤大概多少錢？", en: "In Singapore, about how much is a kilo of Musang King durian?", factZh: "榴槤氣味太濃，新加坡的地鐵禁止攜帶。", factEn: "Durian smells so strong that it is banned on Singapore's trains." } },
+  { id: "tokyo", zh: "東京", en: "Tokyo", center: [139.7967, 35.7148], soon: true },
+  { id: "kyoto", zh: "京都", en: "Kyoto", center: [135.7727, 34.9671], soon: true },
+  { id: "seoul", zh: "首爾", en: "Seoul", center: [126.9770, 37.5796], soon: true },
+  { id: "bangkok", zh: "曼谷", en: "Bangkok", center: [100.4913, 13.7500], soon: true },
+  { id: "beijing", zh: "北京", en: "Beijing", center: [116.3972, 39.9163], soon: true },
+  { id: "kl", zh: "吉隆坡", en: "Kuala Lumpur", center: [101.7117, 3.1579], soon: true },
+];
+
+const T = {
+  zh: { title: "探索城市", lang: "EN", known: "以這些聞名：", landmark: "地標：", play: "玩今天的謎題", see: "看結果", soon: "即將開放", soonLine: "地圖已經準備好，遊戲還在路上。", streak: n => `連續 ${n} 天`, today: "今日謎題：猜價", doneWin: n => `已猜中 ${n}/${MAX}`, doneLose: "今天沒猜中", tomorrow: "明天有新題目", pTitle: "猜價", pSub: (c, n) => `${c} · 第 ${n} 題`, slot: n => `第 ${n} 次`, up: "再高一點", down: "再低一點", close: "很接近", hit: "猜中了", guess: "猜", left: n => `還有 ${n} 次機會。猜中 10% 以內就算對。`, winH: "猜中了！", loseH: "差一點", about: "大概", src: "價格來源：示範資料，尚未查證", reward: n => `得到 ${n} 顆蠟球`, share: "分享結果", done: "完成", copied: "已複製結果", back: "示範：會回到你所在位置的地圖", shareHead: "時光膠囊 猜價" },
+  en: { title: "Explore cities", lang: "中文", known: "Known for: ", landmark: "Landmark: ", play: "Play today's puzzle", see: "See result", soon: "Coming soon", soonLine: "The map is ready. The game is on its way.", streak: n => `${n}-day streak`, today: "Today: Guess the price", doneWin: n => `Solved in ${n}/${MAX}`, doneLose: "Not solved today", tomorrow: "New puzzle tomorrow", pTitle: "Guess the price", pSub: (c, n) => `${c} · No. ${n}`, slot: n => `Guess ${n}`, up: "Higher", down: "Lower", close: "Close", hit: "Got it", guess: "Guess", left: n => `${n} ${n === 1 ? "guess" : "guesses"} left. Within 10% counts.`, winH: "You got it!", loseH: "So close", about: "About", src: "Price source: sample data, not yet checked", reward: n => `You earned ${n} wax ${n === 1 ? "ball" : "balls"}`, share: "Share result", done: "Done", copied: "Result copied", back: "Demo: this returns to the map at your location", shareHead: "Time Capsule · Guess the price" },
+};
+
+const state = { lang: location.hash === "#en" ? "en" : "zh", idx: 0, balls: 12, streak: 2, playedToday: false, runs: {}, open: null };
+const $ = id => document.getElementById(id);
+const t = () => T[state.lang];
+const name = c => state.lang === "zh" ? c.zh : c.en;
+const run = c => state.runs[c.id] || (state.runs[c.id] = { guesses: [], done: false, won: false });
+const money = (q, n) => `${q.cur} ${Number.isInteger(n) ? n : n.toFixed(1)}`;
+
+// Map
+const map = new maplibregl.Map({
+  container: "map", attributionControl: false, center: CITIES[0].center, zoom: 12.6, pitch: 48, bearing: -14,
+  // Washed OpenStreetMap tiles, close to the app's fallback look (mapHtml.ts rasterStyle).
+  style: { version: 8, sources: { base: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, maxzoom: 19 } }, layers: [{ id: "base", type: "raster", source: "base", paint: { "raster-saturation": -0.45, "raster-contrast": -0.2, "raster-brightness-min": 0.2, "raster-hue-rotate": -6 } }] },
+});
+const markers = CITIES.filter(c => !c.soon).map(c => {
+  const el = document.createElement("div");
+  el.style.position = "relative";
+  el.innerHTML = `<img class="gem" src="${ART}game/landmark-gem-blue.webp" alt=""><span class="gem-name"></span>`;
+  new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat(c.lm).addTo(map);
+  return { c, label: el.querySelector(".gem-name") };
+});
+function fly(c) {
+  // Keep the city above the cards: the lower 40% of the screen is covered.
+  map.flyTo({ center: c.center, zoom: 12.6, pitch: 48, bearing: -14, padding: { bottom: 260, top: 60 }, duration: matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 2200, essential: true });
+}
+
+// Cards
+function renderCards() {
+  $("cards").innerHTML = CITIES.map((c, i) => {
+    if (c.soon) return `<article class="card soon${i === state.idx ? " on" : ""}" data-i="${i}"><div class="card-head"><div class="city">${name(c)}</div></div><div class="known">${t().soonLine}</div><div class="facts"><span class="fact">${t().soon}</span></div></article>`;
+    const r = run(c);
+    const status = r.done ? `<span class="fact done">${r.won ? t().doneWin(r.guesses.length) : t().doneLose}</span><span class="fact">${t().tomorrow}</span>` : `<span class="fact">${t().today}</span>`;
+    return `<article class="card${i === state.idx ? " on" : ""}" data-i="${i}">
+      <div class="card-head"><div class="city">${name(c)}</div><div class="streak"><i></i>${t().streak(state.streak)}</div></div>
+      <div class="known">${t().known}${state.lang === "zh" ? c.knownZh : c.knownEn}</div>
+      <div class="facts"><span class="fact">${t().landmark}${state.lang === "zh" ? c.lmZh : c.lmEn}</span>${status}</div>
+    </article>`;
+  }).join("");
+  $("dots").innerHTML = CITIES.map((_, i) => `<i class="${i === state.idx ? "on" : ""}"></i>`).join("");
+}
+function renderAction() {
+  const c = CITIES[state.idx], b = $("action");
+  const arrow = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
+  b.disabled = !!c.soon;
+  b.className = "action" + (!c.soon && run(c).done ? " ghost" : "");
+  b.innerHTML = c.soon ? `<span>${t().soon}</span>` : `<span>${run(c).done ? t().see : t().play}</span>${arrow}`;
+}
+function renderChrome() {
+  $("title").textContent = t().title;
+  $("lang").textContent = t().lang;
+  $("balls").textContent = state.balls;
+  markers.forEach(m => m.label.textContent = state.lang === "zh" ? m.c.lmZh : m.c.lmEn);
+  renderCards(); renderAction();
+  if (state.open) renderPuzzle();
+}
+function setIdx(i) {
+  if (i === state.idx) return;
+  state.idx = i;
+  document.querySelectorAll(".card").forEach((el, k) => el.classList.toggle("on", k === i));
+  document.querySelectorAll(".dots i").forEach((el, k) => el.classList.toggle("on", k === i));
+  renderAction(); fly(CITIES[i]);
+}
+let tick;
+$("cards").addEventListener("scroll", () => {
+  clearTimeout(tick);
+  tick = setTimeout(() => {
+    const box = $("cards"), mid = box.scrollLeft + box.clientWidth / 2;
+    let best = 0, gap = Infinity;
+    [...box.children].forEach((el, i) => { const d = Math.abs(el.offsetLeft + el.offsetWidth / 2 - mid); if (d < gap) { gap = d; best = i; } });
+    setIdx(best);
+  }, 90);
+});
+$("cards").addEventListener("click", e => {
+  const card = e.target.closest(".card");
+  if (card) card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+});
+
+// Puzzle
+function renderPuzzle() {
+  const c = state.open, q = c.q, r = run(c), L = t();
+  $("p-title").textContent = L.pTitle;
+  $("p-sub").textContent = L.pSub(name(c), c.no);
+  const rows = Array.from({ length: MAX }, (_, i) => {
+    const g = r.guesses[i];
+    if (g == null) return `<div class="row"><span>${L.slot(i + 1)}</span></div>`;
+    const off = g / q.price - 1, hit = Math.abs(off) <= WIN;
+    const hint = hit ? `✓ ${L.hit}` : `${off < 0 ? "↑ " + L.up : "↓ " + L.down}${Math.abs(off) <= CLOSE ? ` <em>${L.close}</em>` : ""}`;
+    return `<div class="row used${hit ? " win" : ""}"><span class="amt">${money(q, g)}</span><span class="hint">${hint}</span></div>`;
+  }).join("");
+  const tail = r.done
+    ? `<div class="result"><h3>${r.won ? L.winH : L.loseH}</h3><div class="price">${L.about} ${money(q, q.price)}</div><p>${state.lang === "zh" ? q.factZh : q.factEn}</p><div class="src">${L.src}</div>
+        <div class="won"><img src="${ART}game/ball-wax.webp" alt="">${L.reward(r.won ? 3 : 1)} · ${L.streak(state.streak)}</div></div>
+       <div class="two"><button class="btn" id="share">${L.share}</button><button class="btn fill" id="done">${L.done}</button></div>`
+    : `<form class="entry" id="entry"><label class="money"><span>${q.cur}</span><input id="amount" type="number" inputmode="decimal" min="0" step="any" autocomplete="off" aria-label="${L.pTitle}"></label><button class="guess" id="go" disabled>${L.guess}</button></form>
+       <div class="left">${L.left(MAX - r.guesses.length)}</div>`;
+  $("p-body").innerHTML = `<div class="item"><img src="${ART}${q.img}" alt=""><q>${state.lang === "zh" ? q.zh : q.en}</q></div><div class="rows">${rows}</div>${tail}`;
+  if (r.done) {
+    $("share").onclick = share;
+    $("done").onclick = closePuzzle;
+  } else {
+    const input = $("amount");
+    input.oninput = () => $("go").disabled = !(Number(input.value) > 0);
+    $("entry").onsubmit = e => { e.preventDefault(); guess(Number(input.value)); };
+    input.focus({ preventScroll: true });
+  }
+}
+function guess(n) {
+  if (!(n > 0)) return;
+  const c = state.open, r = run(c);
+  r.guesses.push(n);
+  const hit = Math.abs(n / c.q.price - 1) <= WIN;
+  if (hit || r.guesses.length >= MAX) {
+    r.done = true; r.won = hit;
+    state.balls += hit ? 3 : 1;
+    if (!state.playedToday) { state.playedToday = true; state.streak += 1; }
+    $("balls").textContent = state.balls;
+    renderCards(); renderAction();
+  }
+  renderPuzzle();
+}
+function share() {
+  const c = state.open, r = run(c);
+  const marks = r.guesses.map(g => Math.abs(g / c.q.price - 1) <= WIN ? "✅" : g < c.q.price ? "⬆️" : "⬇️").join("");
+  const text = `${t().shareHead} · ${name(c)} #${c.no} · ${r.won ? r.guesses.length : "X"}/${MAX}\n${marks}`;
+  (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).catch(() => {}).finally(() => toast(t().copied));
+}
+function openPuzzle() { const c = CITIES[state.idx]; if (c.soon) return; state.open = c; renderPuzzle(); $("sheet").classList.add("open"); }
+function closePuzzle() { $("sheet").classList.remove("open"); state.open = null; }
+let toastTimer;
+function toast(msg) { const el = $("toast"); el.textContent = msg; el.classList.add("on"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("on"), 1800); }
+
+$("action").onclick = openPuzzle;
+$("close").onclick = closePuzzle;
+$("back").onclick = () => toast(t().back);
+$("lang").onclick = () => { state.lang = state.lang === "zh" ? "en" : "zh"; history.replaceState(null, "", state.lang === "en" ? "#en" : "#"); renderChrome(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape" && state.open) closePuzzle(); });
+renderChrome();
+</script>

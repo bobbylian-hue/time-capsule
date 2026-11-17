@@ -57,6 +57,9 @@ Status: `todo` → `doing` → `review` (report sent to Claude) → `done`. Move
 - V1 cleanup follow-up: remove unattached `voice-notes` uploads older than 24 hours through the Storage API, with an attachment re-check. Pending uploads remain unreadable. Never delete attached recordings or manipulate Storage metadata to delete blobs.
 | ID | Task | Owner | Done when |
 |---|---|---|---|
+| CE-plan | City Explorer and daily puzzle plan (`docs/design/city-explorer.md`, demo `docs/design/demos/city-explorer.html`) | Claude → Roy | Roy tries the demo and confirms the four open points (reward sizes, 10% margin, coming-soon cities, jigsaw sizes). |
+| CE1 | City Explorer + Guess the price: city chip and cards on Journey, look-only city view, daily price puzzle, wax ball reward, streak, share | Claude UI → Codex backend | Held until Roy approves CE-plan. Then screens against sample data, and a Codex prompt for the puzzle tables, server-checked guesses, read-only city view and about 30 sourced questions per city. |
+| CE2 | Jigsaw lock on public capsules (Part C of the plan) | Claude design → Codex | After CE1 is live. Our picture only; photo upload waits for Roy's moderation decision. |
 | RV-plan | Regional vessels and Landmarks plan (`docs/design/regional-vessels.md`) | Claude → Roy | Updated 2026-11-15: draw what a place is known for, not its packaging; existing vessels unchanged; nine parallel art batches. Still open: Landmark picks, tram colour, whether new vessels start switched off. |
 | RV-TW / HK / SG / MO | Regional art wave 1, three vessels each (see the plan's batch table) | Codex art, one session per batch | Roy approves each batch's test vessel, then its art-only PR; merged one at a time. No wiring, migration or deploy. RV-TW reuses draft PR #134. |
 | RV-TW2 / HK2 / SG2 / MO2 | Regional art wave 2, three vessels each | Codex art, one session per batch | Same gates as wave 1. |
