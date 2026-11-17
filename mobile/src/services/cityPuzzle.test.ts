@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./supabase", () => ({ supabase: { rpc: vi.fn() } }));
 
-import { CITIES, MAX_GUESSES, cityAt, cityPuzzle, CityPuzzleError, judge, localText, parseGuess, shareText, usdText, type CityPuzzle } from "./cityPuzzle";
+import { CITIES, MAX_GUESSES, cityAt, cityPuzzle, CityPuzzleError, judge, localPriceText, localText, parseGuess, shareText, usdText, type CityPuzzle } from "./cityPuzzle";
 
 describe("judge", () => {
   it("wins within 10% either way", () => {
@@ -29,6 +29,10 @@ describe("money", () => {
     expect(localText(2, { currency: "NT$", rate: 32 })).toBe("NT$ 64");
     expect(localText(1.5, { currency: "HK$", rate: 7.8 })).toBe("HK$ 11.7");
     expect(localText(1, { currency: "S$", rate: 1.35 })).toBe("S$ 1.4");
+  });
+  it("shows the answer's checked local price as stored, not converted back", () => {
+    expect(localPriceText(200, "NT$")).toBe("NT$ 200");
+    expect(localPriceText(11.5, "MOP")).toBe("MOP 11.5");
   });
   it("reads a typed guess", () => {
     expect(parseGuess("2")).toBe(2);

@@ -5,7 +5,7 @@ import { gameArt } from "../../art/manifest";
 import { ArtIcon } from "../../components/ArtIcon";
 import { haptics } from "../../components/haptics";
 import { Vessel, type VesselKind } from "../../components/Vessel";
-import { cityPuzzle, CityPuzzleError, localText, MAX_GUESSES, parseGuess, SAMPLE_SOURCE, shareText, usdText, type CityPuzzle, type ExplorerCity, type GuessMark, type GuessResult } from "../../services/cityPuzzle";
+import { cityPuzzle, CityPuzzleError, localPriceText, localText, MAX_GUESSES, parseGuess, SAMPLE_SOURCE, shareText, usdText, type CityPuzzle, type ExplorerCity, type GuessMark, type GuessResult } from "../../services/cityPuzzle";
 import { C, radii, sans, serif, spacing } from "../../theme";
 import { Btn, Chip } from "../journey/JourneyControls";
 import { useExplorerText } from "./strings";
@@ -72,7 +72,7 @@ export function PriceGuessScreen({ city, puzzle, streak, language, onResult, onC
           ? <>
             <View style={{ gap: 8, backgroundColor: C.white, borderWidth: 1, borderColor: C.brass, borderRadius: 18, padding: 18 }}>
               <Text style={{ fontFamily: serif, fontSize: 19, color: C.ink }}>{puzzle.won ? s.winTitle : s.loseTitle}</Text>
-              <Text style={{ fontFamily: serif, fontSize: 24, lineHeight: 32, color: C.plum }}>{s.about(usdText(puzzle.answer.usd), localText(puzzle.answer.usd, puzzle))}</Text>
+              <Text style={{ fontFamily: serif, fontSize: 24, lineHeight: 32, color: C.plum }}>{s.about(usdText(puzzle.answer.usd), localPriceText(puzzle.answer.local, puzzle.currency))}</Text>
               <Text style={{ fontFamily: sans, fontSize: 14, lineHeight: 22, color: C.ink }}>{zh ? puzzle.answer.fact_zh : puzzle.answer.fact_en}</Text>
               <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{puzzle.answer.source === SAMPLE_SOURCE ? s.sourceSample : s.source(puzzle.answer.source, puzzle.answer.checked_on)}</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 10 }}>

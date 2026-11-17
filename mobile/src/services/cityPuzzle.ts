@@ -71,6 +71,8 @@ export function localText(usd: number, puzzle: Pick<CityPuzzle, "currency" | "ra
   const local = usd * puzzle.rate;
   return `${puzzle.currency} ${local >= 20 ? Math.round(local) : trim(local, 1)}`;
 }
+/** The answer's own local price, exactly as checked; converting the rounded dollar answer back could be off by a little. */
+export const localPriceText = (local: number, currency: string) => `${currency} ${trim(local, 2)}`;
 /** Text typed into the guess box as a dollar amount, or null when it is not one. */
 export function parseGuess(text: string): number | null {
   const clean = text.trim().replace(/^(US)?\$\s*/i, "").replace(/,/g, "");
