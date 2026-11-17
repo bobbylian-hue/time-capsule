@@ -36,11 +36,16 @@ export const CITIES: ExplorerCity[] = [
 
 export type Hint = "higher" | "lower" | "solved";
 export type GuessMark = { usd: number; hint: Hint; close: boolean };
+/** A real photo of the item, reused under its licence and always shown with its credit. */
+export type PuzzlePhoto = { url: string; credit: string; license: string; link: string };
 export type PuzzleAnswer = { usd: number; local: number; fact_zh: string; fact_en: string; source: string; checked_on: string };
 export type CityPuzzle = {
   city: string; no: number;
   question_zh: string; question_en: string;
-  /** The picture: a vessel's art for now. */
+  /** The one shop or ticket office the price comes from. Prices vary between places, so the question names one and the answer is exact. */
+  venue_zh: string; venue_en: string;
+  /** A real photo of the item when we have one we may reuse; otherwise the vessel art is shown. */
+  photo: PuzzlePhoto | null;
   vessel: string;
   /** Players guess in US dollars so any city reads the same; each guess is also shown in the city's own money. */
   currency: string;
@@ -93,13 +98,13 @@ export function cityAt(you: { lat: number; lng: number } | null): ExplorerCity |
   return CITIES.filter((c) => c.playable).find((c) => km(you, c) <= CITY_RADIUS_KM) ?? null;
 }
 
-// ---- sample stand-in: made-up prices and rates, for trying the screens only ----
+// ---- sample stand-in: made-up prices, rates and venues, for trying the screens only ----
 type Sample = Omit<CityPuzzle, "guesses" | "done" | "won" | "answer" | "reward"> & { local: number; fact_zh: string; fact_en: string };
 const SAMPLE: Sample[] = [
-  { city: "taipei", no: 12, vessel: "bubble-tea", currency: "NT$", rate: 32, local: 60, question_zh: "在台北，一杯珍珠奶茶大概多少錢？", question_en: "In Taipei, about how much is a cup of bubble tea?", fact_zh: "珍珠奶茶在 1980 年代誕生於台灣，手搖飲料店幾乎每條街都有。", fact_en: "Bubble tea was invented in Taiwan in the 1980s, and there is a tea shop on almost every street." },
-  { city: "hongkong", no: 12, vessel: "bolo-bun", currency: "HK$", rate: 7.8, local: 14, question_zh: "在香港的茶餐廳，一個菠蘿油大概多少錢？", question_en: "In a Hong Kong café, about how much is a pineapple bun with butter?", fact_zh: "菠蘿包裡其實沒有菠蘿，名字來自表面像菠蘿的酥皮。", fact_en: "There is no pineapple in it. The name comes from the crust, which looks like one." },
-  { city: "macau", no: 12, vessel: "egg-tart", currency: "MOP", rate: 8.05, local: 11, question_zh: "在澳門，一個葡式蛋撻大概多少錢？", question_en: "In Macau, about how much is one Portuguese egg tart?", fact_zh: "澳門的葡式蛋撻表面焦香，和里斯本的原版是近親。", fact_en: "Macau's egg tart has a scorched top and is a close cousin of the Lisbon original." },
-  { city: "singapore", no: 12, vessel: "durian", currency: "S$", rate: 1.35, local: 25, question_zh: "在新加坡，一公斤貓山王榴槤大概多少錢？", question_en: "In Singapore, about how much is a kilo of Musang King durian?", fact_zh: "榴槤氣味太濃，新加坡的地鐵禁止攜帶。", fact_en: "Durian smells so strong that it is banned on Singapore's trains." },
+  { city: "taipei", no: 12, vessel: "bubble-tea", photo: null, currency: "NT$", rate: 32, local: 60, venue_zh: "春水堂 台北中山店", venue_en: "Chun Shui Tang, Zhongshan, Taipei", question_zh: "春水堂一杯中杯珍珠奶茶多少錢？", question_en: "How much is a medium pearl milk tea at Chun Shui Tang?", fact_zh: "珍珠奶茶在 1980 年代誕生於台灣，手搖飲料店幾乎每條街都有。", fact_en: "Bubble tea was invented in Taiwan in the 1980s, and there is a tea shop on almost every street." },
+  { city: "hongkong", no: 12, vessel: "bolo-bun", photo: null, currency: "HK$", rate: 7.8, local: 14, venue_zh: "金華冰廳 太子", venue_en: "Kam Wah Café, Prince Edward", question_zh: "金華冰廳一個菠蘿油多少錢？", question_en: "How much is a pineapple bun with butter at Kam Wah Café?", fact_zh: "菠蘿包裡其實沒有菠蘿，名字來自表面像菠蘿的酥皮。", fact_en: "There is no pineapple in it. The name comes from the crust, which looks like one." },
+  { city: "macau", no: 12, vessel: "egg-tart", photo: null, currency: "MOP", rate: 8.05, local: 11, venue_zh: "安德魯餅店 路環", venue_en: "Lord Stow's Bakery, Coloane", question_zh: "安德魯餅店一個葡式蛋撻多少錢？", question_en: "How much is one Portuguese egg tart at Lord Stow's Bakery?", fact_zh: "澳門的葡式蛋撻表面焦香，和里斯本的原版是近親。", fact_en: "Macau's egg tart has a scorched top and is a close cousin of the Lisbon original." },
+  { city: "singapore", no: 12, vessel: "durian", photo: null, currency: "S$", rate: 1.35, local: 25, venue_zh: "芽籠一家榴槤攤", venue_en: "A durian stall in Geylang", question_zh: "一公斤貓山王榴槤多少錢？", question_en: "How much is a kilo of Musang King durian?", fact_zh: "榴槤氣味太濃，新加坡的地鐵禁止攜帶。", fact_en: "Durian smells so strong that it is banned on Singapore's trains." },
 ];
 export const SAMPLE_SOURCE = "sample";
 const sample = { runs: new Map<string, CityPuzzle>(), streak: 2, played: false };

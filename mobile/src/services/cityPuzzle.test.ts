@@ -43,7 +43,7 @@ describe("money", () => {
 });
 
 describe("shareText", () => {
-  const base: CityPuzzle = { city: "taipei", no: 12, question_zh: "", question_en: "", vessel: "bubble-tea", currency: "NT$", rate: 32, guesses: [], done: true, won: true, answer: null, reward: 3 };
+  const base: CityPuzzle = { city: "taipei", no: 12, question_zh: "", question_en: "", venue_zh: "", venue_en: "", photo: null, vessel: "bubble-tea", currency: "NT$", rate: 32, guesses: [], done: true, won: true, answer: null, reward: 3 };
   it("shows arrows and the count, never a price", () => {
     const text = shareText({ ...base, guesses: [{ usd: 1, hint: "higher", close: false }, { usd: 5, hint: "lower", close: false }, { usd: 1.9, hint: "solved", close: true }] }, "Taipei", "Time Capsule");
     expect(text).toBe("Time Capsule · Taipei #12 · 3/6\n⬆️⬇️✅");

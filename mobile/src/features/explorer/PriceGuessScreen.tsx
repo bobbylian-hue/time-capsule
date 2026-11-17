@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
+import { Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { gameArt } from "../../art/manifest";
 import { ArtIcon } from "../../components/ArtIcon";
@@ -58,10 +58,24 @@ export function PriceGuessScreen({ city, puzzle, streak, language, onResult, onC
     </View>
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ width: "100%", maxWidth: 560, alignSelf: "center", paddingHorizontal: 22, paddingBottom: insets.bottom + spacing.lg, gap: 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 16 }}>
-          <Vessel kind={puzzle.vessel as VesselKind} size={96} />
-          <Text style={{ flex: 1, fontFamily: serif, fontSize: 18, lineHeight: 28, color: C.ink }}>{zh ? puzzle.question_zh : puzzle.question_en}</Text>
-        </View>
+        {puzzle.photo
+          ? <View style={{ gap: 10, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 18, padding: 12 }}>
+            <Image source={{ uri: puzzle.photo.url }} accessibilityIgnoresInvertColors resizeMode="cover" style={{ width: "100%", aspectRatio: 16 / 10, borderRadius: 12, backgroundColor: C.paper }} />
+            <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(puzzle.photo!.link)} hitSlop={6}>
+              <Text style={{ fontFamily: sans, fontSize: 11.5, color: C.muted }}>{s.photoCredit(puzzle.photo.credit, puzzle.photo.license)}</Text>
+            </Pressable>
+            <View style={{ paddingHorizontal: 4, paddingBottom: 4, gap: 6 }}>
+              <Text style={{ fontFamily: serif, fontSize: 18, lineHeight: 28, color: C.ink }}>{zh ? puzzle.question_zh : puzzle.question_en}</Text>
+              <Venue text={zh ? puzzle.venue_zh : puzzle.venue_en} />
+            </View>
+          </View>
+          : <View style={{ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 16 }}>
+            <Vessel kind={puzzle.vessel as VesselKind} size={96} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={{ fontFamily: serif, fontSize: 18, lineHeight: 28, color: C.ink }}>{zh ? puzzle.question_zh : puzzle.question_en}</Text>
+              <Venue text={zh ? puzzle.venue_zh : puzzle.venue_en} />
+            </View>
+          </View>}
         <Text style={{ fontFamily: sans, fontSize: 12.5, lineHeight: 19, color: C.muted, textAlign: "center" }}>{s.inUsd(localText(1, puzzle))}</Text>
 
         <View style={{ gap: 6 }}>
@@ -74,7 +88,11 @@ export function PriceGuessScreen({ city, puzzle, streak, language, onResult, onC
               <Text style={{ fontFamily: serif, fontSize: 19, color: C.ink }}>{puzzle.won ? s.winTitle : s.loseTitle}</Text>
               <Text style={{ fontFamily: serif, fontSize: 24, lineHeight: 32, color: C.plum }}>{s.about(usdText(puzzle.answer.usd), localPriceText(puzzle.answer.local, puzzle.currency))}</Text>
               <Text style={{ fontFamily: sans, fontSize: 14, lineHeight: 22, color: C.ink }}>{zh ? puzzle.answer.fact_zh : puzzle.answer.fact_en}</Text>
-              <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{puzzle.answer.source === SAMPLE_SOURCE ? s.sourceSample : s.source(puzzle.answer.source, puzzle.answer.checked_on)}</Text>
+              {puzzle.answer.source === SAMPLE_SOURCE
+                ? <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{s.sourceSample}</Text>
+                : <Pressable accessibilityRole="link" disabled={!isLink(puzzle.answer.source)} onPress={() => void Linking.openURL(puzzle.answer!.source)} hitSlop={6}>
+                  <Text style={{ fontFamily: sans, fontSize: 12, color: isLink(puzzle.answer.source) ? C.blue : C.muted }}>{s.source(siteName(puzzle.answer.source), puzzle.answer.checked_on)}</Text>
+                </Pressable>}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 10 }}>
                 <Image source={gameArt.ball.wax} style={{ width: 30, height: 30 }} />
                 <Text style={{ flex: 1, fontFamily: serif, fontSize: 15, color: C.ink }}>{[puzzle.reward ? s.reward(puzzle.reward) : "", streak > 0 ? s.streak(streak) : ""].filter(Boolean).join(" · ")}</Text>
@@ -103,6 +121,20 @@ export function PriceGuessScreen({ city, puzzle, streak, language, onResult, onC
         {!!note && <Text accessibilityRole="alert" style={{ alignSelf: "center", backgroundColor: C.ink, color: C.white, fontFamily: sans, fontSize: 13, paddingHorizontal: 16, paddingVertical: 9, borderRadius: radii.pill, overflow: "hidden" }}>{note}</Text>}
       </ScrollView>
     </KeyboardAvoidingView>
+  </View>;
+}
+
+const isLink = (source: string) => /^https?:\/\//.test(source);
+/** A source link shown as its site's name, so a long address doesn't fill the card. */
+const siteName = (source: string) => { try { return isLink(source) ? new URL(source).hostname.replace(/^www\./, "") : source; } catch { return source; } };
+
+/** Where the price comes from: one named shop or ticket office. */
+function Venue({ text }: { text: string }) {
+  const s = useExplorerText();
+  if (!text) return null;
+  return <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+    <ArtIcon name="pin" size={15} color={C.muted} />
+    <Text style={{ flex: 1, fontFamily: sans, fontSize: 13, lineHeight: 19, color: C.muted }}>{s.venue(text)}</Text>
   </View>;
 }
 

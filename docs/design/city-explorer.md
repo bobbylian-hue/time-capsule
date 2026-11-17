@@ -72,7 +72,7 @@ The reference is Costcodle: a picture, guess the price, "higher" or "lower", six
 - No retries. Tomorrow has a new one.
 
 ### Rewards
-- Solved: 3 wax balls. Not solved: 1 wax ball. The numbers live in the server's game settings.
+- Solved: 3 wax balls. Not solved: 1 wax ball. While we test, the numbers stay in the puzzle's own server setting, apart from the admin game settings. Once they settle, admin gets a page to change them (Roy, 2026-11-17).
 - **Streak:** the number of days in a row you played at least one city's puzzle. It is shown on the card. There is no penalty screen when it breaks.
 - No new currency.
 - **Share:** a text result in the Wordle style, with no spoilers:
@@ -83,15 +83,17 @@ The reference is Costcodle: a picture, guess the price, "higher" or "lower", six
 ```
 
 ### Content
+Roy, 2026-11-17: prices differ from shop to shop, and no amount of checking makes "a typical price" exact. So **every question names one place**, such as 「春水堂 台北中山店」 or the Star Ferry pier in Wan Chai, and the answer is that place's price.
 - About 30 questions per city to start, repeating in order when they run out.
-- Things the city is known for: food, a tram or ferry fare, a market snack, a souvenir. Where we already have the vessel art (bubble tea, egg tart, pineapple bun, pineapple cake, tram) the question uses it.
-- Each question stores: city, question in Chinese and English, picture, typical local price, currency, the US dollar rate on the day it was checked, one-line fact in both languages, source and the date checked. The US dollar answer is the local price divided by that stored rate, so it never drifts with live exchange rates.
-- Prices must come from a checkable source, never from memory or a guess. A question with no source is not published.
-- Pictures follow `design/art/STYLE.md`. No AI imitation photos of real places.
+- Things the city is known for: food, a drink, a tram or ferry fare, a market snack, a Landmark ticket, a souvenir.
+- **The place** is shown under the question (「價格取自：…」 / "Price at: …"), with the shop or office name and its district. Any well-known place is fine, from a street stall to a hotel café, as long as it is named.
+- **The picture** is a real photo of the item when we can find one we are allowed to reuse; our vessel art is the fallback, never a picture that doesn't match. A photo found online belongs to whoever took it, so use one with a reuse licence (Wikimedia Commons or Openverse with CC0, CC BY or CC BY-SA), or the place's own press image with permission. Store our own copy, and show the credit and licence under the photo. AI imitation photos stay ruled out.
+- Each question stores: city, question in Chinese and English, the place in Chinese and English, the photo (address of our copy, credit, licence, original link) or none, the fallback vessel, local price, currency, the US dollar rate on the day it was checked, one-line fact in both languages, source and the date checked. The US dollar answer is the local price divided by that stored rate, so it never drifts with live exchange rates.
+- Prices must come from a checkable source for that place, never from memory or a guess. A question with no source is not published.
 
 ### What the server does
 The answer never reaches the phone before the puzzle is finished. The app's side of this contract is `mobile/src/services/cityPuzzle.ts`.
-- **`city_puzzle_today()`** returns `{ puzzles, streak }`. Each puzzle has `city`, `no`, `question_zh`, `question_en`, `vessel` (the picture), `currency`, `rate`, `guesses` (each `{ usd, hint, close }`), `done`, `won`, `answer` and `reward`. `answer` and `reward` are null until the puzzle is finished.
+- **`city_puzzle_today()`** returns `{ puzzles, streak }`. Each puzzle has `city`, `no`, `question_zh`, `question_en`, `venue_zh`, `venue_en`, `photo` (`{ url, credit, license, link }` or null), `vessel` (shown when there is no photo), `currency`, `rate`, `guesses` (each `{ usd, hint, close }`), `done`, `won`, `answer` and `reward`. `answer` and `reward` are null until the puzzle is finished.
 - **`city_puzzle_guess(p_city, p_usd)`** records one guess and returns `{ puzzle, streak, state }`. `hint` is `higher`, `lower` or `solved`. On a solve or the sixth guess it fills `answer` (`usd`, `local`, `fact_zh`, `fact_en`, `source`, `checked_on`) and `reward`, pays the wax balls once, and returns the player's game state. Errors: `already_done`, `bad_guess`.
 - Streak and results are stored per player per day.
 - **Later:** a read-only city view that returns a city's Wayposts for the Explorer map without needing your location to be there. Until then the Explorer shows the map and its Landmark buildings only.
@@ -100,6 +102,7 @@ The answer never reaches the phone before the puzzle is finished. The app's side
 - `mobile/src/features/explorer/`: the city cards over the Journey map and the Guess the price screen.
 - Journey has the city chip, opens on the Explorer when you are outside every covered city, and offers the Explorer on the location screen, so it works with location off.
 - The map has a `city` command that flies to a city and sits above its Landmark.
+- The puzzle shows the place under the question, a real photo with its credit when there is one (the vessel art otherwise), and the price source as a link.
 - `CITY_PUZZLE_BACKEND` is off. Development builds play four sample questions kept in memory; production builds hide the whole feature until the backend is on.
 
 ## Part C: Jigsaw lock on public capsules (phase 2)
