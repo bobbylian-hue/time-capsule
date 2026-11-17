@@ -5,11 +5,60 @@ where the quoted price applies. Menu prices reflect the listed price before any
 separately stated service charge or tax. The Macau LRT, Ngong Ping 360, Guia
 Cable Car and Maokong Gondola each appear once.
 
-The JPEGs are staged in `supabase/assets/city-puzzle/` for the approved
-Storage rollout. Each photo is linked to its original and credited below.
+The 51 JPEGs in `supabase/assets/city-puzzle/` were uploaded to the public
+`city-puzzle` bucket on 2026-11-17. Every public download matches its committed
+JPEG byte-for-byte. Each photo is linked to its original and credited below.
 Photos of familiar foods may illustrate the dish from another vendor. The
 price and venue come from the linked price source. Copies were resized and
 re-encoded as JPEG while retaining the listed licence.
+
+## Release verification — 2026-11-17
+
+Roy approved the release after Claude re-reviewed `e80cb13`. The reviewed SQL,
+80 questions and 51 JPEGs were preserved byte-for-byte through the rebases.
+
+| Change | PR | Owner-account squash merge | Passing CI run |
+| --- | --- | --- | --- |
+| Expo SDK 58 package alignment | #150 | `22343f7` | `44082659816` |
+| City Explorer screens | #147 | `09db461` | `44083156958` |
+| Daily puzzle backend | #149 | `1fb35fe` | `44083654361` |
+
+The migration dry run listed only `20261117110915_city_puzzle.sql`. It is applied
+with that version. All 51 public photo URLs returned the exact committed JPEG
+bytes. Live database types were regenerated in owner-authored release `276034a`.
+Vercel promoted its READY production deployment to
+[Time Capsule](https://time-capsule-pi-two.vercel.app). Automatic domain assignment
+was held during schema/photo setup and restored after promotion.
+
+Validation completed:
+
+- Expo alignment: `npm run typecheck`, 198 mobile tests on main,
+  `npx expo install --check`, and both web and iOS exports.
+- Rebased CE1 and regenerated live types: TypeScript and all 212 mobile tests pass.
+- Hosted transaction/rollback SQL: hidden answers, input and margin rules, six
+  misses, no repeat rewards, Asia/Taipei midnight, streaks, and actual admin
+  wave-length Undo preserving puzzle rewards. The rollback removed its fixtures.
+- Production real JWTs: twelve concurrent solves yielded one 3-wax payout;
+  twelve concurrent misses recorded six guesses and one 1-wax payout. Direct
+  client table access and Storage uploads were refused. Fixtures were removed.
+- Signed-in Chrome at 375 × 812 in zh and en: all four cities, named venues,
+  decoded photos with author/licence credit, exact US-dollar and local answers,
+  3-wax wins and 1-wax misses, duplicate `already_done` without another payout,
+  one-day streak, clipboard Share and source links (including the Lord Stow’s
+  PDF redirect). Disposable accounts and their plays were deleted.
+- Production vessel fallback: isolated disposable plays selected existing
+  photo-free questions for every city in both languages. Pineapple cake, dim sum
+  steamer, cake box and tram art decoded, the venues appeared, and answers stayed
+  hidden. The catalogue and other players’ puzzles were untouched; fixtures removed.
+- Local 375 px zh Taipei play also passed against the hosted backend. Run
+  `cd mobile && npm run web` and open <http://localhost:8088>.
+- The Vercel runtime error query returned zero records in the checked 15-minute
+  window. CE1 security-advisor entries are the expected RLS-without-policy
+  notices for the two RPC-only tables; unrelated existing advisories remain.
+
+Optional later work: replace the three explicitly labelled Din Tai Fung
+**delivery-menu** prices with official in-store prices when suitable sources
+are available. Their current scope and sources remain as approved.
 
 ## Exchange rates
 
@@ -122,9 +171,10 @@ Local units per US$1 on 2026-11-17.
 
 ## Storage upload inventory
 
-Upload these JPEGs as the listed object names to the public `city-puzzle`
-bucket after approval. The migration creates the bucket with a 300,000-byte
-limit and JPEG MIME type. Read access uses public object URLs.
+These JPEGs are live under the listed object names in the public `city-puzzle`
+bucket. Migration `20261117110915` created its 300,000-byte limit and JPEG MIME
+type. Clients have public read access and no write policies. The largest file
+is 292,259 bytes.
 
 | Object name | Dimensions | Bytes | Author | Licence | Original |
 | --- | --- | ---: | --- | --- | --- |
