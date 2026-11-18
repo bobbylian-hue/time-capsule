@@ -59,7 +59,20 @@ Status: `todo` → `doing` → `review` (report sent to Claude) → `done`. Move
 |---|---|---|---|
 | CE-plan | City Explorer and daily puzzle plan (`docs/design/city-explorer.md`, demo `docs/design/demos/city-explorer.html`) | Claude → Roy | Done 2026-11-17: Roy approved the demo and chose US dollars for guessing. |
 | CE1 | City Explorer + Guess the price: city chip and cards on Journey, daily price puzzle in US dollars with local money shown, wax ball reward, streak, share | Claude UI → Codex backend | Live 2026-11-17. Owner-account merges #150 `22343f7`, #147 `09db461` and #149 `1fb35fe` passed CI in order. Migration `20261117110915`, 80 named questions, 51 verified public JPEGs and regenerated live types are released in `276034a`. Hosted rollback including admin Undo, production JWT payout races and signed-in 375 px zh/en checks across all four cities passed. Photos/credits, exact local prices, 3/1 wax once, streak, Share and source links verified. Disposable fixtures removed. See `docs/review/city-puzzle-questions.md`. |
-| CE2 | Jigsaw lock on public capsules (Part C of the plan) | Claude design → Codex | After CE1 is live. Our picture only; photo upload waits for Roy's moderation decision. |
+| CE2 | Jigsaw lock on public capsules (Part C of the plan) | — | Dropped 2026-11-18: the hunt loop replaces it; a jigsaw may come back later as a lock option. |
+| HL-plan | Hunt loop plan and demo (`docs/design/hunt-loop.md`, `docs/design/demos/hunt-loop.html`) | Claude → Roy | Roy approved the direction 2026-11-18. Contracts and the wave work list are in the plan. |
+| HL-A1 | Five quest-type pictures: arrive, question, price, catch, landmark (quest-template style) | Codex art (`codex/art-quest-types`) | Roy approves the 3-picture test, then the set; art-only PR merged. |
+| HL-C1 | Waypost racks backend, public capsule move/delete, retire drift/pass-on/drop places, admin rack contents | Codex (`codex/hunt-racks`) | Contract RPCs pass hosted rollback and real-JWT checks; migration held for Claude review and Roy. |
+| HL-C2 | Vessel copies backend, unlimited switch, admin adjust | Codex (`codex/vessel-copies`) | Same gates as HL-C1. |
+| HL-C3 | Shared quest model, five types, retire spin, City Hunt quest locations, question pool tables and admin RPCs | Codex (`codex/quest-types`) | Same gates; existing private hunts and City Hunts keep working. |
+| HL-Q1 | Question pool for Taipei, Hong Kong, Singapore, Macau | Codex (`codex/question-pool`) | Data file + review doc with sources; loads into HL-C3 tables after review. |
+| HL-U1 | Quest pin component, Journey gem = Waypost only, Waypost card (Spin + rack + leave form) | Claude (`claude/hunt-racks-ui`) | Screens behind a mock flag; wired after HL-C1. |
+| HL-U2 | Copies in Create, Cabinet and Album | Claude (`claude/vessel-copies-ui`) | Behind a mock flag; wired after HL-C2. |
+| HL-C4 | Today's Hunt backend | Codex | Wave 2, after HL-C3 review. |
+| HL-C5 | Route capsules backend and city route templates | Codex | Wave 2, after HL-C3 review. |
+| HL-U3 | Today's Hunt screen with motion | Claude | Wave 2. |
+| HL-U4 | Shared quest editor (private hunt + route), City Hunt quest pins, recipient route view | Claude | Wave 2. |
+| HL-U5 | Admin: question pool, Today's Hunt calendar, rack contents, copies | Claude | Wave 2. |
 | RV-plan | Regional vessels and Landmarks plan (`docs/design/regional-vessels.md`) | Claude → Roy | Updated 2026-11-15: draw what a place is known for, not its packaging; existing vessels unchanged; nine parallel art batches. Still open: Landmark picks, tram colour, whether new vessels start switched off. |
 | RV-TW / HK / SG / MO | Regional art wave 1, three vessels each (see the plan's batch table) | Codex art, one session per batch | Roy approves each batch's test vessel, then its art-only PR; merged one at a time. No wiring, migration or deploy. RV-TW reuses draft PR #134. |
 | RV-TW2 / HK2 / SG2 / MO2 | Regional art wave 2, three vessels each | Codex art, one session per batch | Same gates as wave 1. |

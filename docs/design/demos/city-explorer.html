@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>City Explorer Demo</title>
-<!-- Disposable demo of docs/design/city-explorer.md. Open this file directly in a browser. Add #en to the URL for English. Art loads from public/art. Prices, counts and streaks are sample data, not checked facts. The demo map uses plain OpenStreetMap tiles; the app keeps its own Journey map. -->
+<!-- Disposable demo of docs/design/city-explorer.md. Open this file directly in a browser. Add #en to the URL for English. Art loads from public/art. Prices, counts and streaks are sample data, not checked facts. The demo map uses OpenFreeMap Positron (OpenStreetMap data, no key), because tile.openstreetmap.org and CARTO block pages opened from file://; the app keeps its own Journey map. -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -178,8 +178,8 @@ const money = (q, n) => `${q.cur} ${Number.isInteger(n) ? n : n.toFixed(1)}`;
 // Map
 const map = new maplibregl.Map({
   container: "map", attributionControl: false, center: CITIES[0].center, zoom: 12.6, pitch: 48, bearing: -14,
-  // Washed OpenStreetMap tiles, close to the app's fallback look (mapHtml.ts rasterStyle).
-  style: { version: 8, sources: { base: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, maxzoom: 19 } }, layers: [{ id: "base", type: "raster", source: "base", paint: { "raster-saturation": -0.45, "raster-contrast": -0.2, "raster-brightness-min": 0.2, "raster-hue-rotate": -6 } }] },
+  // OpenFreeMap Positron: light OSM style, no key, works from file://.
+  style: "https://tiles.openfreemap.org/styles/positron",
 });
 const markers = CITIES.filter(c => !c.soon).map(c => {
   const el = document.createElement("div");
