@@ -110,6 +110,9 @@ const sample = {
     return { count: rackFor(waypost).length + SAMPLE_EXTRA, items: page, next_cursor: from + RACK_PAGE < rack.length ? String(from + RACK_PAGE) : null };
   },
   async leave(waypost: string, input: RackLeave): Promise<RackItem> {
+    // Same refusals as rack_leave.
+    if (![1, 7, 30, 365].includes(input.wait)) throw new RackError("bad_wait");
+    if (input.question && !input.answer) throw new RackError("no_answer");
     const c: SampleCapsule = {
       capsule_id: `sample-mine-${Date.now()}`, waypost, sender: ME, hint: input.hint || null, opens_at: new Date(Date.now() + input.wait * day).toISOString(),
       ready: false, has_question: !!input.question, question: input.question || null, answer: input.answer || null, body: input.body, is_friend: false, is_mine: true,
