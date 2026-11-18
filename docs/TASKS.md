@@ -73,7 +73,7 @@ Status: `todo` → `doing` → `review` (report sent to Claude) → `done`. Move
 | HL-C4 | Today's Hunt backend | Codex | Wave 2, after HL-C3 review. |
 | HL-C5 | Route capsules backend and city route templates | Codex | Wave 2, after HL-C3 review. |
 | HL-U3 | Today's Hunt screen with motion | Claude | Wave 2. |
-| HL-U4 | Shared quest editor (private hunt + route), City Hunt quest pins, recipient route view | Claude | Wave 2. |
+| HL-U4 | Shared quest editor (private hunt + route), City Hunt quest pins, recipient route view | Claude | Wave 2. Draft PR stacked on HL-U3, against samples; `HUNT_QUESTS_BACKEND` and `ROUTES_BACKEND` turn on when HL-C3 and HL-C5 migrations are applied. |
 | HL-U5 | Admin: question pool, Today's Hunt calendar, rack contents, copies | Claude | Wave 2. |
 | RV-plan | Regional vessels and Landmarks plan (`docs/design/regional-vessels.md`) | Claude → Roy | Updated 2026-11-15: draw what a place is known for, not its packaging; existing vessels unchanged; nine parallel art batches. Still open: Landmark picks, tram colour, whether new vessels start switched off. |
 | RV-TW / HK / SG / MO | Regional art wave 1, three vessels each (see the plan's batch table) | Codex art, one session per batch | Roy approves each batch's test vessel, then its art-only PR; merged one at a time. No wiring, migration or deploy. RV-TW reuses draft PR #134. |
