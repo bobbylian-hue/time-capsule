@@ -9,7 +9,7 @@ import { useAuth } from "../../services/auth";
 import { localPriceText, localText, parseGuess, usdText, type ExplorerCity, type GuessMark } from "../../services/cityPuzzle";
 import type { GameState } from "../../services/game";
 import type { Quest, QuestResult } from "../../services/quests";
-import { CITY_STAMP, HOME_CATCH_VESSELS, todaysHunt, TODAYS_HUNT_REWARD, TodaysHuntError, type HuntFriend, type TodaysHunt } from "../../services/todaysHunt";
+import { CITY_STAMP, HOME_CATCH_VESSELS, todaysHunt, TODAYS_HUNT_REWARD, TODAYS_HUNT_SAMPLE, TodaysHuntError, type HuntFriend, type TodaysHunt } from "../../services/todaysHunt";
 import { C, radii, sans, serif, shadows, spacing } from "../../theme";
 import { useReducedMotion } from "../../useReducedMotion";
 import { GuessRow, Venue } from "../explorer/PriceGuessScreen";
@@ -34,15 +34,18 @@ const FALLBACK_STATE: GameState = { xp: 0, level: 1, xp_to_next: 0, wax_balls: 0
  * along a trail to each one, its quest card flips up, the pin turns purple, and the city's stamp lands at the end.
  * Played from anywhere; nothing here checks location.
  */
-export function TodaysHuntScreen({ city, language, map, gameState, onState, onMap, onClose }: {
+export function TodaysHuntScreen({ city, language, map, gameState, onState, onMap, onFinish, onClose }: {
   city: ExplorerCity; language: "zh" | "en"; map: React.RefObject<LiveMapHandle | null>; gameState: GameState | null;
-  onState: (s: GameState) => void; onMap: (m: HuntMap | null) => void; onClose: () => void;
+  onState: (s: GameState) => void; onMap: (m: HuntMap | null) => void;
+  /** The day just finished: the server paid its wax balls, so the game state needs a refresh. */
+  onFinish: () => void; onClose: () => void;
 }) {
   const t = useTodaysHuntText();
   const x = useExplorerText();
   const zh = language === "zh";
   const reduced = useReducedMotion();
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
+  const isMe = (f: HuntFriend) => f.user.id === session?.user.id || (TODAYS_HUNT_SAMPLE && f.user.id === "me");
   const { height } = useWindowDimensions();
   const [day, setDay] = useState<TodaysHunt | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -84,7 +87,7 @@ export function TodaysHuntScreen({ city, language, map, gameState, onState, onMa
     alive.current = true;
     map.current?.motion({ type: "hopReset" });
     map.current?.motion({ type: "speed", k: 1 });
-    todaysHunt.today(city.id).then((d) => { if (alive.current) void begin(d); }).catch(() => { if (alive.current) { setNote(x.error); setPhase("empty"); } });
+    todaysHunt.today(city.id).then((d) => { if (alive.current) void begin(d); }).catch((e) => { if (!alive.current) return; if (!(e instanceof TodaysHuntError && e.code === "hunt_unavailable")) setNote(x.error); setPhase("empty"); });
     return () => { alive.current = false; map.current?.motion({ type: "hopReset" }); map.current?.motion({ type: "speed", k: 1 }); onMap(null); };
   }, [city.id]);
 
@@ -155,7 +158,7 @@ export function TodaysHuntScreen({ city, language, map, gameState, onState, onMa
     setFlying(null);
     setScore((n) => n + out.points);
     // The server's view of the day (score, finished, streak) once the quest is in.
-    void todaysHunt.today(city.id).then((fresh) => { if (alive.current) { setDay(fresh); setScore(fresh.score); } }).catch(() => {});
+    void todaysHunt.today(city.id).then((fresh) => { if (!alive.current) return; setDay(fresh); setScore(fresh.score); if (fresh.finished && !d.finished) onFinish(); }).catch(() => {});
   };
   const shakeCard = () => run(Animated.sequence([-1, 1, -.7, .7, -.35, 0].map((v) => Animated.timing(shake, { toValue: v, duration: ms(70) || 1, useNativeDriver: true }))));
 
@@ -291,8 +294,8 @@ export function TodaysHuntScreen({ city, language, map, gameState, onState, onMa
             <ScrollView style={{ maxHeight: 170 }} contentContainerStyle={{ gap: 6 }}>
               {friends.map((f, i) => <View key={f.user.id} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <Text style={{ width: 16, fontFamily: serif, fontSize: 14, color: C.muted, textAlign: "right" }}>{i + 1}</Text>
-                <Avatar avatar={f.is_me ? profile?.avatar as Record<string, unknown> | null : f.user.avatar} size={28} />
-                <Text numberOfLines={1} style={{ flex: 1, fontFamily: sans, fontSize: 14, color: C.ink, fontWeight: f.is_me ? "600" : "400" }}>{f.is_me ? t.you : f.user.name}</Text>
+                <Avatar avatar={isMe(f) ? profile?.avatar as Record<string, unknown> | null : f.user.avatar} size={28} />
+                <Text numberOfLines={1} style={{ flex: 1, fontFamily: sans, fontSize: 14, color: C.ink, fontWeight: isMe(f) ? "600" : "400" }}>{isMe(f) ? t.you : f.user.name}</Text>
                 <Text style={{ fontFamily: serif, fontSize: 15, color: f.finished ? C.ink : C.muted }}>{t.score(f.score)}</Text>
               </View>)}
             </ScrollView>

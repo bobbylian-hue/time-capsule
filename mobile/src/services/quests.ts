@@ -10,6 +10,8 @@ export type Quest = {
   quest_id: string; ordinal: number; type: QuestKind;
   location_lat: number; location_lng: number; name_zh: string; name_en: string;
   image: string | null; points: number; done: boolean; locked: boolean;
+  /** Who made it: blue for us (Today's Hunt, City Hunt), brass for a person. Done always shows purple. */
+  color?: "blue" | "brass";
   question?: QuestQuestion; price?: QuestPrice; catch_count?: number; landmark_id?: string;
 };
 

@@ -25,11 +25,13 @@ export const HOME_CATCH_VESSELS: Record<string, string[]> = {
 /** The Passport stamp that lands on a finished day: the city's Landmark stamp. */
 export const CITY_STAMP: Record<string, string> = { taipei: "taipei101", hongkong: "hkust", macau: "senado", singapore: "merlion" };
 export type TodaysHunt = { date: string; quests: Quest[]; score: number; finished: boolean; streak: number; missing_types?: string[] };
-export type HuntFriend = { user: { id: string; name: string; avatar: Record<string, unknown> | null }; score: number; finished: boolean; streak: number; is_me?: boolean };
-export type TodaysHuntErrorCode = "bad_city" | "bad_ordinal" | "bad_answer" | "already_done" | "unknown";
+/** The caller is always on the board; the app finds them by user id. */
+export type HuntFriend = { user: { id: string; name: string; avatar: Record<string, unknown> | null }; score: number; finished: boolean; streak: number };
+/** hunt_unavailable: the city has no day scheduled (too few located pool places, or a missing quest). */
+export type TodaysHuntErrorCode = "hunt_unavailable" | "bad_city" | "bad_ordinal" | "bad_answer" | "already_done" | "unknown";
 export class TodaysHuntError extends Error { constructor(public code: TodaysHuntErrorCode) { super(code); } }
 
-const CODES: TodaysHuntErrorCode[] = ["bad_city", "bad_ordinal", "bad_answer", "already_done"];
+const CODES: TodaysHuntErrorCode[] = ["hunt_unavailable", "bad_city", "bad_ordinal", "bad_answer", "already_done"];
 const call = async <T>(fn: string, args: Record<string, unknown>): Promise<T> => {
   const { data, error } = await supabase.rpc(fn as never, args as never);
   if (error) throw new TodaysHuntError(CODES.find((c) => error.message.includes(c)) ?? "unknown");
@@ -46,7 +48,7 @@ export const todaysHunt = {
     if (TODAYS_HUNT_BACKEND) return call<QuestResult>("todays_hunt_attempt", { p_city: city, p_ordinal: ordinal, p_answer: answer });
     return sample.attempt(city, ordinal, answer);
   },
-  /** Me and my friends only; there is no global ranking. */
+  /** Me and my friends only (friends once they have played that day); there is no global ranking. */
   async friends(city: string): Promise<HuntFriend[]> {
     if (TODAYS_HUNT_BACKEND) return call<HuntFriend[]>("todays_hunt_friends", { p_city: city });
     return sample.friends(city);
@@ -100,7 +102,7 @@ const runFor = (city: string): Run => {
   if (run) return run;
   const s = SAMPLES[city];
   if (!s) throw new TodaysHuntError("bad_city");
-  const base = { done: false, locked: false, points: RIGHT_POINTS };
+  const base = { done: false, locked: false, points: RIGHT_POINTS, color: "blue" as const };
   const quests: Quest[] = [
     { ...s.question, ...base, ordinal: 1, type: "question" },
     { ...s.price, ...base, ordinal: 2, type: "price" },
@@ -144,7 +146,7 @@ const sample = {
   },
   async friends(city: string): Promise<HuntFriend[]> {
     const run = runFor(city);
-    const me: HuntFriend = { user: { id: "me", name: "", avatar: null }, score: run.earned.reduce((a, b) => a + b, 0), finished: run.finished, streak, is_me: true };
+    const me: HuntFriend = { user: { id: "me", name: "", avatar: null }, score: run.earned.reduce((a, b) => a + b, 0), finished: run.finished, streak };
     return [
       { user: { id: "f1", name: "小晴", avatar: { set: "illus", id: "01" } }, score: 30, finished: true, streak: 9 },
       { user: { id: "f2", name: "Ken", avatar: { set: "illus", id: "02" } }, score: 22, finished: true, streak: 3 },

@@ -591,7 +591,7 @@ export default function JourneyScreen() {
     {exploring && !huntCity && <CityExplorer day={puzzleDay} hunt={TODAYS_HUNT ? huntDays : undefined} index={cityIndex} onIndex={setCityIndex} balls={gameState?.wax_balls ?? null} language={language}
       onClose={closeExplorer} onPlay={(c) => TODAYS_HUNT ? setHuntCity(c.id) : setPlaying(c.id)} />}
     {exploring && huntCity && <TodaysHuntScreen city={CITIES.find((c) => c.id === huntCity)!} language={language} map={map} gameState={gameState}
-      onState={setGameState} onMap={setHuntMap} onClose={closeHunt} />}
+      onState={setGameState} onMap={setHuntMap} onFinish={() => void loadGame()} onClose={closeHunt} />}
     {exploring && playingCity && playingPuzzle && <PriceGuessScreen city={playingCity} puzzle={playingPuzzle} streak={puzzleDay?.streak ?? 0} language={language}
       onResult={onGuess} onClose={() => setPlaying(null)} />}
     {spinning && <SpinScreen waypost={spinning} language={language} onState={setGameState} onClose={() => { setSpinning(null); void loadGame(); }} />}
