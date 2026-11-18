@@ -31,6 +31,8 @@ import { Chip, Glyph, MonthCalendar, PickerRow, Sheet, SheetGroup, SheetOption, 
 import { usePredictionText } from '../prediction/strings';
 import { DRIFT_CHOICES, publicCapsule, PublicCapsuleError, PUBLIC_CAPSULE_ENABLED, PUBLIC_CAPSULE_MESSAGE_MAX, PUBLIC_CAPSULE_AVATAR, PUBLIC_CAPSULE_RECIPIENT, type DriftDays, type ThrowResult } from '../../services/publicCapsule';
 import { shortDate, usePublicCapsuleText } from '../publicCapsule/strings';
+import { canSend, copiesOf, COPIES, COPIES_SAMPLE, sampleUseCopy } from '../../services/copies';
+import { useCopiesText } from '../copies/strings';
 import { openingCoordinates, useForegroundLocation } from '../journey/location';
 import { placeLabel, pointPlaceArgs, reversePlace, searchPlaces, type PointPlace } from '../../services/places';
 
@@ -56,6 +58,7 @@ export default function CreateScreen() {
   const { session, profile, loading: authLoading } = useAuth();
   const params = useLocalSearchParams<{ to?: string; recipient?: string; kind?: string }>();
   const p = usePredictionText();
+  const cp = useCopiesText();
   const st = usePublicCapsuleText();
   // A prediction is a block on the page; a capsule holding one is sent as a prediction capsule.
   const [blocks, setBlocks] = useState<Block[]>(PREDICTION_ENABLED && params.kind === 'prediction' ? ['predict'] : ['text']), [prediction, setPrediction] = useState('');
@@ -157,6 +160,9 @@ export default function CreateScreen() {
   const ownsVessel = (id: string) => !!owned.data?.some(o => o.vessel === id);
   // Once the game is on, you send what you've collected plus the four starters.
   const canUseVessel = (v: { id: string; price_mop: number }) => GAME_ENABLED ? isCollected(v, ownsVessel(v.id), true) : canAccessVessel(v, ownsVessel(v.id));
+  // With copies, a collected vessel at ×0 stays on the list but can't be sent until it's caught again.
+  const copiesFor = (v: { id: string; price_mop: number }) => copiesOf(v, owned.data);
+  const sendable = (v: { id: string; price_mop: number }) => !COPIES || canSend(copiesFor(v));
   const selectedPlace = places.data?.find(p => p.id === place);
   const recipientRow = friends.data?.find(f => f.friend_id === recipient);
   // A public capsule is an ordinary capsule addressed to whoever passes by: typed only, available after its delay.
@@ -185,6 +191,7 @@ export default function CreateScreen() {
     if (step >= 2 && !predicting && !(hasText && message.trim()) && !inked) return t('create.needMessage');
     if (step >= 3 && !vessel) return t('create.chooseFirst');
     if (step >= 3 && chosenVessel && !canUseVessel(chosenVessel)) return t('create.notOwned');
+    if (step >= 3 && chosenVessel && !sendable(chosenVessel)) return cp.noCopies;
     if (step >= 4 && !openAt) return t('create.badDate');
     if (step >= 4 && !toPublicCapsule && placeMode === 'current' && !point) return t('create2.needHere');
     if (step >= 4 && !toPublicCapsule && placeMode === 'specific' && !place && !point) return t('create2.needPlace');
@@ -271,6 +278,7 @@ export default function CreateScreen() {
       const { data: capsuleId, error: rpcError } = await capsules.send({ p_recipient: recipient, p_vessel: vessel, p_message: hasText ? message.trim() : '', p_drawing: ink ?? undefined, p_photo: photo ?? undefined, p_hint: hint.trim() || t('create.hintDefault'), p_open_at: openAt.toISOString(), ...(placeMode !== 'anywhere' && sendPoint ? pointPlaceArgs(sendPoint) : { p_place: place ?? undefined }), ...voiceArgs, ...predictionSendArgs(kind, prediction) });
       if (rpcError) throw rpcError;
       sentOnce.current = true;
+      if (COPIES_SAMPLE && chosenVessel && copiesFor(chosenVessel) !== null) sampleUseCopy(vessel);
       setSealedAt(openAt);
       await contact;
       setStamped(true);
@@ -280,7 +288,7 @@ export default function CreateScreen() {
       wax.stopAnimation(); waxScale.stopAnimation();
       const msg = String((e as any)?.message ?? e).toLowerCase(), code = String((e as any)?.hint ?? '');
       if (e instanceof PublicCapsuleError) setError(e.code === 'rejected' ? st('errRejected') : e.code === 'no_spot' ? st('errNoSpot') : t('create.sendError'));
-      else setError(code === 'not_owned' || msg.includes('not owned') ? t('create.notOwned') : code === 'brand_place' || msg.includes('brand vessel') ? t('create.brandRefusal') : msg.includes('not a friend') ? t('create.friendRefusal') : msg.includes('open time must be in the future') ? t('create.badDate') : msg.includes('voice') ? t('voice.uploadError') : t('create.sendError'));
+      else setError(code === 'no_copies' || msg.includes('no_copies') ? cp.noCopies : code === 'not_owned' || msg.includes('not owned') ? t('create.notOwned') : code === 'brand_place' || msg.includes('brand vessel') ? t('create.brandRefusal') : msg.includes('not a friend') ? t('create.friendRefusal') : msg.includes('open time must be in the future') ? t('create.badDate') : msg.includes('voice') ? t('voice.uploadError') : t('create.sendError'));
       if (reduced) wax.setValue({ x: 0, y: 0 });
       else Animated.parallel([
         Animated.spring(wax, { toValue: { x: 0, y: 0 }, ...motion.spring.soft, useNativeDriver: true }),
@@ -503,12 +511,13 @@ export default function CreateScreen() {
         <Pressable accessibilityRole='button' onPress={() => { setVessel('fortune-cookie'); void haptics.tick(); }}><Text style={{ color: C.blue, fontFamily: sans }}>{t('create2.use')}</Text></Pressable>
       </View>}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {shownVessels.map(v => { const usable = canUseVessel(v), on = vessel === v.id; return <Pressable key={v.id} accessibilityRole='button' accessibilityState={{ selected: on }} onPress={() => { setVessel(v.id as VesselKind); if (selectedPlace?.brand_vessel && selectedPlace.brand_vessel !== v.id) setPlace(null); if (usable) void haptics.tick(); else router.push({ pathname: '/shop', params: { focus: v.id, returnTo: 'create' } }); }}
-          style={{ width: '31.5%', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 14, borderWidth: 1.5, borderColor: on ? C.blue : C.line, backgroundColor: C.white, opacity: usable ? 1 : .55 }}>
+        {shownVessels.map(v => { const usable = canUseVessel(v), on = vessel === v.id, copies = COPIES && usable ? copiesFor(v) : undefined, empty = copies === 0; return <Pressable key={v.id} accessibilityRole='button' accessibilityState={{ selected: on, disabled: empty }} accessibilityHint={copies !== undefined ? cp.label(copies) : undefined} onPress={() => { if (empty) { setError(cp.noCopies); void haptics.warn(); return; } setVessel(v.id as VesselKind); if (selectedPlace?.brand_vessel && selectedPlace.brand_vessel !== v.id) setPlace(null); if (usable) void haptics.tick(); else router.push({ pathname: '/shop', params: { focus: v.id, returnTo: 'create' } }); }}
+          style={{ width: '31.5%', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 14, borderWidth: 1.5, borderColor: on ? C.blue : C.line, backgroundColor: C.white, opacity: usable && !empty ? 1 : .55 }}>
           {on && <View style={{ position: 'absolute', top: 6, right: 6, width: 20, height: 20, borderRadius: 10, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', zIndex: 1 }}><ArtIcon name="check" size={12} color={C.white} /></View>}
           <Vessel kind={v.id as VesselKind} size={78} idle={on} />
           <Text numberOfLines={2} style={{ fontFamily: serif, color: C.ink, fontSize: 13, textAlign: 'center' }}>{t(`shop.vessel.${v.id}`)}</Text>
           {!usable && <Text style={{ color: C.plum, fontSize: 10.5 }}>{t('create.getShop')}</Text>}
+          {copies !== undefined && <Text style={{ fontFamily: serif, color: empty ? C.plum : C.brass, fontSize: 11.5 }}>{empty ? cp.none : cp.count(copies)}</Text>}
         </Pressable>; })}
         {!catalog.loading && !shownVessels.length && <Text style={[muted, { width: '100%', textAlign: 'center', paddingVertical: 24 }]}>{t('create2.none')}</Text>}
       </View>
