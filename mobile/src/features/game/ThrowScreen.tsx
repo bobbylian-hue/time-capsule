@@ -55,8 +55,10 @@ const finished = (animation: Animated.CompositeAnimation) => new Promise<void>((
 
 type Restored = Pick<ThrowResult, "vessel" | "copies" | "stars" | "is_new" | "xp_gained">;
 
-export function ThrowScreen({ capsule, landmark, state, onState, onClose }: {
+export function ThrowScreen({ capsule, landmark, home, state, onState, onClose }: {
   capsule: CorruptedCapsule; landmark?: LandmarkAttempt; state: GameState; onState: (s: GameState) => void; onClose: (caught: boolean) => void;
+  /** Today's Hunt catch from home: throws are free and only counted, never sent to the server, and a restore gives no vessel or copies. */
+  home?: { onQuit: () => void };
 }) {
   const vesselSize = landmark ? GIANT_VESSEL : VESSEL;
   const ringSize = landmark ? GIANT_RING : RING;
@@ -195,7 +197,7 @@ export function ThrowScreen({ capsule, landmark, state, onState, onClose }: {
     if (reduced) {
       void haptics.success();
       await finished(timing(crack, 0, 420));
-      if (alive.current) setResult(out);
+      if (alive.current) { if (home) onClose(true); else setResult(out); }
       return;
     }
     timing(dim, .58, 620, Easing.inOut(Easing.quad)).start();
@@ -214,7 +216,7 @@ export function ThrowScreen({ capsule, landmark, state, onState, onClose }: {
       timing(sparkle, 1, 1050, Easing.out(Easing.quad)),
       timing(dust, 1, 760, Easing.out(Easing.cubic)),
     ]));
-    if (alive.current) setResult(out);
+    if (alive.current) { if (home) onClose(true); else setResult(out); }
   };
 
   const settleLandmark = async (hit: boolean, ring: number, moved: Promise<void>, ballKind: BallKind) => {
@@ -251,7 +253,7 @@ export function ThrowScreen({ capsule, landmark, state, onState, onClose }: {
     if (landmark) return settleLandmark(hit, ring, moved, ballKind);
     if (hit) impact(ring);
     try {
-      const out = await game.throwBall({ id: capsule.id, ball: ballKind, ring, hit });
+      const out = home ? homeThrow(hit) : await game.throwBall({ id: capsule.id, ball: ballKind, ring, hit });
       if (!alive.current) return;
       onState(out.state);
       setAttempts(out.attempts_left);
@@ -282,9 +284,16 @@ export function ThrowScreen({ capsule, landmark, state, onState, onClose }: {
     }
   };
 
+  // A catch from home: a hit restores it, a miss uses one of its tries.
+  const homeLeft = useRef(capsule.attempts_left);
+  const homeThrow = (hit: boolean): ThrowResult => {
+    if (!hit) homeLeft.current -= 1;
+    const result = hit ? "restored" : homeLeft.current > 0 ? "miss" : "broke_free";
+    return { result, vessel: capsule.vessel, copies: 0, stars: 0, is_new: false, xp_gained: 0, attempts_left: homeLeft.current, state };
+  };
   const release = (dx: number, vx: number, vy: number, dy: number) => {
     const { height: h, kind: ballKind, state: st } = latest.current;
-    if ((ballKind === "gold" ? st.gold_balls : st.wax_balls) <= 0) {
+    if (!home && (ballKind === "gold" ? st.gold_balls : st.wax_balls) <= 0) {
       flash(s("noBalls"));
       springBack();
       return;
@@ -418,7 +427,7 @@ export function ThrowScreen({ capsule, landmark, state, onState, onClose }: {
     </>}
 
     <View pointerEvents="box-none" style={{ position: "absolute", top: insets.top + spacing.sm, left: spacing.md, right: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={s("close")} onPress={() => onClose(false)}
+      <Pressable accessibilityRole="button" accessibilityLabel={s("close")} onPress={() => home ? home.onQuit() : onClose(false)}
         style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(246,248,251,.94)", alignItems: "center", justifyContent: "center", ...shadows.card }}>
         <ArtIcon name="close" size={22} />
       </Pressable>
@@ -438,15 +447,15 @@ export function ThrowScreen({ capsule, landmark, state, onState, onClose }: {
     </View>}
 
     {!result && !celebrating && !timedOut && <View pointerEvents="box-none" style={{ position: "absolute", left: spacing.md, right: spacing.md, bottom: insets.bottom + spacing.md, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" }}>
-      <Text style={{ flex: 1, fontFamily: sans, fontSize: 12, color: C.ink }}>{count > 0 ? s("balls", state.wax_balls) : s("noBalls")}</Text>
+      <Text style={{ flex: 1, fontFamily: sans, fontSize: 12, color: C.ink }}>{home ? "" : count > 0 ? s("balls", state.wax_balls) : s("noBalls")}</Text>
       <Text style={{ flex: 1, textAlign: "center", fontFamily: sans, fontSize: 12, color: C.ink }}>{s(MOUSE ? "flickMouse" : "flick")}</Text>
       <View style={{ flex: 1, alignItems: "flex-end" }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={s(kind === "wax" ? "gold" : "wax")} accessibilityState={{ selected: kind === "gold" }}
+        {!home && <Pressable accessibilityRole="button" accessibilityLabel={s(kind === "wax" ? "gold" : "wax")} accessibilityState={{ selected: kind === "gold" }}
           disabled={inFlight || (kind === "wax" && state.gold_balls <= 0)} onPress={() => { void haptics.tick(); setKind(kind === "wax" ? "gold" : "wax"); }}
           style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, height: 44, borderRadius: 22, backgroundColor: "rgba(246,248,251,.94)", opacity: kind === "wax" && state.gold_balls <= 0 ? .5 : 1, ...shadows.card }}>
           <WaxBall kind={kind === "wax" ? "gold" : "wax"} size={26} />
           <Text style={{ fontFamily: serif, fontSize: 14, color: C.ink }}>{kind === "wax" ? state.gold_balls : state.wax_balls}</Text>
-        </Pressable>
+        </Pressable>}
       </View>
     </View>}
 
