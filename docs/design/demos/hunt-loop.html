@@ -1,0 +1,990 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hunt Loop Demo</title>
+<!-- Disposable demo of the organic game loop (docs/design/hunt-loop.md). Open this file directly in a browser; add #en for English. Art loads from public/art. Questions, counts, names and prices are sample data, not checked facts. The demo map uses OpenFreeMap Positron (OpenStreetMap data, no key), because tile.openstreetmap.org and CARTO block pages opened from file://; the app keeps its own Journey map. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+:root {
+  --paper: #F6F8FB; --ink: #16263F; --blue: #2F5D8A; --light-blue: #5A8FD0; --plum: #6E2B3F;
+  --brass: #C9A15A; --wax: #A3364F; --line: #D5DDE7; --muted: #748195; --glass: #DCE8F2; --white: #FFFFFF; --purple: #7A5BA8;
+  --serif: "Noto Serif TC", "Songti TC", Georgia, serif;
+  --sans: "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--glass); color: var(--ink); font-family: var(--sans); font-size: 15px; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--light-blue); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.phone { max-width: 430px; height: 100dvh; margin: 0 auto; position: relative; overflow: hidden; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+#map { position: absolute; inset: 0; }
+.maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { display: none; }
+
+/* Top bar */
+.top { position: absolute; z-index: 4; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 14px; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; background: linear-gradient(rgba(246,248,251,.95), rgba(246,248,251,0)); pointer-events: none; }
+.top > * { pointer-events: auto; }
+.chip { border: 1px solid var(--line); background: rgba(255,255,255,.94); border-radius: 999px; padding: 7px 12px; font-size: 13px; color: var(--blue); display: inline-flex; align-items: center; gap: 6px; }
+.title { font: 700 17px var(--serif); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.right { display: flex; gap: 6px; }
+.balls { display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,.94); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px 4px 5px; font: 700 14px var(--serif); }
+.balls img { width: 22px; height: 22px; }
+
+/* Map markers */
+.mk { width: max-content; }
+.in { position: relative; display: grid; place-items: center; }
+.gem { width: 54px; height: 54px; filter: drop-shadow(0 4px 5px rgba(22,38,63,.3)); transition: transform .3s; }
+.gem.big { width: 70px; height: 70px; }
+.num { position: absolute; top: -4px; right: -6px; min-width: 19px; height: 19px; border-radius: 10px; background: var(--white); border: 1.5px solid var(--blue); color: var(--blue); font: 700 11px/16px var(--serif); text-align: center; padding: 0 4px; }
+.in.done .num { border-color: var(--purple); background: var(--purple); color: var(--white); }
+.lbl { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); white-space: nowrap; font: 500 11px var(--sans); background: rgba(255,255,255,.93); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; margin-top: 1px; }
+.fig { width: 52px; height: 52px; object-fit: contain; transform: translateY(6px); filter: drop-shadow(0 3px 3px rgba(22,38,63,.25)); }
+.keeper-badge { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 22px; height: 22px; border-radius: 50%; background: var(--wax); color: var(--white); font: 700 13px/22px var(--serif); text-align: center; border: 2px solid var(--brass); }
+.pop { animation: pop .45s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes pop { from { transform: scale(.2) translateY(-30px); opacity: 0; } }
+.pulse { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.18); } }
+/* Brass teardrop for private quests (a friend's route) */
+.tear { width: 42px; height: 42px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--brass); border: 2px solid #A9843F; display: grid; place-items: center; box-shadow: 0 4px 6px rgba(22,38,63,.25); }
+.tear img { width: 30px; height: 30px; border-radius: 50%; transform: rotate(45deg); object-fit: cover; }
+.in.done .tear { background: var(--purple); border-color: #5D4385; }
+.in.locked .tear { opacity: .45; }
+.float { position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); font: 700 15px var(--serif); color: var(--plum); background: #FBF4E6; border: 1px solid var(--brass); border-radius: 999px; padding: 1px 8px; animation: rise 1.3s ease-out forwards; pointer-events: none; white-space: nowrap; }
+@keyframes rise { to { transform: translate(-50%, -34px); opacity: 0; } }
+.youring { width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(47,93,138,.55); background: rgba(90,143,208,.12); }
+
+/* Bottom card */
+.bottom { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; padding: 26px 16px calc(env(safe-area-inset-bottom, 0px) + 14px); background: linear-gradient(rgba(246,248,251,0), rgba(246,248,251,.97) 30%); }
+.card { background: var(--white); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; box-shadow: 0 8px 22px rgba(22,38,63,.1); display: grid; gap: 8px; }
+.card h2 { margin: 0; font: 700 21px/1.25 var(--serif); }
+.muted { color: var(--muted); font-size: 13px; line-height: 1.55; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tag { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; background: var(--paper); white-space: nowrap; }
+.tag.brass { border-color: var(--brass); color: var(--plum); background: #FBF4E6; }
+.tag.blue { border-color: var(--light-blue); color: var(--blue); background: #EEF4FB; }
+.streak { color: var(--plum); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+.streak i { width: 8px; height: 8px; border-radius: 50%; background: var(--wax); }
+.btn { border: 1.5px solid var(--blue); background: var(--white); color: var(--blue); border-radius: 14px; padding: 12px 14px; font-weight: 500; }
+.btn.fill { background: var(--blue); color: var(--white); box-shadow: 0 6px 14px rgba(47,93,138,.25); }
+.btn.wax { background: var(--wax); border-color: var(--wax); color: var(--white); }
+.btn[disabled] { background: #E6EBF1; border-color: #E6EBF1; color: var(--muted); box-shadow: none; cursor: default; }
+.btn.small { padding: 7px 12px; font-size: 13px; border-radius: 11px; }
+.btn.block { width: 100%; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* Sheets */
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--paper); border-radius: 22px 22px 0 0; box-shadow: 0 -10px 30px rgba(22,38,63,.18); display: flex; flex-direction: column; max-height: 92%; transform: translateY(105%); transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+.sheet.half { max-height: 60%; }
+.sheet.full { top: 0; max-height: none; border-radius: 0; }
+.sheet.open { transform: none; }
+.grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 8px auto 2px; flex: none; }
+.sh-top { display: grid; grid-template-columns: 38px 1fr 38px; align-items: center; padding: 6px 14px 4px; flex: none; }
+.sheet.full .sh-top { padding-top: calc(env(safe-area-inset-top, 0px) + 10px); }
+.sh-title { text-align: center; font: 700 16.5px var(--serif); }
+.sh-title small { display: block; font: 400 12px var(--sans); color: var(--muted); }
+.x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: var(--white); display: grid; place-items: center; padding: 0; }
+.sh-body { overflow-y: auto; padding: 6px 18px calc(env(safe-area-inset-bottom, 0px) + 20px); display: grid; gap: 12px; align-content: start; }
+.box { background: var(--white); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 10px; }
+.box h3 { margin: 0; font: 700 16px var(--serif); }
+.q { font: 500 18px/1.5 var(--serif); }
+.opts { display: grid; gap: 8px; }
+.opt { text-align: left; border: 1.5px solid var(--line); background: var(--white); border-radius: 12px; padding: 11px 14px; }
+.opt.right { border-color: var(--purple); background: #F3EEF9; color: var(--plum); }
+.opt.wrong { border-color: var(--wax); background: #FBEFF2; }
+.note { font-size: 12px; color: var(--muted); background: #EEF4FB; border-radius: 12px; padding: 9px 12px; line-height: 1.55; }
+.note b { color: var(--blue); }
+input.f, textarea.f { width: 100%; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--white); outline: 0; }
+input.f:focus, textarea.f:focus { border-color: var(--blue); }
+textarea.f { min-height: 84px; resize: vertical; font-family: var(--serif); line-height: 1.6; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+.seg button { border: 1.5px solid var(--line); background: var(--white); border-radius: 11px; padding: 9px 6px; font-size: 13.5px; }
+.seg button.on { border-color: var(--blue); background: #EEF4FB; color: var(--blue); font-weight: 500; }
+.label { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+
+/* Demo menu */
+.menu { position: absolute; inset: 0; z-index: 9; background: var(--paper); overflow-y: auto; padding: calc(env(safe-area-inset-top, 0px) + 22px) 18px 30px; display: grid; gap: 10px; align-content: start; }
+.menu h1 { margin: 0; font: 700 24px var(--serif); }
+.menu .item { display: grid; grid-template-columns: 52px 1fr; gap: 12px; align-items: center; text-align: left; background: var(--white); border: 1px solid var(--line); border-radius: 16px; padding: 12px; }
+.menu .item img { width: 52px; height: 52px; object-fit: contain; }
+.menu .item b { font: 700 16px var(--serif); display: block; }
+.menu .item span { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.menu .k { font: 700 12px var(--serif); color: var(--brass); }
+
+/* Waypost rack */
+.wp-head { display: grid; grid-template-columns: 74px 1fr; gap: 12px; align-items: center; }
+.wp-head img { width: 74px; height: 74px; scale: 1.5; transition: transform .9s cubic-bezier(.2,.8,.2,1); }
+.wp-head img.spin { transform: rotateY(720deg) scale(1.1); }
+.filters { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.filters button { flex: none; border: 1.5px solid var(--line); background: var(--white); border-radius: 999px; padding: 5px 11px; font-size: 12.5px; }
+.filters button.on { border-color: var(--blue); color: var(--blue); background: #EEF4FB; font-weight: 500; }
+.rack { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: linear-gradient(#EFE6D5, #E7DBC4); border: 1px solid #D9C7A4; border-radius: 14px; padding: 10px 8px; }
+.ema { position: relative; background: var(--white); border: 1px solid #DCCFB6; border-radius: 10px 10px 12px 12px; padding: 14px 6px 8px; display: grid; justify-items: center; gap: 3px; text-align: center; min-height: 116px; }
+.ema::before { content: ""; position: absolute; top: -6px; left: 50%; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--brass); box-shadow: 0 0 0 2px #EFE6D5; }
+.ema img.v { width: 46px; height: 46px; object-fit: contain; }
+.ema .who { position: absolute; left: 5px; top: 6px; width: 20px; height: 20px; border-radius: 50%; }
+.ema .lk { position: absolute; right: 6px; top: 7px; }
+.ema b { font: 700 11.5px/1.3 var(--serif); }
+.ema b.ready { color: var(--plum); }
+.ema small { font-size: 10.5px; color: var(--muted); line-height: 1.3; }
+.ema.mine { border-color: var(--light-blue); }
+.ema.new { animation: pop .5s cubic-bezier(.2,1.6,.4,1) both; }
+
+/* Opening */
+.open-v { width: 150px; height: 150px; object-fit: contain; justify-self: center; }
+.head { font: 700 24px/1.3 var(--serif); text-align: center; }
+.from { display: flex; align-items: center; gap: 8px; justify-content: center; font-size: 13px; color: var(--muted); }
+.from img { width: 26px; height: 26px; border-radius: 50%; }
+.checks { display: grid; gap: 6px; }
+.check { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; font-size: 14px; }
+.check .dot { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 12px; }
+.check.ok .dot { background: var(--purple); border-color: var(--purple); color: var(--white); }
+.hint { font: 500 15px/1.6 var(--serif); text-align: center; color: var(--plum); }
+.hold { justify-self: center; width: 116px; height: 116px; border-radius: 50%; border: 0; padding: 0; position: relative; background: conic-gradient(var(--brass) var(--p, 0%), #E6EBF1 0); display: grid; place-items: center; touch-action: none; user-select: none; -webkit-user-select: none; }
+.hold img { width: 96px; height: 96px; border-radius: 50%; pointer-events: none; }
+.hold[disabled] { filter: grayscale(1); opacity: .5; cursor: default; }
+.hold-l { text-align: center; font-size: 13px; color: var(--muted); user-select: none; }
+.letter { background: #FFFDF8; border: 1px solid #E9DFC9; border-radius: 6px; padding: 22px 20px; font: 400 16px/1.9 var(--serif); white-space: pre-line; box-shadow: 0 6px 16px rgba(22,38,63,.08); }
+
+/* Create */
+.steps { display: flex; gap: 6px; justify-content: center; }
+.steps i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.steps i.on { background: var(--wax); }
+.people { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.person { border: 1.5px solid var(--line); background: var(--white); border-radius: 14px; padding: 8px 4px; display: grid; justify-items: center; gap: 4px; font-size: 12.5px; }
+.person img { width: 44px; height: 44px; border-radius: 50%; }
+.person.on { border-color: var(--blue); background: #EEF4FB; }
+.choice { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; text-align: left; border: 1.5px solid var(--line); background: var(--white); border-radius: 14px; padding: 11px 13px; }
+.choice b { font: 700 15px var(--serif); }
+.choice span { grid-column: 1; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.choice.on { border-color: var(--blue); background: #EEF4FB; }
+.stop { display: grid; grid-template-columns: 28px 1fr; gap: 10px; background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: 11px 12px; }
+.stop .n { width: 26px; height: 26px; border-radius: 50%; background: var(--brass); color: var(--white); font: 700 13px/26px var(--serif); text-align: center; }
+.stop b { font: 700 14.5px var(--serif); }
+.stop .sq { font-size: 13.5px; line-height: 1.5; margin: 3px 0 6px; }
+.stop .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.mini { border: 1px solid var(--line); background: var(--paper); border-radius: 9px; padding: 4px 9px; font-size: 12px; color: var(--blue); }
+.addbar { position: absolute; z-index: 5; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); background: var(--white); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; box-shadow: 0 8px 22px rgba(22,38,63,.15); }
+
+/* Vessel grid */
+.vgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.vc { position: relative; border: 1.5px solid var(--line); background: var(--white); border-radius: 14px; padding: 10px 4px 8px; display: grid; justify-items: center; gap: 3px; text-align: center; }
+.vc img { width: 62px; height: 62px; object-fit: contain; }
+.vc b { font: 700 12.5px var(--serif); }
+.vc .cnt { font: 700 13px var(--serif); color: var(--blue); }
+.vc .cnt.inf { color: var(--plum); }
+.vc.zero img { opacity: .4; filter: grayscale(.6); }
+.vc.zero .cnt { color: var(--muted); }
+.vc .tg { position: absolute; top: 5px; left: 5px; font-size: 9.5px; border-radius: 6px; padding: 1px 5px; background: #FBF4E6; color: var(--plum); border: 1px solid var(--brass); }
+.vc.pick { cursor: pointer; }
+.vc.on { border-color: var(--blue); background: #EEF4FB; }
+.vc.bump .cnt { animation: bump .6s; }
+@keyframes bump { 40% { transform: scale(1.6); color: var(--wax); } }
+
+.board { display: grid; gap: 6px; }
+.brow { display: grid; grid-template-columns: 22px 30px 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.brow img { width: 30px; height: 30px; border-radius: 50%; }
+.brow.me { font-weight: 700; color: var(--plum); }
+.toast { position: absolute; z-index: 12; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 64px); transform: translateX(-50%); background: var(--ink); color: var(--white); border-radius: 999px; padding: 8px 16px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis; }
+.toast.on { opacity: 1; }
+.scene-img { width: 100%; max-width: 280px; justify-self: center; border-radius: 14px; }
+/* Quest pin: one shape everywhere. Blue = made by us, brass = made by a person, purple = done. Corner badge = quest type. */
+.tear.blue { background: var(--blue); border-color: #244A70; }
+.in.done .tear { background: var(--purple); border-color: #5D4385; }
+.tear .face { width: 32px; height: 32px; border-radius: 50%; background: var(--white); transform: rotate(45deg); display: grid; place-items: center; color: var(--blue); }
+.tear.brass .face { color: var(--plum); }
+.in.done .tear .face { color: var(--purple); }
+.tear .face svg { width: 23px; height: 23px; }
+.tear .face img { width: 26px; height: 26px; border-radius: 0; transform: none; object-fit: contain; }
+.tear .face.t-landmark img { width: 30px; height: 30px; }
+.badge { position: absolute; left: -9px; top: -7px; width: 23px; height: 23px; border-radius: 50%; background: var(--white); border: 1.5px solid var(--blue); color: var(--blue); display: grid; place-items: center; font: 700 13px/1 var(--serif); z-index: 1; }
+.badge.brass, .num.brass { border-color: var(--brass); color: var(--plum); }
+.badge img { width: 17px; height: 17px; object-fit: contain; }
+.badge svg { width: 14px; height: 14px; }
+.in.done .badge { border-color: var(--purple); color: var(--purple); }
+.typechips { display: flex; gap: 5px; flex-wrap: wrap; }
+.tchip { display: inline-flex; align-items: center; gap: 4px; border: 1.5px solid var(--line); background: var(--white); border-radius: 999px; padding: 3px 9px 3px 4px; font-size: 12px; }
+.tchip i { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font: 700 11px/1 var(--serif); font-style: normal; }
+.tchip i img { width: 13px; height: 13px; object-fit: contain; } .tchip i svg { width: 11px; height: 11px; }
+.tchip.on { border-color: var(--brass); background: #FBF4E6; color: var(--plum); font-weight: 500; }
+.tchip[disabled] { opacity: .4; cursor: default; }
+.legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; font-size: 12.5px; }
+.legend span { display: flex; align-items: center; gap: 6px; }
+/* Motion graphics for Today's Hunt */
+.drop { animation: drop .7s cubic-bezier(.3,1.5,.5,1) both; animation-delay: var(--d, 0s); }
+@keyframes drop { 0% { transform: translateY(-160px) scale(.6); opacity: 0; } 60% { opacity: 1; } }
+.ripple::after { content: ""; position: absolute; left: 50%; top: 60%; width: 30px; height: 30px; margin: -15px; border-radius: 50%; border: 3px solid var(--light-blue); animation: ripple .9s ease-out 2; pointer-events: none; }
+@keyframes ripple { from { transform: scale(.4); opacity: 1; } to { transform: scale(3.4); opacity: 0; } }
+.boing { animation: boing .55s cubic-bezier(.3,1.8,.5,1); }
+@keyframes boing { 30% { transform: scale(1.35, .8); } 60% { transform: scale(.9, 1.15) translateY(-10px); } }
+.hop .fig { animation: hop .32s ease-in-out infinite alternate; }
+@keyframes hop { to { transform: translateY(-6px) rotate(3deg); } }
+.foot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); opacity: .55; animation: foot 2.2s ease-in forwards; }
+@keyframes foot { to { opacity: 0; transform: scale(.4); } }
+.spark { position: absolute; left: 50%; top: 45%; width: 9px; height: 9px; margin: -4.5px; pointer-events: none; background: radial-gradient(circle, #fff 0 25%, var(--brass) 30% 60%, transparent 65%); border-radius: 50%; animation: spark .8s ease-out forwards; }
+@keyframes spark { to { transform: translate(var(--x), var(--y)) scale(.3); opacity: 0; } }
+.sheet.flip .sh-body > * { animation: flipin .5s cubic-bezier(.2,1.2,.4,1) both; transform-origin: 50% 100%; }
+@keyframes flipin { from { transform: perspective(600px) rotateX(70deg) translateY(30px); opacity: 0; } }
+.shake { animation: shake .45s; }
+@keyframes shake { 20%, 60% { transform: translateX(-9px); } 40%, 80% { transform: translateX(9px); } }
+.score { font: 700 14px var(--serif); color: var(--plum); background: #FBF4E6; border: 1px solid var(--brass); border-radius: 999px; padding: 4px 10px; }
+.score.bump { animation: bump .6s; }
+.flyer { position: absolute; z-index: 11; font: 700 18px var(--serif); color: var(--plum); background: #FBF4E6; border: 1.5px solid var(--brass); border-radius: 999px; padding: 2px 10px; pointer-events: none; transition: transform .8s cubic-bezier(.5,-.3,.6,1), opacity .8s; }
+.stamp { position: absolute; z-index: 8; left: 50%; top: 34%; width: 190px; height: 190px; margin: -95px; pointer-events: none; animation: slam .55s cubic-bezier(.2,1.5,.4,1) both; filter: drop-shadow(0 6px 10px rgba(22,38,63,.25)); }
+@keyframes slam { from { transform: scale(2.8) rotate(-24deg); opacity: 0; } to { transform: scale(1) rotate(-8deg); opacity: 1; } }
+.skip { position: absolute; z-index: 5; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); transform: translateX(-50%); }
+/* Mini games: catch and Landmark */
+.arena { position: relative; height: 270px; border-radius: 16px; overflow: hidden; background: #DCE8F2 center / cover; display: grid; place-items: center; touch-action: manipulation; }
+.arena .tgt { position: relative; width: 120px; height: 120px; animation: bob 1.6s ease-in-out infinite; }
+.arena .tgt img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.arena .tgt .dark { filter: brightness(.55) saturate(.7); }
+@keyframes bob { 50% { transform: translateY(-10px); } }
+.ring { position: absolute; left: 50%; top: 50%; width: 170px; height: 170px; margin: -85px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(22,38,63,.15); pointer-events: none; }
+.ring.inner { border-width: 3px; border-color: var(--brass); }
+.ball { position: absolute; left: 50%; bottom: 10px; width: 46px; height: 46px; margin-left: -23px; transition: transform .45s cubic-bezier(.3,.6,.4,1); }
+.hp { height: 10px; border-radius: 5px; background: #E6EBF1; overflow: hidden; } .hp i { display: block; height: 100%; background: var(--wax); transition: width .2s; }
+.hit { animation: hit .2s; } @keyframes hit { 50% { transform: scale(.92) rotate(-3deg); } }
+@media (prefers-reduced-motion: reduce) { .sheet, .pop, .pulse, .float, .wp-head img, .drop, .ripple::after, .boing, .hop .fig, .foot, .spark, .sheet.flip .sh-body > *, .shake, .stamp, .arena .tgt { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="phone">
+  <div id="map"></div>
+  <header class="top">
+    <button class="chip" id="menuBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span id="menuLbl"></span></button>
+    <div class="title" id="title"></div>
+    <div class="right"><div class="balls"><img src="../../../public/art/game/ball-wax.webp" alt=""><span id="balls"></span></div><button class="chip" id="lang"></button></div>
+  </header>
+  <div class="bottom" id="bottom" hidden></div>
+  <div class="addbar" id="addbar" hidden></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div class="sh-top"><button class="x" id="shX" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16263F" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div class="sh-title" id="shTitle"></div><span></span></div><div class="sh-body" id="shBody"></div></section>
+  <div class="menu" id="menu"></div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const ART = "../../../public/art/";
+const $ = id => document.getElementById(id);
+const S = { lang: location.hash === "#en" ? "en" : "zh", balls: 12, scene: null, redraw: null };
+const L = (zh, en) => S.lang === "zh" ? zh : en;
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const wait = ms => new Promise(r => setTimeout(r, reduce ? Math.min(ms, 60) : S.fast ? ms / 4 : ms));
+
+/* ---------- Sample places in Xinyi, Taipei (public places; questions are sample data) ---------- */
+const P = {
+  t101: [121.56481, 25.033667], civic: [121.562754, 25.037546], wp: [121.5634, 25.0369],
+  ssv: [121.5617, 25.0313], xiang: [121.5706, 25.0276], sysmh: [121.5600, 25.0401], song: [121.5606, 25.0437], plaza: [121.5668, 25.0360], city: [121.5645, 25.0375],
+};
+const NAME = {
+  t101: ["台北101", "Taipei 101"], civic: ["台北市民廣場", "Civic Square"], wp: ["市民廣場噴泉", "Civic Square fountain"],
+  ssv: ["四四南村", "Four Four South Village"], xiang: ["象山步道入口", "Xiangshan Trail entrance"], sysmh: ["國父紀念館", "Sun Yat-sen Memorial Hall"],
+  song: ["松山文創園區", "Songshan Cultural Park"], plaza: ["香堤大道", "Xiangti Avenue"], city: ["台北市政府", "Taipei City Hall"],
+};
+const nm = k => L(NAME[k][0], NAME[k][1]);
+// One shared question pool for Taipei. Each question belongs to a real place.
+const POOL = [
+  { at: "ssv", zh: "四四南村原本是什麼地方？", en: "What was Four Four South Village originally?", o: [["眷村", "A military families' village"], ["市場", "A market"], ["學校", "A school"], ["寺廟", "A temple"]], a: 0 },
+  { at: "xiang", zh: "象山屬於台北的哪一組山？", en: "Xiangshan belongs to which group of hills?", o: [["七星山", "Qixing"], ["四獸山", "The Four Beasts"], ["大屯山", "Datun"], ["觀音山", "Guanyin"]], a: 1 },
+  { at: "sysmh", zh: "國父紀念館的衛兵多久交接一次？", en: "How often do the guards change at Sun Yat-sen Memorial Hall?", o: [["每 30 分鐘", "Every 30 minutes"], ["每小時", "Every hour"], ["每天一次", "Once a day"], ["只有節日", "Only on holidays"]], a: 1 },
+  { at: "song", zh: "松山文創園區以前是什麼工廠？", en: "What kind of factory was Songshan Cultural Park?", o: [["菸草", "Tobacco"], ["糖", "Sugar"], ["紡織", "Textiles"], ["啤酒", "Beer"]], a: 0 },
+  { at: "t101", zh: "台北101 的造型像哪一種植物？", en: "Taipei 101 is shaped like which plant?", o: [["竹子", "Bamboo"], ["松樹", "Pine"], ["蓮花", "Lotus"], ["梅花", "Plum blossom"]], a: 0 },
+  { at: "city", zh: "從台北市政府走到捷運市政府站大約要幾分鐘？", en: "About how long is the walk from City Hall to City Hall MRT station?", o: [["5 分鐘", "5 minutes"], ["20 分鐘", "20 minutes"], ["40 分鐘", "40 minutes"], ["1 小時", "1 hour"]], a: 0 },
+];
+const poolAt = k => POOL.filter(q => q.at === k);
+// Guess the price: each question names one place; played in US dollars with the local price beside it (sample prices).
+const RATE = 32;
+const PRICES = [
+  { at: "song", zh: "松菸「誠品生活」一樓咖啡店，一杯熱美式多少錢？", en: "A hot Americano at the ground-floor café in Eslite Spectrum Songyan?", usd: 3.75 },
+  { at: "plaza", zh: "香堤大道旁的便利商店，一顆茶葉蛋多少錢？", en: "One tea egg at the convenience store on Xiangti Avenue?", usd: 0.4 },
+  { at: "city", zh: "市政府站旁的夜市攤，一份蚵仔煎多少錢？", en: "One oyster omelette at the night-market stall by City Hall station?", usd: 2.5 },
+  { at: "ssv", zh: "四四南村「好丘」一個貝果多少錢？", en: "One bagel at Good Cho's in Four Four South Village?", usd: 2.2 },
+  { at: "t101", zh: "台北101 觀景台一張成人票多少錢？", en: "One adult ticket to the Taipei 101 observatory?", usd: 19 },
+];
+const priceAt = k => PRICES.find(p => p.at === k) || PRICES[0];
+
+/* ---------- Quest types: same pin, different job ---------- */
+const FOOT = `<svg viewBox="0 0 24 24" fill="currentColor"><ellipse cx="8" cy="7" rx="3" ry="4.5"/><ellipse cx="16" cy="13" rx="3" ry="4.5"/><circle cx="8" cy="14" r="1.6"/><circle cx="16" cy="20" r="1.6"/></svg>`;
+const QBUB = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H10l-4 4v-4H4z"/><path d="M10 9a2 2 0 1 1 2.8 1.8c-.6.3-.8.7-.8 1.2"/><circle cx="12" cy="14" r=".4" fill="currentColor"/></svg>`;
+const TAG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/><path d="M14.5 11.5c-.6-.8-2.6-.9-2.8.3-.3 1.5 3.3 1 3 2.6-.2 1.2-2.3 1.1-3 .3M13.3 10.4v.8M13.6 16v.8"/></svg>`;
+const TYPES = {
+  arrive: { zh: "到達", en: "Arrive", icon: () => FOOT, how: ["走到這裡就完成", "Reach it and it's done"] },
+  question: { zh: "問題", en: "Question", icon: () => QBUB, how: ["回答一題", "Answer a question"] },
+  price: { zh: "猜價格", en: "Guess the price", icon: () => TAG, how: ["猜這個地方的價格", "Guess this place's price"] },
+  catch: { zh: "抓膠囊", en: "Catch", icon: () => `<img src="${ART}game/ball-wax.webp" alt="">`, how: ["破損膠囊出現在這裡，抓 3 個", "Corrupted Capsules appear here; catch 3"] },
+  landmark: { zh: "地標", en: "Landmark", icon: () => `<img src="${ART}stamps/stamp-taipei101.webp" alt="">`, how: ["打敗地標膠囊", "Defeat the Landmark capsule"] },
+};
+const tName = t => L(TYPES[t].zh, TYPES[t].en);
+const tChip = (t, on, dis, attr) => `<button class="tchip ${on ? "on" : ""}" ${attr || ""} ${dis ? "disabled" : ""}><i>${TYPES[t].icon()}</i>${tName(t)}</button>`;
+// o: { type, img (path under art/), n, color: "blue"|"brass", done, label }
+const pinHTML = o => `<div class="tear ${o.color}"><span class="face t-${o.type}">${TYPES[o.type].icon()}</span></div><span class="num ${o.color}">${o.done ? "✓" : o.n}</span>${o.label ? `<span class="lbl">${o.label}</span>` : ""}`;
+const LANDMARK_KM = 2;
+const km = (a, b) => { const R = 6371, r = Math.PI / 180, dLat = (b[1] - a[1]) * r, dLng = (b[0] - a[0]) * r; const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+
+/* ---------- Map ---------- */
+const map = new maplibregl.Map({
+  container: "map", attributionControl: false, center: P.t101, zoom: 14.3, pitch: 45, bearing: -12,
+  style: "https://tiles.openfreemap.org/styles/positron",
+});
+let mapReady = new Promise(r => map.on("load", () => {
+  map.addSource("route", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": "#2F5D8A", "line-width": 3, "line-dasharray": [1.2, 1.4], "line-opacity": .75 } });
+  r();
+}));
+let markers = [];
+function clearMap() { markers.forEach(m => m.remove()); markers = []; setRoute([]); }
+function setRoute(pts, color) {
+  mapReady.then(() => {
+    map.getSource("route").setData({ type: "FeatureCollection", features: pts.length > 1 ? [{ type: "Feature", geometry: { type: "LineString", coordinates: pts } }] : [] });
+    map.setPaintProperty("route", "line-color", color || "#2F5D8A");
+  });
+}
+function addMarker(lnglat, html, cls, onClick, anchor) {
+  const el = document.createElement("div");
+  el.className = "mk";
+  el.innerHTML = `<div class="in ${cls || ""}">${html}</div>`;
+  if (onClick) { el.style.cursor = "pointer"; el.addEventListener("click", e => { e.stopPropagation(); onClick(); }); }
+  const m = new maplibregl.Marker({ element: el, anchor: anchor || "bottom" }).setLngLat(lnglat).addTo(map);
+  markers.push(m);
+  return m;
+}
+const fly = (c, z, pad) => map.flyTo({ center: c, zoom: z || 14.3, pitch: 45, bearing: -12, padding: pad || { bottom: 220, top: 70 }, duration: reduce ? 0 : 1600, essential: true });
+function floatAt(m, text) { const s = document.createElement("span"); s.className = "float"; s.textContent = text; m.getElement().firstElementChild.appendChild(s); setTimeout(() => s.remove(), 1400); }
+function walk(m, to, ms) {
+  const from = m.getLngLat().toArray();
+  return new Promise(res => {
+    if (reduce) { m.setLngLat(to); map.jumpTo({ center: to }); return res(); }
+    const t0 = performance.now();
+    const step = now => {
+      const k = Math.min(1, (now - t0) / ms), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      const p = [from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e];
+      m.setLngLat(p); map.jumpTo({ center: p });
+      k < 1 ? requestAnimationFrame(step) : res();
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+/* ---------- Chrome ---------- */
+function chrome(title) {
+  $("title").textContent = title || "";
+  $("menuLbl").textContent = L("示範", "Demo");
+  $("lang").textContent = L("EN", "中文");
+  $("balls").textContent = S.balls;
+}
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 2200); }
+function bottom(html) { const b = $("bottom"); b.hidden = !html; b.innerHTML = html || ""; return b; }
+let onClose = null;
+function sheet(title, html, opts = {}) {
+  const s = $("sheet");
+  s.classList.toggle("full", !!opts.full);
+  s.classList.toggle("half", !!opts.half);
+  s.classList.toggle("flip", !!opts.flip);
+  $("shTitle").innerHTML = title;
+  $("shBody").innerHTML = html;
+  $("shBody").scrollTop = 0;
+  onClose = opts.onClose || null;
+  requestAnimationFrame(() => s.classList.add("open"));
+  return $("shBody");
+}
+function closeSheet() { $("sheet").classList.remove("open"); const f = onClose; onClose = null; if (f) f(); }
+$("shX").onclick = closeSheet;
+$("lang").onclick = () => { S.lang = S.lang === "zh" ? "en" : "zh"; history.replaceState(null, "", S.lang === "en" ? "#en" : "#"); if (S.redraw) S.redraw(); };
+$("menuBtn").onclick = showMenu;
+const portrait = n => `${ART}portraits/portrait-0${n}.webp`;
+const vessel = id => `${ART}vessels/vessel-${id}.webp`;
+
+/* ---------- Demo menu ---------- */
+function showMenu() {
+  S.redraw = showMenu;
+  closeSheet(); bottom(null); $("addbar").hidden = true;
+  S.fast = false; document.querySelectorAll("#score, .stamp, .skip, .flyer").forEach(e => e.remove());
+  const items = [
+    ["today", "quest-templates/quest-template-old-street.webp", L("今日尋寶", "Today's Hunt"), L("台北101附近掉下 3 個藍色任務圖釘：問題、猜價格、抓膠囊。按開始，小人自己走過去，不用出門。", "Three blue quest pins drop around Taipei 101: a question, a price and a catch. Press Play and your figure walks there. No need to go out.")],
+    ["city", "characters/keeper.webp", L("城市尋寶（要到現場）", "City Hunt (go there)"), L("和守信人說好之後，藍色任務圖釘掉到地圖上，每個都要走到才能做，地標最後。", "After you agree with the Letter Keeper, blue quest pins drop onto the map. You walk to each one; the Landmark is last.")],
+    ["rack", "game/waypost-gem-blue.webp", L("Waypost 的膠囊架", "A Waypost's capsule rack"), L("轉 Waypost 拿蠟球，下面就是這裡的公開膠囊。放一個、打開一個。", "Spin the Waypost for balls; this spot's public capsules hang below. Leave one, open one.")],
+    ["route", "vessels/vessel-envelope.webp", L("寄給朋友：一條路線", "To a friend: a route"), L("選一條城市路線，每站已經選好種類和題目。和私人尋寶一樣的黃銅圖釘，朋友走完才能打開。", "Pick a city route; every stop already has its kind and question. The same brass pins as a private hunt; your friend opens it after the last stop.")],
+    ["memory", "portraits/portrait-future.webp", L("回憶路線（寄給未來的自己）", "Memory Route (to future me)"), L("同一個流程，收件人是未來的自己，地點自己在地圖上點，問題自己寫。", "The same flow, sent to future me. Tap your own places on the map and write your own questions.")],
+    ["copies", "vessels/vessel-bubble-tea.webp", L("容器份數", "Vessel copies"), L("基本容器無限；抓到的容器每次 +3 份，寄一次用一份。收藏永遠在。", "Starters are unlimited; each catch gives 3 copies and each send uses one. Your collection stays.")],
+  ];
+  $("menu").hidden = false;
+  $("menu").innerHTML = `<h1>${L("新的玩法示範", "New game loop demo")}</h1>
+    <div class="muted">${L("點一個開始。右上角可以切換語言，左上角「示範」回到這裡。題目、人名和數字都是示範資料。", "Pick one to start. Switch language at the top right; Demo at the top left comes back here. Questions, names and numbers are sample data.")}</div>
+    <div class="box"><h3>${L("地圖上只有兩種東西", "Only two things on the map")}</h3>
+      <div class="row" style="flex-wrap:nowrap;align-items:center"><img src="${ART}game/waypost-gem-blue.webp" style="width:44px;height:44px;scale:1.7;flex:none;margin:0 6px" alt=""><div class="muted"><b style="color:var(--ink)">${L("寶石 = Waypost", "Gem = Waypost")}</b>：${L("轉一下拿蠟球、看膠囊架。轉過變紫色。", "Spin for wax balls and see the capsule rack. Purple after a spin.")}</div></div>
+      <div class="row" style="flex-wrap:nowrap;align-items:center"><div style="display:flex;gap:22px;flex:none;padding:8px 6px 0 10px"><div class="in">${pinHTML({ type: "question", img: "quest-templates/quest-template-park.webp", n: 1, color: "blue" })}</div><div class="in">${pinHTML({ type: "price", img: "quest-templates/quest-template-garden.webp", n: 2, color: "brass" })}</div></div><div class="muted"><b style="color:var(--ink)">${L("圖釘 = 任務", "Pin = quest")}</b>：${L("藍色是我們做的（今日尋寶、城市尋寶），黃銅是人做的（私人尋寶、路線）。完成變紫色。", "Blue is made by us (Today's Hunt, City Hunt); brass is made by a person (private hunts, routes). Purple when done.")}</div></div>
+      <div class="typechips">${Object.keys(TYPES).map(t => tChip(t, false, false, "tabindex=-1 style=pointer-events:none")).join("")}</div>
+      <div class="muted">${L("同一個圖釘，裡面的圖說它做什麼。", "The same pin; the picture inside shows what it does.")}</div></div>
+    ${items.map((it, i) => `<button class="item" data-s="${it[0]}"><img src="${ART}${it[1]}" alt=""><div><div class="k">${i + 1}</div><b>${it[2]}</b><span>${it[3]}</span></div></button>`).join("")}
+    <button class="chip" id="mlang" style="justify-self:start">${L("Switch to English", "切換成中文")}</button>`;
+  $("mlang").onclick = () => $("lang").click();
+  $("menu").querySelectorAll(".item").forEach(b => b.onclick = () => { $("menu").hidden = true; SCENES[b.dataset.s](); });
+}
+
+/* ---------- Shared: a multiple-choice quest ---------- */
+const done = (res, v) => { onClose = null; $("sheet").classList.remove("open"); res(v); };
+function askQuestion(q, title, sub) {
+  return new Promise(res => {
+    const body = sheet(`${title}<small>${sub}</small>`, `<div class="box"><div class="row"><span class="tag blue">? ${tName("question")}</span></div><div class="q">${L(q.zh, q.en)}</div><div class="opts">${q.o.map((o, i) => `<button class="opt" data-i="${i}">${L(o[0], o[1])}</button>`).join("")}</div></div>`, { onClose: () => res(null), flip: true });
+    body.querySelectorAll(".opt").forEach(b => b.onclick = async () => {
+      const i = +b.dataset.i, ok = i === q.a;
+      body.querySelectorAll(".opt").forEach(x => x.disabled = true);
+      b.classList.add(ok ? "right" : "wrong");
+      if (!ok) { body.querySelector(`[data-i="${q.a}"]`).classList.add("right"); body.querySelector(".box").classList.add("shake"); }
+      await wait(1000);
+      done(res, ok);
+    });
+  });
+}
+// Guess the price: three tries, higher/lower hints, within 10% wins.
+function askPrice(p, title, sub) {
+  return new Promise(res => {
+    let tries = 0, v = 5;
+    const body = sheet(`${title}<small>${sub}</small>`, `<div class="box"><div class="row"><span class="tag blue">$ ${tName("price")}</span><span class="muted" id="pt">${L("3 次機會", "3 tries")}</span></div>
+      <div class="q">${L(p.zh, p.en)}</div>
+      <div class="head" id="pv"></div>
+      <input type="range" id="pr" min="0.2" max="25" step="0.05" value="${v}" style="width:100%">
+      <div class="muted" id="ph">${L("猜對 10% 以內就贏。", "Within 10% wins.")}</div>
+      <button class="btn fill" id="pg">${L("猜", "Guess")}</button></div>`, { onClose: () => res(null), flip: true });
+    const show = () => body.querySelector("#pv").innerHTML = `US$${v.toFixed(2)} <span class="muted" style="font-size:14px">≈ NT$${Math.round(v * RATE)}</span>`;
+    body.querySelector("#pr").oninput = e => { v = +e.target.value; show(); }; show();
+    body.querySelector("#pg").onclick = async () => {
+      tries++;
+      const ok = Math.abs(v - p.usd) <= p.usd * .1;
+      const h = body.querySelector("#ph"), ans = `US$${p.usd.toFixed(2)} ≈ NT$${Math.round(p.usd * RATE)}`;
+      if (ok || tries >= 3) { body.querySelector("#pg").disabled = true; h.innerHTML = `<b style="color:var(--plum)">${ok ? L("猜中了！", "Got it!") : L("沒猜中。", "Not this time.")}</b> ${L("答案", "Answer")}: ${ans}`; if (!ok) body.querySelector(".box").classList.add("shake"); await wait(1500); return done(res, ok); }
+      body.querySelector(".box").classList.remove("shake"); void body.offsetWidth; body.querySelector(".box").classList.add("shake");
+      h.textContent = v < p.usd ? L("再高一點 ↑", "Higher ↑") : L("再低一點 ↓", "Lower ↓");
+      body.querySelector("#pt").textContent = L(`還有 ${3 - tries} 次`, `${3 - tries} left`);
+    };
+  });
+}
+// Catch: tap Throw when the brass ring is small. need catches, a few spare throws.
+function askCatch(need, title, sub, vesselId) {
+  return new Promise(res => {
+    let got = 0, left = need + 3, raf, t0 = performance.now(), busy = false;
+    const id = vesselId || "bubble-tea";
+    const body = sheet(`${title}<small>${sub}</small>`, `<div class="box"><div class="row" style="justify-content:space-between"><span class="tag blue"><img src="${ART}game/ball-wax.webp" style="width:14px;height:14px;vertical-align:-2px"> ${tName("catch")}</span><b id="cg" style="font:700 15px var(--serif)"></b></div>
+      <div class="arena" style="background-image:url(${ART}game/catch-background.webp)"><div class="ring"></div><div class="ring inner" id="ri"></div><div class="tgt" id="tg"><img class="dark" src="${vessel(id)}" alt=""><img src="${ART}game/cracks/${id}.webp" alt=""></div><img class="ball" id="bl" src="${ART}game/ball-wax.webp" alt=""></div>
+      <div class="muted" id="cm">${L("金色圈最小的時候丟。", "Throw when the brass ring is smallest.")}</div>
+      <button class="btn wax" id="th">${L("丟", "Throw")}</button></div>`, { onClose: () => { cancelAnimationFrame(raf); res(null); }, flip: true });
+    const ri = body.querySelector("#ri"), lab = body.querySelector("#cg");
+    const k = () => .3 + .7 * Math.abs(Math.sin((performance.now() - t0) / (reduce ? 1400 : 700)));
+    const tick = () => { ri.style.transform = `scale(${k()})`; raf = requestAnimationFrame(tick); }; tick();
+    const label = () => lab.textContent = L(`${got}/${need} · 剩 ${left} 球`, `${got}/${need} · ${left} balls`); label();
+    body.querySelector("#th").onclick = async () => {
+      if (busy) return; busy = true;
+      const s = k(), hit = s < .55; left--; label();
+      const bl = body.querySelector("#bl"); bl.style.transform = "translateY(-150px) scale(.55)"; await wait(450);
+      const tg = body.querySelector("#tg");
+      if (hit) { got++; tg.classList.add("boing"); burst(tg, 10); body.querySelector("#cm").textContent = L("抓到了！", "Caught!"); }
+      else { tg.classList.add("shake"); body.querySelector("#cm").textContent = L("差一點，再丟一次", "Close! Throw again"); }
+      await wait(500); tg.classList.remove("boing", "shake"); bl.style.transform = ""; label(); busy = false;
+      if (got >= need || left <= 0) { cancelAnimationFrame(raf); await wait(500); done(res, got >= need); }
+    };
+  });
+}
+// Landmark fight: tap the giant capsule until it breaks open.
+function askLandmark(title, sub, vesselId) {
+  return new Promise(res => {
+    let hp = 100;
+    const body = sheet(`${title}<small>${sub}</small>`, `<div class="box"><div class="row"><span class="tag blue"><img src="${ART}seal-wax.webp" style="width:14px;height:14px;vertical-align:-2px"> ${tName("landmark")}</span></div>
+      <div class="hp"><i id="hpb" style="width:100%"></i></div>
+      <div class="arena" id="ar" style="background-image:url(${ART}game/catch-background.webp);cursor:pointer"><div class="tgt" id="tg" style="width:170px;height:170px"><img class="dark" src="${vessel(vesselId || "bamboo-tower")}" alt=""><img src="${ART}game/cracks/${vesselId || "bamboo-tower"}.webp" alt=""></div></div>
+      <div class="muted" style="text-align:center">${L("一直點地標膠囊。", "Keep tapping the Landmark capsule.")}</div></div>`, { onClose: () => res(null), flip: true });
+    body.querySelector("#ar").onclick = async () => {
+      if (hp <= 0) return;
+      hp -= 12; const tg = body.querySelector("#tg"); tg.classList.remove("hit"); void tg.offsetWidth; tg.classList.add("hit"); burst(tg, 4);
+      body.querySelector("#hpb").style.width = Math.max(0, hp) + "%";
+      if (hp <= 0) { tg.querySelector(".dark").classList.remove("dark"); tg.lastElementChild.remove(); tg.classList.add("boing"); burst(tg, 16); await wait(1100); done(res, true); }
+    };
+  });
+}
+// Run any quest by type. Returns true (passed), false (tried and missed) or null (closed).
+async function runQuest(s, title, sub) {
+  if (s.type === "arrive") { toast(L("到達了！", "Arrived!")); await wait(500); return true; }
+  if (s.type === "question") {
+    if (s.own) { const v = prompt(s.own, ""); return v === null ? null : true; }
+    return askQuestion(s.q || poolAt(s.k)[0] || POOL[0], title, sub);
+  }
+  if (s.type === "price") return askPrice(s.p || priceAt(s.k), title, sub);
+  if (s.type === "catch") return askCatch(3, title, sub, s.vessel);
+  if (s.type === "landmark") return askLandmark(title, sub);
+}
+function burst(el, n) {
+  if (reduce) return;
+  for (let i = 0; i < n; i++) { const s = document.createElement("span"); s.className = "spark"; const a = Math.random() * 6.28, d = 30 + Math.random() * 40; s.style.setProperty("--x", Math.cos(a) * d + "px"); s.style.setProperty("--y", Math.sin(a) * d + "px"); el.appendChild(s); setTimeout(() => s.remove(), 900); }
+}
+
+/* ================= 1. Today's Hunt ================= */
+function sceneToday() {
+  S.scene = "today";
+  S.fast = false;
+  const st = { started: false, done: [], score: 0, finished: false };
+  // Today's quests: the same blue quest pin, three different jobs. Played remotely; Catch pays points only.
+  const stops = [{ k: "ssv", type: "question", img: "quest-templates/quest-template-old-street.webp" }, { k: "city", type: "price", img: "quest-templates/quest-template-square.webp" }, { k: "xiang", type: "catch", img: "quest-templates/quest-template-park.webp", vessel: "bubble-tea" }];
+  let pins = [], fig;
+  const title = () => st.started ? L("今日尋寶", "Today's Hunt") : L("今日尋寶 · 台北", "Today's Hunt · Taipei");
+  const scoreChip = () => { const r = document.querySelector(".top .right"); let s = $("score"); if (!s) { s = document.createElement("span"); s.id = "score"; s.className = "score"; r.prepend(s); } s.textContent = L(`${st.score} 分`, `${st.score} pts`); return s; };
+  const draw = () => {
+    S.redraw = draw; chrome(title());
+    clearMap();
+    addMarker(P.t101, `<img class="gem big" src="${ART}game/landmark-gem-blue.webp" alt=""><span class="lbl">${nm("t101")}</span>`);
+    pins = stops.map((s, i) => addMarker(P[s.k], pinHTML({ type: s.type, img: s.img, n: i + 1, color: "blue", done: st.done.includes(i), label: nm(s.k) }), (st.done.includes(i) ? "done" : "")));
+    if (st.started) { fig = addMarker(fig ? fig.getLngLat().toArray() : P.t101, `<img class="fig" src="${ART}characters/figure-04.webp" alt="">`); scoreChip(); }
+    if (!st.started) card();
+  };
+  const legend = `<div class="legend">${["question", "price", "catch"].map(t => `<span>${tChip(t, false, false, "tabindex=-1 style=pointer-events:none")}</span>`).join("")}</div>`;
+  const card = () => bottom(`<div class="card">
+      <div class="row" style="justify-content:space-between"><h2>${L("今日尋寶", "Today's Hunt")}</h2><span class="streak"><i></i>${L("連續 2 天", "2-day streak")}</span></div>
+      <div class="muted">${L("台北101附近有 3 個任務。你的小人自己走過去，你只要玩。", "Three quests around Taipei 101. Your figure walks there; you just play.")}</div>
+      <div class="typechips">${stops.map(s => tChip(s.type, false, false, "tabindex=-1 style=pointer-events:none")).join("")}</div>
+      <button class="btn fill block" id="play">${L("開始", "Play")}</button></div>`).querySelector("#play").onclick = play;
+  // Draws the dotted trail as the figure walks, hops the figure and drops fading footprints.
+  function trek(from, to, ms, trail) {
+    const m = fig, el = m.getElement();
+    el.classList.add("hop");
+    const brg = (Math.atan2(to[0] - from[0], to[1] - from[1]) * 180 / Math.PI);
+    if (!reduce) map.easeTo({ bearing: brg * .35, pitch: 58, zoom: 15.6, duration: S.fast ? 300 : 900 });
+    return new Promise(r => {
+      const t0 = performance.now(); let lastFoot = 0; const dur = S.fast ? ms / 4 : ms;
+      if (reduce) { m.setLngLat(to); trail.push(to); setRoute(trail); el.classList.remove("hop"); return r(); }
+      const step = now => {
+        const k = Math.min(1, (now - t0) / dur), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        const p = [from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e];
+        m.setLngLat(p); map.setCenter(p); setRoute([...trail, p]);
+        if (now - lastFoot > 160) { lastFoot = now; const f = addMarker(p, `<span class="foot"></span>`, "", null, "center"); setTimeout(() => { f.remove(); markers = markers.filter(x => x !== f); }, 2200); }
+        if (k < 1) requestAnimationFrame(step); else { trail.push(to); el.classList.remove("hop"); r(); }
+      };
+      requestAnimationFrame(step);
+    });
+  }
+  function flyScore(pin, pts) {
+    const ph = document.querySelector(".phone").getBoundingClientRect(), a = pin.getElement().getBoundingClientRect(), s = scoreChip(), b = s.getBoundingClientRect();
+    const f = document.createElement("span"); f.className = "flyer"; f.textContent = `+${pts}`;
+    f.style.left = (a.left - ph.left + a.width / 2 - 20) + "px"; f.style.top = (a.top - ph.top - 10) + "px";
+    document.querySelector(".phone").appendChild(f);
+    requestAnimationFrame(() => { f.style.transform = `translate(${b.left - a.left - a.width / 2 + 30}px, ${b.top - a.top + 10}px) scale(.6)`; f.style.opacity = ".2"; });
+    setTimeout(() => { f.remove(); s.textContent = L(`${st.score} 分`, `${st.score} pts`); s.classList.remove("bump"); void s.offsetWidth; s.classList.add("bump"); }, 820);
+  }
+  async function play() {
+    st.started = true; bottom(null); draw();
+    // Skip button: speeds everything up.
+    const sk = document.createElement("button"); sk.className = "chip skip"; sk.textContent = L("快轉 ⏩", "Speed up ⏩"); sk.onclick = () => { S.fast = true; sk.remove(); };
+    document.querySelector(".phone").appendChild(sk);
+    // Intro: camera swoops in while the three pins drop from the sky one by one.
+    pins.forEach(p => p.getElement().style.visibility = "hidden");
+    map.flyTo({ center: P.t101, zoom: 14.6, pitch: 60, bearing: 20, duration: reduce ? 0 : 1600, padding: { bottom: 60, top: 80 } });
+    await wait(1100);
+    pins.forEach((p, i) => { const el = p.getElement(); el.style.visibility = ""; const inn = el.firstElementChild; inn.style.setProperty("--d", i * .25 + "s"); inn.classList.add("drop"); });
+    await wait(1400);
+    map.setPadding({ top: 80, bottom: 330, left: 0, right: 0 });
+    const trail = [P.t101];
+    for (let i = 0; i < stops.length; i++) {
+      const s = stops[i], from = fig.getLngLat().toArray();
+      await trek(from, P[s.k], 2000, trail);
+      const inn = pins[i].getElement().firstElementChild;
+      inn.classList.remove("drop", "boing"); void inn.offsetWidth; inn.classList.add("boing", "ripple");
+      await wait(650); inn.classList.remove("ripple");
+      const ok = await runQuest(s, L(`任務 ${i + 1}/3 · ${tName(s.type)}`, `Quest ${i + 1}/3 · ${tName(s.type)}`), nm(s.k));
+      const pts = ok ? 10 : 2; st.score += pts; st.done.push(i);
+      inn.classList.add("done"); inn.querySelector(".num").textContent = "✓";
+      inn.classList.remove("boing"); void inn.offsetWidth; inn.classList.add("boing"); burst(inn, ok ? 14 : 5);
+      flyScore(pins[i], pts);
+      await wait(1100);
+    }
+    sk.remove();
+    // Finale: pull back to show the whole trail, then the stamp lands.
+    map.flyTo({ center: P.city, zoom: 13.9, pitch: 30, bearing: -12, duration: reduce ? 0 : 1800, padding: { bottom: 380, top: 70 } });
+    await wait(1900);
+    const stamp = document.createElement("img"); stamp.className = "stamp"; stamp.src = ART + "stamps/stamp-taipei101.webp"; document.querySelector(".phone").appendChild(stamp);
+    await wait(1200);
+    st.finished = true; S.balls += 3; S.fast = false; chrome(title());
+    result(stamp);
+  }
+  const result = stamp => {
+    if (stamp) stamp.remove();
+    const cleanup = () => { const s = $("score"); if (s) s.remove(); };
+    const friends = [[1, L("小晴", "Ching"), 30], [4, L("我", "Me"), st.score, 1], [6, L("阿傑", "Jay"), 22], [3, L("Mei", "Mei"), 12]].sort((a, b) => b[2] - a[2]);
+    sheet(`${L("今天完成", "Done for today")}<small>${L("台北 · 今日尋寶", "Taipei · Today's Hunt")}</small>`, `
+      <div class="box" style="text-align:center"><img src="${ART}stamps/stamp-taipei101.webp" alt="" style="width:96px;height:96px;justify-self:center;animation:slam .55s cubic-bezier(.2,1.5,.4,1) both;transform:rotate(-8deg)"><div class="head">${st.score} ${L("分", "points")}</div><div class="row" style="justify-content:center"><span class="streak"><i></i>${L("連續 3 天", "3-day streak")}</span><span class="tag brass">+3 ${L("蠟球", "wax balls")}</span></div></div>
+      <div class="box"><h3>${L("朋友排行", "Friends")}</h3><div class="board">${friends.map((f, i) => `<div class="brow ${f[3] ? "me" : ""}"><span>${i + 1}</span><img src="${portrait(f[0])}" alt=""><span>${f[1]}</span><b>${f[2]}</b></div>`).join("")}</div>
+      <div class="muted">${L("只有朋友，沒有全球排行。題目大家都一樣，全球排行一定有人傳答案。", "Friends only, no global ranking: everyone gets the same questions, so a global board would get shared answers.")}</div></div>
+      <div class="note"><b>${L("為什麼這樣玩", "Why it plays like this")}</b>：${L("和城市尋寶一樣的藍色任務圖釘、一樣的完成變紫色，只是小人替你走。在家抓膠囊只給分數，不給容器份數。", "Same blue quest pins and same purple when done as a City Hunt; your figure just walks for you. Catching from home pays points only, not vessel copies.")}</div>
+      <div class="two"><button class="btn" id="again">${L("再看一次", "Replay")}</button><button class="btn fill" id="next">${L("下一個示範", "Next demo")}</button></div>`, { onClose: cleanup });
+    $("again").onclick = () => { onClose = null; cleanup(); closeSheet(); sceneToday(); };
+    $("next").onclick = () => { onClose = null; cleanup(); closeSheet(); sceneCity(); };
+  };
+  fly(P.t101, 14.6); draw();
+}
+
+/* ================= 2. City Hunt with quest Wayposts ================= */
+function sceneCity() {
+  S.scene = "city";
+  const quests = [
+    { k: "sysmh", type: "question", img: "quest-templates/quest-template-square.webp" },
+    { k: "song", type: "price", img: "quest-templates/quest-template-old-street.webp" },
+    { k: "plaza", type: "catch", img: "quest-templates/quest-template-public-art.webp", vessel: "bento" },
+    { k: "t101", type: "landmark", img: "stamps/stamp-taipei101.webp" },
+  ];
+  const st = { accepted: false, done: [], at: null };
+  let you;
+  const draw = () => {
+    S.redraw = draw; chrome(L("城市尋寶 · 信義", "City Hunt · Xinyi"));
+    clearMap();
+    addMarker(st.at || P.civic, `<div class="youring"></div>`, "", null, "center");
+    you = addMarker(st.at || P.civic, `<img class="fig" src="${ART}characters/figure-04.webp" alt="">`);
+    addMarker([121.5622, 25.0381], `<img class="fig" src="${ART}characters/keeper.webp" alt=""><span class="keeper-badge">${st.accepted ? "✓" : "!"}</span><span class="lbl">${L("守信人", "Letter Keeper")}</span>`, "", keeper);
+    // A common Waypost stays a gem: it is only for Spin and the capsule rack.
+    addMarker(P.wp, `<img class="gem" src="${ART}game/waypost-gem-blue.webp" alt="">`);
+    if (st.accepted) quests.forEach((q, i) => {
+      const done = st.done.includes(i);
+      const m = addMarker(P[q.k], pinHTML({ type: q.type, img: q.img, n: i + 1, color: "blue", done, label: nm(q.k) }), done ? "done" : "", () => openQuest(i));
+      if (st.justAccepted) { const inn = m.getElement().firstElementChild; inn.style.setProperty("--d", i * .2 + "s"); inn.classList.add("drop"); }
+    });
+    st.justAccepted = false;
+    bottom(`<div class="card">${st.accepted
+      ? `<div class="row" style="justify-content:space-between"><h2>${L("信義尋寶", "Xinyi hunt")}</h2><span class="tag blue">${st.done.length}/${quests.length}</span></div>
+         <div class="muted">${L("點藍色任務圖釘。每個都要走到 100 公尺內才能做；圖釘裡的圖說它做什麼。", "Tap a blue quest pin. You need to be within 100 m of each one; the picture inside shows what it does.")}</div>
+         <div class="typechips">${quests.map(q => tChip(q.type, false, false, "tabindex=-1 style=pointer-events:none")).join("")}</div>`
+      : `<h2>${L("和守信人說話", "Talk to the Letter Keeper")}</h2><div class="muted">${L("說好之後，任務不再全部擠在守信人身上，而是變成地圖上的藍色任務圖釘。藍色寶石還是一般 Waypost：轉一下、看膠囊架。", "After you agree, the quests no longer sit inside the Keeper. They drop onto the map as blue quest pins. The blue gem is still a common Waypost: spin it and see its rack.")}</div><button class="btn fill block" id="talk">${L("點守信人", "Tap the Keeper")}</button>`}</div>`);
+    const t = $("talk"); if (t) t.onclick = keeper;
+  };
+  const keeper = () => {
+    if (st.accepted) return toast(L("守信人：找到全部任務再回來找我。", "Keeper: come back when every quest is done."));
+    sheet(`${L("守信人", "Letter Keeper")}<small>${nm("civic")}</small>`, `
+      <div class="box"><div class="row" style="flex-wrap:nowrap;align-items:flex-start"><img src="${ART}portraits/portrait-keeper.webp" style="width:56px;height:56px;border-radius:50%" alt=""><div class="q" style="font-size:16px">${L("信義區有幾個膠囊迷路了。幫我走一圈：一題問題、一個價格、抓幾個破損膠囊，最後打敗地標。", "Some capsules got lost in Xinyi. Walk a loop for me: a question, a price, a few Corrupted Capsules, and the Landmark last.")}</div></div>
+      <div class="row"><span class="tag">${L("限時 60 分鐘", "60-minute run")}</span><span class="tag brass">${L("獎勵：信義印章", "Reward: Xinyi stamp")}</span></div></div>
+      <button class="btn fill block" id="ok">${L("好，開始", "OK, let's go")}</button>`);
+    $("ok").onclick = () => { st.accepted = true; st.justAccepted = true; closeSheet(); fly(P.city, 14.2, { bottom: 230, top: 70 }); draw(); toast(L("任務圖釘出現了", "Quest pins dropped in")); };
+  };
+  const openQuest = i => {
+    const q = quests[i], done = st.done.includes(i), near = st.at && st.at[0] === P[q.k][0];
+    if (done) return toast(L("這個任務完成了", "This quest is done"));
+    const locked = q.type === "landmark" && st.done.length < 3;
+    sheet(`${L(`任務 ${i + 1} · ${tName(q.type)}`, `Quest ${i + 1} · ${tName(q.type)}`)}<small>${nm(q.k)}</small>`, `
+      <div class="box"><div class="typechips">${tChip(q.type, true, false, "tabindex=-1 style=pointer-events:none")}</div><h3>${L(TYPES[q.type].how[0], TYPES[q.type].how[1])}</h3><div class="muted">${near ? L("你在範圍內。", "You are in range.") : L("你要走到這裡 100 公尺內。", "Walk to within 100 m of this spot.")}</div>
+      ${locked ? `<div class="note">${L("地標是最後一步：先完成另外三個任務。", "The Landmark is last: finish the other three quests first.")}</div>` : ""}</div>
+      ${near ? `<button class="btn fill block" id="do" ${locked ? "disabled" : ""}>${L("開始", "Start")}</button>` : `<button class="btn block" id="go" ${locked ? "disabled" : ""}>${L("示範：假裝走到這裡", "Demo: pretend you walked here")}</button>`}`);
+    const go = $("go"); if (go) go.onclick = async () => { closeSheet(); st.at = P[q.k]; fly(P[q.k], 15.6, { bottom: 220, top: 70 }); you.getElement().classList.add("hop"); await walk(you, P[q.k], 1400); draw(); openQuest(i); };
+    const d = $("do"); if (d) d.onclick = async () => {
+      const ok = await runQuest(q, L(`任務 ${i + 1}`, `Quest ${i + 1}`), nm(q.k));
+      if (ok === null) return;
+      if (ok === false && q.type !== "question" && q.type !== "price") { toast(L("再試一次", "Try again")); return openQuest(i); }
+      st.done.push(i);
+      draw(); toast(q.type === "landmark" ? L("地標打敗了！回去找守信人領印章", "Landmark defeated! Back to the Keeper for the stamp") : L("完成，圖釘變紫色", "Done: the pin turns purple"));
+    };
+  };
+  fly(P.civic, 15.2); draw();
+}
+
+/* ================= Shared: capsule opening (same pages for every capsule) ================= */
+function openCapsule(c) {
+  // c: { vessel, fromImg, fromName, days, hint, letter, lock?, route?, onOpened, title }
+  const st = c._st || (c._st = { answered: false });
+  const draw = () => {
+    const timeOk = c.days <= 0;
+    const routeOk = !c.route || c.route.done >= c.route.total;
+    const lockOk = !c.lock || st.answered;
+    const all = timeOk && routeOk && lockOk;
+    const head = !timeOk ? L(`倒數 ${c.days} 天打開`, `Opens in ${c.days} day${c.days === 1 ? "" : "s"}`) : !routeOk ? L(`還差 ${c.route.total - c.route.done} 站`, `${c.route.total - c.route.done} stop${c.route.total - c.route.done === 1 ? "" : "s"} to go`) : L("現在可以打開", "Ready to open");
+    const body = sheet(`${c.title || L("時光膠囊", "Time capsule")}<small>${L("所有膠囊都是同一個打開畫面", "Every capsule opens the same way")}</small>`, `
+      <img class="open-v" src="${vessel(c.vessel)}" alt="">
+      <div class="head">${head}</div>
+      <div class="from"><img src="${c.fromImg}" alt="">${L("來自", "From")} ${c.fromName}</div>
+      ${c.hint ? `<div class="hint">「${c.hint}」</div>` : ""}
+      <div class="checks">
+        <div class="check ${timeOk ? "ok" : ""}"><span class="dot">${timeOk ? "✓" : ""}</span><span>${L("時間到了", "The time has come")}</span>${timeOk ? "" : `<button class="mini" id="skip">${L("示範：跳過時間", "Demo: skip time")}</button>`}</div>
+        ${c.route ? `<div class="check ${routeOk ? "ok" : ""}"><span class="dot">${routeOk ? "✓" : ""}</span><span>${L(`走完路線 ${c.route.done}/${c.route.total}`, `Finish the route ${c.route.done}/${c.route.total}`)}</span>${routeOk ? "" : `<button class="mini" id="rgo">${L("去路線", "Go")}</button>`}</div>` : ""}
+        ${c.lock ? `<div class="check ${lockOk ? "ok" : ""}"><span class="dot">${lockOk ? "✓" : ""}</span><span>${L("回答寄件人的問題", "Answer the sender's question")}</span>${lockOk ? "" : `<button class="mini" id="ans">${L("回答", "Answer")}</button>`}</div>` : ""}
+      </div>
+      ${c.lock && !lockOk ? `<div class="box" id="lockBox" hidden><div class="q">${c.lock.q}</div><input class="f" id="lockIn" placeholder="${L("你的答案", "Your answer")}"><div class="muted">${L(`示範答案：「${c.lock.a}」。答錯可以一直再試。`, `Demo answer: "${c.lock.a}". You can keep trying.`)}</div><button class="btn fill" id="lockOk">${L("確定", "Check")}</button></div>` : ""}
+      <button class="hold" id="hold" ${all ? "" : "disabled"} aria-label="${L("長按打開", "Hold to open")}"><img src="${ART}seal-wax.webp" alt=""></button>
+      <div class="hold-l">${all ? L("長按打開", "Hold to open") : L("條件都完成才能打開", "Open once every check is done")}</div>`, { full: true, onClose: c.onClose });
+    const sk = body.querySelector("#skip"); if (sk) sk.onclick = () => { c.days = 0; draw(); };
+    const rg = body.querySelector("#rgo"); if (rg) rg.onclick = () => { onClose = null; $("sheet").classList.remove("open"); c.route.go(); };
+    const an = body.querySelector("#ans"); if (an) an.onclick = () => { body.querySelector("#lockBox").hidden = false; body.querySelector("#lockIn").focus(); };
+    const lo = body.querySelector("#lockOk"); if (lo) lo.onclick = () => { const v = body.querySelector("#lockIn").value.trim(); if (v && v.toLowerCase() === String(c.lock.a).trim().toLowerCase()) { st.answered = true; draw(); } else toast(L("不對，再試一次", "Not quite. Try again")); };
+    holdToOpen(body.querySelector("#hold"), () => letter());
+  };
+  const letter = () => {
+    const body = sheet(`${L("信", "Letter")}<small>${L(`在${c.place || "台北"}打開`, `Opened in ${c.place || "Taipei"}`)}</small>`, `<div class="letter">${c.letter}</div>${c.after || ""}<button class="btn fill block" id="fin">${L("完成", "Done")}</button>`, { full: true });
+    body.querySelector("#fin").onclick = () => { closeSheet(); if (c.onOpened) c.onOpened(); };
+  };
+  c.redraw = draw;
+  draw();
+}
+function holdToOpen(btn, done) {
+  let raf, t0;
+  const stop = () => { cancelAnimationFrame(raf); btn.style.setProperty("--p", "0%"); };
+  btn.addEventListener("pointerdown", e => {
+    if (btn.disabled) return; e.preventDefault(); t0 = performance.now();
+    const tick = now => { const k = Math.min(1, (now - t0) / 1300); btn.style.setProperty("--p", k * 100 + "%"); if (k >= 1) { done(); return; } raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(ev => btn.addEventListener(ev, stop));
+  btn.addEventListener("contextmenu", e => e.preventDefault());
+}
+
+/* ================= 3. Waypost rack ================= */
+const RACK = [
+  { id: 1, who: 1, n: ["小晴", "Ching"], days: 0, lock: null, hint: ["給第一個停下來的人", "For whoever stops first"], letter: ["你好，路過的人。\n我在這個噴泉旁邊等了三十分鐘的朋友，最後沒有來。\n希望你今天等的人都準時。", "Hello, passer-by.\nI waited thirty minutes by this fountain for a friend who never came.\nI hope everyone you wait for today is on time."] },
+  { id: 2, who: 6, n: ["阿傑", "Jay"], days: 4, lock: null, hint: ["四天後見", "See you in four days"] },
+  { id: 3, who: 3, n: ["Mei", "Mei"], days: 0, lock: { q: ["這座噴泉旁邊那棟灰色大樓叫什麼？", "What is the grey building next to this fountain?"], a: ["市政府", "City Hall"] }, hint: ["只有看得到噴泉的人才答得出來", "Only someone who can see the fountain will know"], letter: ["你答對了，代表你真的站在這裡。\n今天的風很大，我把這封信寫給下一個也站在這裡的人。", "You got it, so you are really standing here.\nIt is windy today. This letter is for the next person standing where I stood."] },
+  { id: 4, who: 2, n: ["Ken", "Ken"], days: 29, lock: null, hint: ["一個月後的信義", "Xinyi, a month from now"] },
+  { id: 5, who: 8, n: ["佩佩", "Pei"], days: 0, lock: null, friend: true, hint: ["朋友留的", "From a friend"], letter: ["嘿！如果你是我的朋友，下次一起來這裡喝飲料。", "Hey! If you're a friend of mine, let's get a drink here next time."] },
+  { id: 6, who: 5, n: ["Leo", "Leo"], days: 365, lock: { q: ["我最喜歡的顏色？", "My favourite colour?"], a: ["藍色", "blue"] }, hint: ["一年後再說", "Let's talk in a year"] },
+  { id: 7, who: 7, n: ["Ava", "Ava"], days: 1, lock: null, hint: ["明天打開", "Open tomorrow"] },
+  { id: 8, who: 4, n: ["小安", "An"], days: 0, lock: null, hint: ["下雨天寫的", "Written on a rainy day"], letter: ["寫這封信的時候在下雨。\n如果你打開時是晴天，替我曬一下太陽。", "It was raining when I wrote this.\nIf it is sunny when you open it, get some sun for me."] },
+  { id: 9, who: 1, n: ["小晴", "Ching"], days: 7, lock: null, hint: ["下週同一時間", "Same time next week"] },
+];
+function sceneRack() {
+  S.scene = "rack";
+  const st = { filter: "all", spun: false, count: 1284, items: RACK.map(r => ({ ...r })) };
+  const draw = () => {
+    S.redraw = draw; chrome(L("Waypost", "Waypost"));
+    clearMap();
+    addMarker(P.civic, `<div class="youring"></div>`, "", null, "center");
+    addMarker(P.civic, `<img class="fig" src="${ART}characters/figure-04.webp" alt="">`);
+    addMarker(P.wp, `<img class="gem big" src="${ART}game/${st.spun ? "waypost-gem" : "waypost-gem-blue"}.webp" alt=""><span class="lbl">${nm("wp")}</span>`, "", card);
+    bottom(`<div class="card"><h2>${L("走到 Waypost 附近", "You're next to a Waypost")}</h2><div class="muted">${L("公開膠囊不再漂在地圖上，全部掛在 Waypost 的膠囊架上。點寶石打開。", "Public capsules no longer float on the map; they all hang on Waypost racks. Tap the gem.")}</div><button class="btn fill block" id="tap">${L("點 Waypost", "Tap the Waypost")}</button></div>`).querySelector("#tap").onclick = card;
+  };
+  const visible = () => st.items.filter(r => st.filter === "all" || (st.filter === "ready" && r.days <= 0) || (st.filter === "wait" && r.days > 0) || (st.filter === "lock" && r.lock) || (st.filter === "friend" && r.friend) || (st.filter === "mine" && r.mine));
+  const card = () => {
+    const F = [["all", L("全部", "All")], ["ready", L("可以打開", "Ready")], ["wait", L("倒數中", "Waiting")], ["lock", L("有問題", "Question")], ["friend", L("朋友", "Friends")], ["mine", L("我的", "Mine")]];
+    const body = sheet(`${nm("wp")}<small>${L("在範圍內 · 32 公尺", "In range · 32 m")}</small>`, `
+      <div class="box"><div class="wp-head"><img id="gemImg" src="${ART}game/${st.spun ? "waypost-gem" : "waypost-gem-blue"}.webp" alt=""><div style="display:grid;gap:6px">
+        <b style="font:700 16px var(--serif)">${L("轉一下拿蠟球", "Spin for wax balls")}</b>
+        <button class="btn ${st.spun ? "" : "fill"} small" id="spin" ${st.spun ? "disabled" : ""}>${st.spun ? L("5 分鐘後可以再轉", "Spin again in 5 min") : L("轉", "Spin")}</button></div></div></div>
+      <div class="box">
+        <div class="row" style="justify-content:space-between"><h3>${L("膠囊架", "Capsule rack")}</h3><span class="muted">${L(`${st.count.toLocaleString()} 個膠囊`, `${st.count.toLocaleString()} capsules`)}</span></div>
+        <div class="filters">${F.map(f => `<button data-f="${f[0]}" class="${st.filter === f[0] ? "on" : ""}">${f[1]}</button>`).join("")}</div>
+        <div class="rack">${visible().map(r => `<button class="ema ${r.mine ? "mine" : ""} ${r.isNew ? "new" : ""}" data-id="${r.id}">
+          <img class="who" src="${portrait(r.who)}" alt="">${r.lock ? `<svg class="lk" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6E2B3F" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>` : ""}
+          <img class="v" src="${vessel("bottle")}" alt="">
+          <b class="${r.days <= 0 ? "ready" : ""}">${r.days <= 0 ? L("可以打開", "Ready") : L(`倒數 ${r.days} 天`, `${r.days} day${r.days === 1 ? "" : "s"}`)}</b>
+          <small>${L(r.hint[0], r.hint[1])}</small></button>`).join("") || `<div class="muted" style="grid-column:1/-1;text-align:center;padding:14px">${L("沒有符合的膠囊", "No capsules match")}</div>`}</div>
+        <div class="muted" style="text-align:center">${L("不限數量，像繪馬架一樣一直掛上去。往下捲載入更多。", "No limit: like an ema rack, they keep getting hung. Scroll for more.")}</div>
+      </div>
+      <button class="btn wax block" id="drop">${L("在這裡放一個膠囊", "Leave a capsule here")}</button>
+      <div class="note"><b>${L("規則", "Rules")}</b>：${L("公開膠囊一律用瓶子（無限，不用份數）。時間鎖和一般膠囊一樣；可以加一題自己的問題，或不鎖。第一個打開的人拿走它，沒人打開就一直掛著。", "Public capsules always use the bottle (unlimited, no copies). The time lock works like any capsule; add your own question or no lock. The first person to open it takes it; otherwise it stays on the rack.")}</div>`, { full: true });
+    body.querySelector("#spin").onclick = async () => {
+      const g = body.querySelector("#gemImg"); g.classList.add("spin"); await wait(900);
+      st.spun = true; S.balls += 4; chrome("Waypost"); toast(L("+4 蠟球", "+4 wax balls")); card(); draw();
+    };
+    body.querySelectorAll(".filters button").forEach(b => b.onclick = () => { st.filter = b.dataset.f; card(); });
+    body.querySelectorAll(".ema").forEach(b => b.onclick = () => openRack(st.items.find(r => r.id === +b.dataset.id)));
+    body.querySelector("#drop").onclick = drop;
+    st.items.forEach(r => r.isNew = false);
+  };
+  const openRack = r => {
+    openCapsule({
+      title: L("公開膠囊", "Public capsule"), vessel: "bottle", fromImg: portrait(r.who), fromName: L(r.n[0], r.n[1]), days: r.days, hint: L(r.hint[0], r.hint[1]),
+      lock: r.lock && { q: L(r.lock.q[0], r.lock.q[1]), a: L(r.lock.a[0], r.lock.a[1]) },
+      letter: r.letter ? L(r.letter[0], r.letter[1]) : L("（示範信件）", "(Demo letter)"), place: nm("wp"),
+      after: `<div class="note">${L("你是第一個打開的人，這個膠囊從架上拿下來，放進你的收件匣。", "You opened it first, so it comes off the rack and goes into your Inbox.")}</div>`,
+      onClose: card,
+      onOpened: () => { st.items = st.items.filter(x => x !== r); st.count--; toast(L("已放進你的收件匣", "Saved to your Inbox")); card(); },
+    });
+  };
+  const drop = () => {
+    const d = { days: 7, lock: false };
+    const draw2 = () => {
+      const body = sheet(`${L("放一個公開膠囊", "Leave a public capsule")}<small>${nm("wp")}</small>`, `
+        <div class="box" style="grid-template-columns:64px 1fr;align-items:center"><img src="${vessel("bottle")}" style="width:64px;height:64px" alt=""><div><b style="font:700 15px var(--serif)">${L("瓶子", "Bottle")}</b><div class="muted">${L("公開膠囊只用瓶子 · 無限", "Public capsules use the bottle · unlimited")}</div></div></div>
+        <div class="box"><span class="label">${L("信", "Letter")}</span><textarea class="f" id="txt">${L("給下一個停在這裡的人：", "To the next person who stops here:")}</textarea>
+          <span class="label">${L("提示（打開前看得到）", "Hint (visible before opening)")}</span><input class="f" id="hint" value="${L("噴泉旁寫的", "Written by the fountain")}"></div>
+        <div class="box"><span class="label">${L("多久之後可以打開", "Opens after")}</span><div class="seg" id="days">${[1, 7, 30, 365].map(n => `<button data-d="${n}" class="${d.days === n ? "on" : ""}">${L(`${n} 天`, `${n} day${n > 1 ? "s" : ""}`)}</button>`).join("")}</div></div>
+        <div class="box"><span class="label">${L("鎖", "Lock")}</span><div class="seg" id="lock"><button data-l="0" class="${d.lock ? "" : "on"}">${L("不鎖", "No lock")}</button><button data-l="1" class="${d.lock ? "on" : ""}">${L("我自己的問題", "My own question")}</button></div>
+          ${d.lock ? `<input class="f" id="lq" placeholder="${L("問題，例如：噴泉旁邊的大樓叫什麼？", "Question, e.g. what is the building next to the fountain?")}"><input class="f" id="la" placeholder="${L("答案", "Answer")}"><div class="muted">${L("最好是站在這裡才答得出來的問題。問題會經過文字檢查，也可以被檢舉。", "Best if only someone standing here can answer. Questions pass the word check and can be reported.")}</div>` : ""}</div>
+        <button class="btn wax block" id="seal">${L("封存並掛上", "Seal and hang it")}</button>`, { full: true, onClose: card });
+      body.querySelectorAll("#days button").forEach(b => b.onclick = () => { d.days = +b.dataset.d; draw2(); });
+      body.querySelectorAll("#lock button").forEach(b => b.onclick = () => { d.lock = b.dataset.l === "1"; draw2(); });
+      body.querySelector("#seal").onclick = () => {
+        const hint = body.querySelector("#hint").value || L("（沒有提示）", "(No hint)");
+        st.items.unshift({ id: Date.now(), who: 4, n: ["我", "Me"], days: d.days, lock: d.lock ? { q: [body.querySelector("#lq").value || "?", body.querySelector("#lq").value || "?"], a: [body.querySelector("#la").value, body.querySelector("#la").value] } : null, hint: [hint, hint], mine: true, isNew: true });
+        st.count++; st.filter = "all"; toast(L("已掛在膠囊架上", "Hung on the rack")); card();
+      };
+    };
+    draw2();
+  };
+  fly(P.wp, 16.2, { bottom: 240, top: 70 }); draw();
+}
+
+/* ================= 4 & 5. Create with a route ================= */
+const TEMPLATES = [
+  { id: "xinyi", zh: "信義散步", en: "Xinyi walk", stops: [["sysmh", "question"], ["city", "price"], ["t101", "landmark"]] },
+  { id: "xiang", zh: "象山看101", en: "Xiangshan view of 101", stops: [["ssv", "question"], ["xiang", "catch"], ["t101", "landmark"]] },
+  { id: "song", zh: "文創半日", en: "Creative half-day", stops: [["song", "price"], ["sysmh", "question"], ["ssv", "arrive"]] },
+];
+const STOP_IMG = ["square", "park", "public-art", "old-street", "garden", "waterfront"];
+// The only Landmark in this demo. A Landmark quest is offered only within LANDMARK_KM of one, and its pin sits on the Landmark.
+const LANDMARK = { at: P.t101, k: "t101" };
+const COPIES = { bottle: Infinity, dome: Infinity, envelope: Infinity, tin: Infinity, "bubble-tea": 3, "egg-tart": 12, mixtape: 0, "red-bird": Infinity, "instant-camera": 1 };
+const VNAME = { bottle: ["瓶中信", "Bottle"], dome: ["玻璃罩玫瑰", "Rose dome"], envelope: ["火漆信封", "Sealed letter"], tin: ["鐵盒", "Tin"], "bubble-tea": ["珍珠奶茶", "Bubble tea"], "egg-tart": ["葡式蛋撻", "Egg tart"], mixtape: ["錄音帶", "Mixtape"], "red-bird": ["火鳥日晷盒", "Red Bird Sundial"], "instant-camera": ["拍立得", "Instant camera"] };
+const STARTERS = ["bottle", "dome", "envelope", "tin"];
+const cnt = id => COPIES[id] === Infinity ? "∞" : "×" + COPIES[id];
+
+function sceneCreate(memory) {
+  S.scene = memory ? "memory" : "route";
+  const c = { step: memory ? 4 : 1, to: memory ? "future" : 1, vessel: memory ? "envelope" : "bubble-tea", wait: memory ? 365 : 7, place: memory ? "route" : "none", tpl: null, stops: [], building: false };
+  const people = [[1, L("小晴", "Ching")], [6, L("阿傑", "Jay")], [3, "Mei"], ["future", L("未來的我", "Future me")]];
+  const stopImg = s => s.type === "landmark" ? "stamps/stamp-taipei101.webp" : `quest-templates/quest-template-${s.img || "square"}.webp`;
+  // Change a stop's kind. Landmark moves the pin onto the Landmark; switching away puts it back.
+  function setType(s, t) {
+    if (t === "landmark") { if (!s.orig) { s.orig = s.at; s.origName = s.name; } s.at = LANDMARK.at; s.name = nm(LANDMARK.k); }
+    else if (s.orig) { s.at = s.orig; s.name = s.origName; s.orig = null; }
+    s.type = t;
+    if (t === "question" && !s.q) { const list = (s.k ? poolAt(s.k) : []).concat(POOL); s.q = list[0]; }
+    if (t === "price" && !s.p) { s.p = s.k ? priceAt(s.k) : PRICES[0]; s.pi = PRICES.indexOf(s.p); }
+    return s;
+  }
+  const pinsDraw = () => {
+    clearMap();
+    const pts = c.stops.map(s => s.at);
+    c.stops.forEach((s, i) => addMarker(s.at, pinHTML({ type: s.type, img: stopImg(s), n: i + 1, color: "brass", label: s.name }), "pop"));
+    setRoute(pts, "#C9A15A");
+  };
+  const draw = () => {
+    S.redraw = draw; chrome(memory ? L("回憶路線", "Memory Route") : L("寫一個膠囊", "New capsule"));
+    bottom(null); $("addbar").hidden = true;
+    pinsDraw();
+    const dots = `<div class="steps">${[1, 2, 3, 4].map(n => `<i class="${n <= c.step ? "on" : ""}"></i>`).join("")}</div>`;
+    let html = dots;
+    if (c.step === 1) html += `<div class="box"><h3>${L("寄給誰", "Who is it for?")}</h3><div class="people">${people.map(p => `<button class="person ${c.to === p[0] ? "on" : ""}" data-p="${p[0]}"><img src="${p[0] === "future" ? ART + "portraits/portrait-future.webp" : portrait(p[0])}" alt="">${p[1]}</button>`).join("")}</div></div>`;
+    if (c.step === 2) html += `<div class="box"><h3>${L("寫信", "Write")}</h3><textarea class="f">${c.to === "future" ? L("給一年後的自己：還記得這條路嗎？", "To me, a year from now: remember this walk?") : L("生日快樂！這次換你出門走走，走完就能看到我想說的話。", "Happy birthday! This time you go for a walk; finish it and you'll read what I want to say.")}</textarea><span class="label">${L("提示", "Hint")}</span><input class="f" value="${L("穿好走路的鞋", "Wear walking shoes")}"></div>`;
+    if (c.step === 3) html += `<div class="box"><h3>${L("選容器", "Choose a vessel")}</h3><div class="vgrid">${Object.keys(COPIES).map(id => `<button class="vc pick ${c.vessel === id ? "on" : ""} ${COPIES[id] === 0 ? "zero" : ""}" data-v="${id}" ${COPIES[id] === 0 ? "disabled" : ""}>${id === "red-bird" ? `<span class="tg">${L("地標", "Landmark")}</span>` : ""}<img src="${vessel(id)}" alt=""><b>${L(VNAME[id][0], VNAME[id][1])}</b><span class="cnt ${COPIES[id] === Infinity ? "inf" : ""}">${cnt(id)}</span></button>`).join("")}</div><div class="muted">${L("寄出會用掉一份。×0 的還在收藏裡，抓到更多才能寄。", "Sending uses one copy. A ×0 vessel stays in your collection; catch more to send it.")}</div></div>`;
+    if (c.step === 4) {
+      html += `<div class="box"><h3>${L("什麼時候可以打開", "When can it open?")}</h3><div class="seg" id="wait">${[7, 30, 365].map(n => `<button data-w="${n}" class="${c.wait === n ? "on" : ""}">${L({ 7: "1 週後", 30: "1 個月後", 365: "1 年後" }[n], { 7: "In a week", 30: "In a month", 365: "In a year" }[n])}</button>`).join("")}</div></div>
+        <div class="box"><h3>${L("在哪裡打開", "Where can it open?")}</h3>
+          <button class="choice ${c.place === "none" ? "on" : ""}" data-pl="none"><b>${L("哪裡都可以", "Anywhere")}</b><span>${L("時間到了就能打開。", "Opens when the time comes.")}</span></button>
+          <button class="choice ${c.place === "route" ? "on" : ""}" data-pl="route"><b>${L("走一條路線", "Walk a route")}</b><span>${L("對方要走到每一站答題，最後一站才能打開。路線和題目已經準備好。", "They walk to each stop and answer; it opens at the last stop. Routes and questions are ready-made.")}</span></button>
+        </div>`;
+      if (c.place === "route") {
+        html += `<div class="box"><h3>${L("選一條路線", "Pick a route")}</h3>
+          ${TEMPLATES.map(t => `<button class="choice ${c.tpl === t.id ? "on" : ""}" data-t="${t.id}"><b>${L(t.zh, t.en)}</b><span>${t.stops.map(([k, ty]) => L(`${nm(k)}（${tName(ty)}）`, `${nm(k)} (${tName(ty)})`)).join(" → ")}</span></button>`).join("")}
+          <button class="choice ${c.tpl === "own" ? "on" : ""}" data-t="own"><b>${L("自己在地圖上點", "Tap your own places")}</b><span>${L("適合回憶：我們第一次約會的地方、以前的學校。", "Good for memories: where we first met, our old school.")}</span></button></div>`;
+        if (c.stops.length) html += `<div class="box"><h3>${L(`${c.stops.length} 站`, `${c.stops.length} stops`)}</h3>${c.stops.map((s, i) => {
+            const nearLm = km(s.orig || s.at, LANDMARK.at) <= LANDMARK_KM;
+            const what = s.type === "question" ? (s.own ? `✍️ ${s.own}` : L(s.q.zh, s.q.en))
+              : s.type === "price" ? L(s.p.zh, s.p.en)
+              : s.type === "landmark" ? L(`打敗${nm(LANDMARK.k)}的地標膠囊。圖釘會放在地標上。`, `Defeat the ${nm(LANDMARK.k)} Landmark capsule. The pin sits on the Landmark.`)
+              : L(TYPES[s.type].how[0], TYPES[s.type].how[1]);
+            return `<div class="stop"><span class="n">${i + 1}</span><div><b>${s.name}</b>
+            <div class="typechips" style="margin:6px 0 4px">${Object.keys(TYPES).map(t => tChip(t, s.type === t, t === "landmark" && !nearLm, `data-type="${i}:${t}"`)).join("")}</div>
+            <div class="sq">${what}</div>
+            <div class="acts">${s.type === "question" ? `<button class="mini" data-swap="${i}">${L("換一題", "Another question")}</button><button class="mini" data-own="${i}">${L("自己寫", "Write my own")}</button>` : ""}${s.type === "price" ? `<button class="mini" data-pswap="${i}">${L("換一個", "Another price")}</button>` : ""}${c.stops.length > 1 ? `<button class="mini" data-rm="${i}">${L("移除", "Remove")}</button>` : ""}</div></div></div>`; }).join("")}
+          <div class="muted">${L(`和私人尋寶同一個做法：每站都是一樣的圖釘，選它的種類就好。題目預設來自城市題庫；地標只有在地標 ${LANDMARK_KM} 公里內才能選。每一站都在伺服器檢查。`, `The same as a private hunt: every stop is the same pin; just pick its kind. Questions start from the city pool; Landmark is offered only within ${LANDMARK_KM} km of one. Every stop is checked on the server.`)}</div></div>`;
+      }
+    }
+    const canNext = c.step < 4 || c.place === "none" || c.stops.length > 0;
+    html += `<div class="two"><button class="btn" id="back" ${c.step === 1 || memory ? "style=\"visibility:hidden\"" : ""}>${L("上一步", "Back")}</button><button class="btn ${c.step === 4 ? "wax" : "fill"}" id="next" ${canNext ? "" : "disabled"}>${c.step === 4 ? L("封存", "Seal") : L("下一步", "Next")}</button></div>`;
+    if (memory) html = `<div class="note"><b>${L("回憶路線", "Memory Route")}</b>：${L("不是新功能。同一個「寫膠囊」流程，收件人是未來的自己，地點選「自己在地圖上點」。", "Not a new feature: the same Create flow, sent to future me, with your own places tapped on the map.")}</div>` + html;
+    const body = sheet(`${L("寫一個膠囊", "New capsule")}<small>${L(`第 ${c.step}/4 步`, `Step ${c.step} of 4`)}</small>`, html, { onClose: showMenu, half: c.step === 4 && c.stops.length > 0 });
+    body.querySelectorAll("[data-p]").forEach(b => b.onclick = () => { c.to = isNaN(+b.dataset.p) ? "future" : +b.dataset.p; draw(); });
+    body.querySelectorAll("[data-v]").forEach(b => b.onclick = () => { c.vessel = b.dataset.v; draw(); });
+    body.querySelectorAll("[data-w]").forEach(b => b.onclick = () => { c.wait = +b.dataset.w; draw(); });
+    body.querySelectorAll("[data-pl]").forEach(b => b.onclick = () => { c.place = b.dataset.pl; if (c.place === "none") { c.tpl = null; c.stops = []; } draw(); });
+    body.querySelectorAll("[data-t]").forEach(b => b.onclick = () => {
+      c.tpl = b.dataset.t;
+      if (c.tpl === "own") { c.stops = []; build(); return; }
+      const t = TEMPLATES.find(x => x.id === c.tpl);
+      c.stops = t.stops.map(([k, type], i) => setType({ at: P[k], k, name: nm(k), qi: 0, pi: 0, img: STOP_IMG[i] }, type));
+      fly(P.city, 13.6, { bottom: 480, top: 60 }); draw();
+    });
+    body.querySelectorAll("[data-type]").forEach(b => b.onclick = () => { const [i, t] = b.dataset.type.split(":"); setType(c.stops[+i], t); draw(); });
+    body.querySelectorAll("[data-pswap]").forEach(b => b.onclick = () => { const s = c.stops[+b.dataset.pswap]; s.pi = (s.pi + 1) % PRICES.length; s.p = PRICES[s.pi]; draw(); });
+    body.querySelectorAll("[data-swap]").forEach(b => b.onclick = () => { const s = c.stops[+b.dataset.swap]; const list = POOL.filter(q => q.at === s.k).concat(POOL.filter(q => q.at !== s.k)); s.qi = (s.qi + 1) % list.length; s.q = list[s.qi]; s.own = null; draw(); });
+    body.querySelectorAll("[data-own]").forEach(b => b.onclick = () => { const s = c.stops[+b.dataset.own]; const v = prompt(L("你的問題（答案也會問你）", "Your question (you'll set the answer too)"), c.to === "future" ? L("我們在這裡吃了什麼？", "What did we eat here?") : L("我們第一次見面時你穿什麼顏色？", "What colour were you wearing when we first met?")); if (v) { s.own = v; draw(); } });
+    body.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { c.stops.splice(+b.dataset.rm, 1); draw(); });
+    body.querySelector("#back").onclick = () => { c.step--; draw(); };
+    body.querySelector("#next").onclick = () => { if (c.step < 4) { c.step++; draw(); } else sealed(); };
+  };
+  const build = () => {
+    $("sheet").classList.remove("open"); onClose = null;
+    fly(P.civic, 14.4, { bottom: 120, top: 70 });
+    const bar = () => {
+      const a = $("addbar"); a.hidden = false;
+      a.innerHTML = `<div><b style="font:700 15px var(--serif)">${L(`點地圖加站點 ${c.stops.length}/5`, `Tap the map to add stops ${c.stops.length}/5`)}</b><div class="muted">${L("每站先是「到達」，回到清單可以換成問題、猜價格、抓膠囊或地標。", "Each stop starts as Arrive; back in the list, switch it to Question, Price, Catch or Landmark.")}</div></div><button class="btn fill small" id="bdone" ${c.stops.length ? "" : "disabled"}>${L("完成", "Done")}</button>`;
+      a.querySelector("#bdone").onclick = () => { map.off("click", onTap); c.building = false; a.hidden = true; draw(); };
+    };
+    const own = memory ? [L("第一次約會的咖啡店", "Café of our first date"), L("以前的學校", "Our old school"), L("搬家前的公園", "The park before we moved")] : [];
+    const onTap = e => {
+      if (c.stops.length >= 5) return;
+      const i = c.stops.length;
+      c.stops.push({ at: [e.lngLat.lng, e.lngLat.lat], name: own[i] || L(`第 ${i + 1} 站`, `Stop ${i + 1}`), img: ["old-street", "garden", "park", "waterfront", "square"][i], type: "arrive", qi: 0, pi: 0 });
+      pinsDraw(); bar();
+    };
+    c.building = true; map.on("click", onTap); bar();
+  };
+  const sealed = () => {
+    if (c.vessel && COPIES[c.vessel] !== Infinity) COPIES[c.vessel]--;
+    clearMap();
+    const toName = c.to === "future" ? L("未來的我", "Future me") : people.find(p => p[0] === c.to)[1];
+    const body = sheet(`${L("已封存", "Sealed")}<small>${L(`寄給 ${toName}`, `To ${toName}`)}</small>`, `
+      <img class="scene-img" src="${ART}scenes/scene-sealed.webp" alt="">
+      <div class="box"><div class="row"><span class="tag">${L({ 7: "1 週後", 30: "1 個月後", 365: "1 年後" }[c.wait], { 7: "In a week", 30: "In a month", 365: "In a year" }[c.wait])}</span>${c.place === "route" ? `<span class="tag brass">${L(`路線 ${c.stops.length} 站`, `Route · ${c.stops.length} stops`)}</span>` : `<span class="tag">${L("哪裡都可以", "Anywhere")}</span>`}${COPIES[c.vessel] !== Infinity ? `<span class="tag">${L(VNAME[c.vessel][0], VNAME[c.vessel][1])} ${cnt(c.vessel)} ${L("剩下", "left")}</span>` : ""}</div></div>
+      <button class="btn fill block" id="recv">${L("看收件人那邊", "See the recipient's side")}</button>`, { onClose: showMenu });
+    body.querySelector("#recv").onclick = () => receive(toName);
+  };
+  const receive = () => {
+    const route = c.place === "route" ? { done: 0, total: c.stops.length } : null;
+    const cap = {
+      title: L("時光膠囊", "Time capsule"), vessel: c.vessel, fromImg: portrait(4), fromName: c.to === "future" ? L("一年前的你", "You, a year ago") : L("你的朋友", "Your friend"), days: c.wait, hint: L("穿好走路的鞋", "Wear walking shoes"),
+      letter: c.to === "future" ? L("給一年後的自己：\n你又走了一次這條路。\n那家咖啡店還在嗎？", "To me, a year from now:\nyou walked this route again.\nIs that café still there?") : L("生日快樂！\n你剛剛走過的每一站，都是我們去過的地方。\n今晚一起吃飯吧。", "Happy birthday!\nEvery stop you just walked is somewhere we've been.\nDinner tonight?"),
+      route, onClose: showMenu, onOpened: showMenu,
+    };
+    if (route) route.go = () => walkRoute(cap);
+    openCapsule(cap);
+  };
+  const walkRoute = cap => {
+    const r = cap.route;
+    clearMap();
+    const pins = c.stops.map((s, i) => addMarker(s.at, pinHTML({ type: s.type, img: stopImg(s), n: i + 1, color: "brass", done: i < r.done, label: s.name }), i < r.done ? "done" : i > r.done ? "locked" : ""));
+    setRoute(c.stops.map(s => s.at), "#C9A15A");
+    const s = c.stops[r.done];
+    fly(s.at, 15.2, { bottom: 220, top: 70 });
+    chrome(L("膠囊路線", "Capsule route"));
+    bottom(`<div class="card"><div class="row" style="justify-content:space-between"><h2>${L(`第 ${r.done + 1} 站`, `Stop ${r.done + 1}`)} · ${s.name}</h2><span class="tag brass">${r.done}/${r.total}</span></div>
+      <div class="typechips">${tChip(s.type, true, false, "tabindex=-1 style=pointer-events:none")}</div>
+      <div class="muted">${L("要真的走到這裡 100 公尺內。黃銅色是人做的路線，和私人尋寶一樣。", "You must really be within 100 m. Brass means a person made it, like a private hunt.")}</div>
+      <button class="btn fill block" id="arr">${L("示範：假裝走到了", "Demo: pretend you arrived")}</button></div>`).querySelector("#arr").onclick = async () => {
+      bottom(null);
+      const a = await runQuest(s, L(`第 ${r.done + 1} 站 · ${tName(s.type)}`, `Stop ${r.done + 1} · ${tName(s.type)}`), s.name);
+      if (a !== true) { if (a === false) toast(L("差一點，再試一次", "Not quite. Try again")); return walkRoute(cap); }
+      const inn = pins[r.done].getElement().firstElementChild; inn.classList.add("done", "boing"); burst(inn, 12);
+      floatAt(pins[r.done], "✓");
+      r.done++;
+      await wait(700);
+      if (r.done < r.total) walkRoute(cap); else { bottom(null); toast(L("路線走完了", "Route finished")); openCapsule(cap); }
+    };
+  };
+  if (memory) { c.tpl = "own"; }
+  fly(P.civic, 14);
+  if (memory) { draw(); setTimeout(build, 50); } else draw();
+}
+
+/* ================= 6. Copies ================= */
+function sceneCopies() {
+  S.scene = "copies";
+  clearMap(); bottom(null);
+  const draw = () => {
+    S.redraw = draw; chrome(L("收藏", "Collection"));
+    const body = sheet(`${L("容器收藏", "Vessel collection")}<small>${L("等級 7", "Level 7")}</small>`, `
+      <div class="vgrid">${Object.keys(COPIES).map(id => `<div class="vc ${COPIES[id] === 0 ? "zero" : ""}" data-v="${id}">${id === "red-bird" ? `<span class="tg">${L("地標", "Landmark")}</span>` : STARTERS.includes(id) ? `<span class="tg" style="background:#EEF4FB;border-color:var(--light-blue);color:var(--blue)">${L("基本", "Starter")}</span>` : ""}<img src="${vessel(id)}" alt=""><b>${L(VNAME[id][0], VNAME[id][1])}</b><span class="cnt ${COPIES[id] === Infinity ? "inf" : ""}">${cnt(id)}</span></div>`).join("")}</div>
+      <div class="box"><h3>${L("規則", "How copies work")}</h3><div class="muted">
+        ${L("・基本的四個容器無限。<br>・抓到一個破損膠囊：那個容器 +3 份（等級越高，之後可以多給）。<br>・寄一個膠囊用一份。<br>・×0 還是收藏，只是要再抓才能寄。<br>・贏來的地標容器無限。<br>・公開膠囊一律用瓶子，不用份數。",
+            "· The four starters are unlimited.<br>· Catching a Corrupted Capsule gives 3 copies of that vessel (more at higher levels later).<br>· Sending a capsule uses one copy.<br>· A ×0 vessel is still collected; catch it again to send it.<br>· Earned Landmark vessels are unlimited.<br>· Public capsules always use the bottle, so they never use copies.")}</div></div>
+      <div class="two"><button class="btn fill" id="catch">${L("示範：抓到珍珠奶茶", "Demo: catch a bubble tea")}</button><button class="btn" id="cm">${L("示範：抓到錄音帶", "Demo: catch a mixtape")}</button></div>
+      <div class="note"><b>${L("後台", "Admin")}</b>：${L("每個容器有一個「無限份數」開關，地標容器預設開；每次抓到給幾份按等級設定。", "Each vessel has an \"unlimited copies\" switch, on by default for Landmark vessels; copies per catch are set by level.")}</div>`, { full: true, onClose: showMenu });
+    const bump = id => { COPIES[id] += 3; draw(); const el = $("shBody").querySelector(`[data-v="${id}"]`); el.classList.add("bump"); toast(L(`${VNAME[id][0]} +3 份`, `${VNAME[id][1]} +3 copies`)); };
+    body.querySelector("#catch").onclick = () => bump("bubble-tea");
+    body.querySelector("#cm").onclick = () => bump("mixtape");
+  };
+  fly(P.civic, 14); draw();
+}
+
+const SCENES = { today: sceneToday, city: sceneCity, rack: sceneRack, route: () => sceneCreate(false), memory: () => sceneCreate(true), copies: sceneCopies };
+chrome(""); showMenu();
+</script>
