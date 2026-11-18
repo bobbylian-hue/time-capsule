@@ -381,8 +381,8 @@ export default function JourneyScreen() {
       setRackIndex(null);
       setRackPage((prev) => prev && { ...prev, page: { ...prev.page, count: prev.page.count - 1, items: prev.page.items.filter((x) => x.capsule_id !== item.id) } });
       // The sample has no real capsule to show on the capsule pages, so it uses the development letter card.
-      if (RACK_SAMPLE) setDevLetter({ publicCapsule: item.publicCapsule, message: out.body });
-      else router.push({ pathname: "/capsule/[id]", params: { id: out.capsule_id } });
+      if (RACK_SAMPLE) setDevLetter({ publicCapsule: item.publicCapsule, message: out.message ?? "" });
+      else router.push({ pathname: "/capsule/[id]", params: { id: item.id } });
     } catch (e) {
       void haptics.warn();
       const code = e instanceof RackError ? e.code : "unknown";

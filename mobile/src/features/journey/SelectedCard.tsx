@@ -64,12 +64,14 @@ export function SelectedCard({ item, busy, count, index, onStep, onPickUp, onDir
       </View>
       {nav}
     </View>
-    {near && rack?.has_question && <View style={{ gap: 6 }}>
-      <Text style={{ fontFamily: serif, fontSize: 15, color: C.ink }}>{rack.question}</Text>
+    {near && rack?.has_question && !rack.is_mine && <View style={{ gap: 6 }}>
+      <Text style={{ fontFamily: serif, fontSize: 15, color: C.ink }}>{rack.lock_question}</Text>
       <TextInput value={answer} onChangeText={setAnswer} placeholder={r.yourAnswer} placeholderTextColor={C.muted}
         style={{ borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, fontFamily: sans, fontSize: 15, color: C.ink, backgroundColor: C.white }} />
     </View>}
-    {near
+    {rack?.is_mine
+      ? <Text style={{ fontFamily: sans, fontSize: 13, color: C.muted }}>{r.mine}</Text>
+      : near
       ? <Btn title={busy ? s("picking") : s("pickUp")} disabled={busy || (!!rack && (!isReady(rack.opens_at) || (rack.has_question && !answer.trim())))} onPress={() => onPickUp(item, rack?.has_question ? answer : undefined)} />
       : <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         <Text style={{ flex: 1, fontFamily: sans, fontSize: 13, color: C.blue }}>{s("walkCloser", distanceText(item.meters - PUBLIC_CAPSULE_PICKUP_RADIUS_M))}</Text>
