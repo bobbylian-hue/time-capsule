@@ -13,10 +13,12 @@ export const RACKS = RACK_BACKEND || RACK_SAMPLE;
 export const RACK_RADIUS_M = 100;
 export type RackWait = 1 | 7 | 30 | 365;
 export const RACK_PAGE = 24;
-export const RACK_FILTERS = ["all", "ready", "waiting", "question", "friends", "mine"] as const;
+export const RACK_FILTERS = ["all", "ready", "waiting", "has_question", "friends", "mine"] as const;
 export type RackFilter = (typeof RACK_FILTERS)[number];
 
+/** The server sends `{ portrait, name }`; `list` turns it into this, the shape public capsule cards use. No sender id is sent. */
 export type RackSender = { id: string; name: string; avatar: Record<string, unknown> | null };
+type ServerRackItem = Omit<RackItem, "sender"> & { sender: { portrait: Record<string, unknown> | null; name: string } };
 export type RackItem = {
   capsule_id: string; sender: RackSender; hint: string | null; opens_at: string;
   ready: boolean; has_question: boolean; lock_question: string | null; is_friend: boolean; is_mine: boolean;
@@ -47,25 +49,30 @@ const call = async <T>(fn: string, args: Record<string, unknown>): Promise<T> =>
 /** Same answer check as the server: any case, with every space removed (full-width too). Wrong answers can be retried. */
 const plain = (s: string) => s.toLowerCase().replace(/\s/g, "");
 export const answerMatches = (given: string, answer: string) => plain(given) === plain(answer);
+/** waypost_rack's sender is `{ portrait, name }`. */
+export const fromServer = ({ sender, ...item }: ServerRackItem): RackItem => ({ ...item, sender: { id: "", name: sender.name, avatar: sender.portrait } });
 export const isReady = (opensAt: string, now = Date.now()) => new Date(opensAt).getTime() <= now;
 
 export const racks = {
   async list(waypostId: string, filter: RackFilter, cursor: RackCursor | null = null): Promise<RackPage> {
-    if (RACK_BACKEND) return call<RackPage>("waypost_rack", { p_waypost: waypostId, p_filter: filter, p_cursor: cursor });
+    if (RACK_BACKEND) {
+      const page = await call<Omit<RackPage, "items"> & { items: ServerRackItem[] }>("waypost_rack", { waypost_id: waypostId, filter, cursor });
+      return { ...page, items: page.items.map(fromServer) };
+    }
     return sample.list(waypostId, filter, cursor);
   },
   async leave(waypostId: string, at: RackAt, input: RackLeave): Promise<RackLeft> {
     if (!at) throw new RackError("too_far");
     if (RACK_BACKEND) return call<RackLeft>("rack_leave", {
-      p_waypost: waypostId, p_lat: at.lat, p_lng: at.lng, p_accuracy: at.accuracy ?? null, p_body: input.body, p_hint: input.hint,
-      p_wait_days: input.wait, p_lock_question: input.question || null, p_lock_answer: input.answer || null,
+      waypost_id: waypostId, lat: at.lat, lng: at.lng, accuracy: at.accuracy ?? null, body: input.body, hint: input.hint,
+      wait_days: input.wait, lock_question: input.question || null, lock_answer: input.answer || null,
     });
     return sample.leave(waypostId, input);
   },
   /** First opener takes it: on success it leaves the rack and is in my Inbox under the same id. */
   async open(capsuleId: string, at: RackAt, answer?: string): Promise<RackOpened> {
     if (!at) throw new RackError("too_far");
-    if (RACK_BACKEND) return call("rack_open", { p_capsule: capsuleId, p_lat: at.lat, p_lng: at.lng, p_accuracy: at.accuracy ?? null, p_answer: answer ?? null });
+    if (RACK_BACKEND) return call("rack_open", { capsule_id: capsuleId, lat: at.lat, lng: at.lng, accuracy: at.accuracy ?? null, answer: answer ?? null });
     return sample.open(capsuleId, answer);
   },
 };
@@ -112,7 +119,7 @@ const rackFor = (waypost: string) => {
 /** The sample says the rack is much bigger than what's shown, like a busy ema rack. */
 const SAMPLE_EXTRA = 1275;
 const matches = (c: RackItem, f: RackFilter) => f === "all" || (f === "ready" && isReady(c.opens_at)) || (f === "waiting" && !isReady(c.opens_at))
-  || (f === "question" && c.has_question) || (f === "friends" && c.is_friend) || (f === "mine" && c.is_mine);
+  || (f === "has_question" && c.has_question) || (f === "friends" && c.is_friend) || (f === "mine" && c.is_mine);
 const strip = ({ waypost: _w, sealed_at: _s, body: _b, answer: _a, ...item }: SampleCapsule): RackItem => ({ ...item, ready: isReady(item.opens_at) });
 const sample = {
   async list(waypost: string, filter: RackFilter, cursor: RackCursor | null): Promise<RackPage> {
