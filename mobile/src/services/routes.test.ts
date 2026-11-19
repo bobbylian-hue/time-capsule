@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@react-native-async-storage/async-storage', () => ({ default: { getItem: vi.fn(async () => null), setItem: vi.fn() } }));
 vi.mock('./supabase', () => ({ supabase: {} }));
 import { CITIES } from './cityPuzzle';
-import { answerMatches, arriveStop, cityAt, landmarkNear, routes, stopForSend, stopFromPool, stopProblems, type PoolItem } from './routes';
+import { answerMatches, arriveStop, cityAt, landmarkNear, routes, stopForSend, stopFromPool, stopProblems, type PoolItem, ROUTES_BACKEND } from './routes';
 
 const taipei = CITIES.find((c) => c.id === 'taipei')!;
 const pool: PoolItem = { pool_id: 'p1', type: 'price', location_lat: taipei.lat, location_lng: taipei.lng, name_zh: '店', name_en: 'Shop' };
@@ -38,7 +38,7 @@ describe('route stops (HL-C5)', () => {
     expect(stopForSend({ ...arriveStop(1, 2, 'c'), type: 'catch' }, true)).toMatchObject({ catch_count: 3 });
     expect(stopForSend(arriveStop(1, 2, 'a'), true)).toEqual({ type: 'arrive', location_lat: 1, location_lng: 2, name: 'a' });
   });
-  it('sample templates use city pool items with no answers', async () => {
+  it.skipIf(ROUTES_BACKEND)('sample templates use city pool items with no answers', async () => {
     const t = await routes.templates('taipei');
     expect(t.length).toBeGreaterThan(0);
     expect(JSON.stringify(t)).not.toMatch(/"(usd|answer)"/);
