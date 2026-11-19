@@ -29,7 +29,7 @@ import { TODAYS_HUNT, todaysHunt } from "../../services/todaysHunt";
 import { PriceGuessScreen } from "../explorer/PriceGuessScreen";
 import { useExplorerText } from "../explorer/strings";
 import { SpinScreen } from "../game/SpinScreen";
-import { RACK_FILTERS, RACK_SAMPLE, RACKS, RackError, racks, type RackFilter, type RackItem, type RackPage } from "../../services/racks";
+import { RACK_FILTERS, RACK_SAMPLE, RACKS, RackError, rackStepTarget, racks, type RackFilter, type RackItem, type RackPage } from "../../services/racks";
 import { useRackText } from "../racks/strings";
 import { errorKey, useGameText } from "../game/strings";
 import { ThrowScreen } from "../game/ThrowScreen";
@@ -395,13 +395,15 @@ export default function JourneyScreen() {
     setGameCard(null);
     select(id);
   };
-  const loadRack = async (waypost: Waypost, more = false, filter: RackFilter = more ? rackPage?.filter ?? "all" : "all") => {
+  // Resolves true once a further page has landed for the rack still on screen.
+  const loadRack = async (waypost: Waypost, more = false, filter: RackFilter = more ? rackPage?.filter ?? "all" : "all"): Promise<boolean> => {
     const req = ++rackRequest.current;
     try {
       const page = await racks.list(waypost.id, filter, more ? rackPage?.page.next_cursor ?? null : null);
-      if (req !== rackRequest.current) return;
+      if (req !== rackRequest.current) return false;
       setRackPage((prev) => more && prev?.waypost.id === waypost.id && prev.filter === filter ? { waypost, filter, page: { ...page, items: [...prev.page.items, ...page.items] } } : { waypost, filter, page });
-    } catch { if (!more && req === rackRequest.current) setRackPage({ waypost, filter, page: { count: 0, items: [], next_cursor: null } }); }
+      return more && page.items.length > 0;
+    } catch { if (!more && req === rackRequest.current) setRackPage({ waypost, filter, page: { count: 0, items: [], next_cursor: null } }); return false; }
   };
   const pickRackFilter = (filter: RackFilter) => {
     if (!rackPage || filter === rackPage.filter) return;
@@ -415,12 +417,16 @@ export default function JourneyScreen() {
     publicCapsule: { id: e.capsule_id, hint: e.hint ?? "", vessel: "bottle", lat: w.lat, lng: w.lng, spot_zh: w.name_zh, spot_en: w.name_en,
       sealed_at: e.opens_at, available_at: e.opens_at, returns: 0, sender: { ...e.sender, city: null } },
   });
-  const rackStep = (dir: 1 | -1) => {
-    if (!rackPage || rackIndex === null) return;
-    const { items: list, next_cursor } = rackPage.page;
-    if (dir === 1 && rackIndex === list.length - 1 && next_cursor) void loadRack(rackPage.waypost, true);
-    void haptics.tick();
-    setRackIndex((rackIndex + dir + list.length) % list.length);
+  const rackPaging = useRef(false);
+  const rackStep = async (dir: 1 | -1) => {
+    if (!rackPage || rackIndex === null || rackPaging.current) return;
+    const loaded = rackPage.page.items.length, target = rackStepTarget(rackIndex, loaded, !!rackPage.page.next_cursor, dir);
+    if (target === null) return;
+    if (target !== "load") { void haptics.tick(); setRackIndex(target); return; }
+    rackPaging.current = true;
+    // Only move once the next page has landed for this rack and filter; loadRack drops a superseded request.
+    try { if (await loadRack(rackPage.waypost, true)) { void haptics.tick(); setRackIndex(loaded); } }
+    finally { rackPaging.current = false; }
   };
   const rackPickUp = async (item: Extract<Item, { kind: "publicCapsule" }>, answer?: string) => {
     if (busy || !rackPage) return;
@@ -645,7 +651,7 @@ export default function JourneyScreen() {
           </ScrollView>
           {rackPage.page.items[rackIndex]
             ? <SelectedCard key={rackPage.page.items[rackIndex].capsule_id} item={rackItem(rackPage.page.items[rackIndex], rackPage.waypost)} rack={rackPage.page.items[rackIndex]} busy={busy}
-              onPickUp={rackPickUp} onDirections={directions} onView={() => {}} onMap={() => {}} onStep={rackStep} count={rackPage.page.count} index={rackIndex} />
+              onPickUp={rackPickUp} onDirections={directions} onView={() => {}} onMap={() => {}} onStep={(d) => void rackStep(d)} count={rackPage.page.count} index={rackIndex} />
             : <Text style={{ fontFamily: sans, fontSize: 14, color: C.muted, textAlign: "center", paddingVertical: spacing.lg }}>{r.filterEmpty}</Text>}
         </View>}
         {you && !gameCard && rackIndex === null && !keeperOpen && !openGuide && (selected
