@@ -35,6 +35,14 @@ export type PoolSave = Partial<Omit<PoolEntry, "status" | "needs_recheck" | "use
   answer?: number | string; typed_aliases?: string[]; local_amount?: number;
 };
 export type PoolPage = { items: PoolEntry[]; next_cursor: string | null };
+/** What save and set_status return: the row without `uses`, which only the list adds. */
+export type PoolResult = Omit<PoolEntry, "uses"> & { uses?: PoolEntry["uses"] };
+/** Puts a save or status result into the list, keeping the usage the list already knew (a new entry has none). */
+export function mergePoolEntry(list: PoolEntry[], e: PoolResult): { list: PoolEntry[]; entry: PoolEntry } {
+  const prev = list.find((y) => y.id === e.id);
+  const entry: PoolEntry = { ...prev, ...e, uses: e.uses ?? prev?.uses ?? [] };
+  return { entry, list: prev ? list.map((y) => y.id === e.id ? entry : y) : [entry, ...list] };
+}
 
 export type AdminQuest = {
   quest_id: string; ordinal: number; type: "question" | "price" | "catch";
@@ -59,9 +67,9 @@ export type RackPage = { count: number; items: RackEntry[]; next_cursor: unknown
 export const adminHuntLoop = {
   pool: (city: string, filter: PoolFilter, cursor?: string | null): Promise<PoolPage> =>
     ADMIN_HUNT_LOOP_SAMPLE ? sample.pool(city, filter, cursor) : rpc("admin_question_pool_list", { city, filter, cursor: cursor ?? null }),
-  savePool: (payload: PoolSave): Promise<PoolEntry> =>
+  savePool: (payload: PoolSave): Promise<PoolResult> =>
     ADMIN_HUNT_LOOP_SAMPLE ? sample.savePool(payload) : rpc("admin_question_pool_save", { payload }),
-  setPoolStatus: (id: string, status: PoolStatus): Promise<PoolEntry> =>
+  setPoolStatus: (id: string, status: PoolStatus): Promise<PoolResult> =>
     ADMIN_HUNT_LOOP_SAMPLE ? sample.setPoolStatus(id, status) : rpc("admin_question_pool_set_status", { id, status }),
 
   calendar: (city: string, from: string, days: number): Promise<CalendarDay[]> =>
@@ -149,6 +157,8 @@ const entries: (PoolEntry & { secret: { answer?: number | string; usd?: number; 
     choices: [{ zh: "1835", en: "1835" }, { zh: "1902", en: "1902" }], currency: null, rate: null,
     source_url: "https://www.wh.mo/", checked_on: "2026-10-20", status: "hidden", hidden_reason: "Sample: the source page could not be checked", needs_recheck: false, secret: { answer: 0 } },
 ];
+// Like the server: only the list adds `uses`; save and set_status return the row without it.
+const withoutUses = ({ uses: _uses, ...e }: PoolEntry): PoolResult => e;
 const publicEntry = ({ secret: _secret, ...e }: (typeof entries)[number]): PoolEntry => ({ ...e, needs_recheck: !!e.checked_on && Date.parse(e.checked_on) < Date.now() - 182 * 86400000 });
 
 const rackState = new Map<string, RackEntry[]>();
@@ -214,7 +224,7 @@ const sample = {
     const start = cursor ? list.findIndex((e) => e.id === cursor) + 1 : 0;
     return pause({ items: list.slice(start, start + 50), next_cursor: list.length > start + 50 ? list[start + 49]!.id : null });
   },
-  async savePool(payload: PoolSave): Promise<PoolEntry> {
+  async savePool(payload: PoolSave): Promise<PoolResult> {
     await editor();
     const { answer, typed_aliases: _aliases, local_amount, ...fields } = payload;
     let e = payload.id ? entries.find((x) => x.id === payload.id) ?? fail("not_found") : null;
@@ -227,14 +237,14 @@ const sample = {
     if (answer !== undefined) e.secret.answer = answer;
     if (local_amount !== undefined) e.secret.local_amount = local_amount;
     if (e.type === "price" && e.rate && e.secret.local_amount) e.secret.usd = usdOf(e.secret.local_amount, e.rate);
-    return pause(publicEntry(e));
+    return pause(withoutUses(publicEntry(e)));
   },
-  async setPoolStatus(id: string, status: PoolStatus): Promise<PoolEntry> {
+  async setPoolStatus(id: string, status: PoolStatus): Promise<PoolResult> {
     await editor();
     const e = entries.find((x) => x.id === id) ?? fail("not_found");
     if (status === "published" && !canPublish(e)) fail("bad_rule");
     e.status = status;
-    return pause(publicEntry(e));
+    return pause(withoutUses(publicEntry(e)));
   },
   async calendar(city: string, from: string, days: number): Promise<CalendarDay[]> {
     await editor();

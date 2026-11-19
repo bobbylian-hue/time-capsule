@@ -5,8 +5,8 @@ import { Pressable, Text, View } from "react-native";
 import { useLanguage } from "../../i18n";
 import { can } from "../../services/admin";
 import {
-  adminHuntLoop, canPublish, hasPlace, poolProblems, usdOf,
-  type PoolEntry, type PoolFilter, type PoolSave, type PoolStatus,
+  adminHuntLoop, canPublish, hasPlace, mergePoolEntry, poolProblems, usdOf,
+  type PoolEntry, type PoolFilter, type PoolResult, type PoolSave, type PoolStatus,
 } from "../../services/adminHuntLoop";
 import { C, radii, sans, serif, spacing } from "../../theme";
 import { useAdmin } from "./AdminShell";
@@ -38,10 +38,11 @@ export function QuestionPool({ city }: { city: string }) {
     } catch { setFailed(true); }
   };
   useEffect(() => { void load(); }, [city, filter, role]);
-  const saved = (e: PoolEntry) => setItems((x) => {
-    const list = x ?? [];
-    return list.some((y) => y.id === e.id) ? list.map((y) => y.id === e.id ? e : y) : [e, ...list];
-  });
+  // Save and status results come back without `uses`, so the merge keeps the usage the list already showed.
+  const saved = (e: PoolResult) => {
+    const merged = mergePoolEntry(items ?? [], e);
+    setItems(merged.list); setOpen(merged.entry);
+  };
 
   return <View style={{ gap: spacing.md }}>
     <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm }}>
@@ -66,7 +67,7 @@ export function QuestionPool({ city }: { city: string }) {
       {cursor && <View style={{ alignItems: "center" }}><AButton small tone="ghost" title={h.more} onPress={() => void load(true)} /></View>}
     </View>}
     {open && <PoolSheet city={city} entry={open === "new" ? null : open} mayEdit={mayEdit} onClose={() => setOpen(null)}
-      onSaved={(e) => { saved(e); setOpen(e); }} />}
+      onSaved={saved} />}
   </View>;
 }
 
@@ -78,7 +79,7 @@ const parseWhere = (v: string) => {
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 function PoolSheet({ city, entry, mayEdit, onClose, onSaved }: {
-  city: string; entry: PoolEntry | null; mayEdit: boolean; onClose: () => void; onSaved: (e: PoolEntry) => void;
+  city: string; entry: PoolEntry | null; mayEdit: boolean; onClose: () => void; onSaved: (e: PoolResult) => void;
 }) {
   const h = useHuntLoopText();
   const isNew = !entry;

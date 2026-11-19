@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('./supabase', () => ({ supabase: {} }));
 vi.mock('@react-native-async-storage/async-storage', () => ({ default: { getItem: vi.fn(), setItem: vi.fn() } }));
-import { addDays, canPublish, hasPlace, huntCity, poolProblems, usdOf, type PoolSave } from './adminHuntLoop';
+import { addDays, canPublish, hasPlace, huntCity, mergePoolEntry, poolProblems, usdOf, type PoolEntry, type PoolSave } from './adminHuntLoop';
 import { undoable } from './admin';
 
 const question = (over: Partial<PoolSave> = {}): PoolSave => ({
@@ -42,5 +42,27 @@ describe('hunt-loop admin rules', () => {
   it('offers Undo for the new admin writes', () => {
     for (const a of ['question_pool.edit', 'todays_hunt.swap', 'vessel.unlimited', 'vessel.player_copies', 'rack.remove']) expect(undoable(a)).toBe(true);
     expect(undoable('rack.list')).toBe(false);
+  });
+});
+
+describe('question pool save and status results (no `uses`)', () => {
+  const entry = (id: string, uses: PoolEntry['uses']): PoolEntry => ({
+    id, city: 'taipei', type: 'question', place_zh: '店', place_en: 'Shop', location_lat: 25, location_lng: 121, prompt_zh: '問', prompt_en: 'Q',
+    kind: 'choice', choices: null, currency: null, rate: null, photo: null, photo_credit: null, photo_license: null, photo_link: null, vessel: null,
+    source_url: null, checked_on: null, status: 'draft', needs_recheck: false, uses,
+  } as PoolEntry);
+  const used = entry('a', [{ context: 'city_puzzle', id: 4 }]);
+  it('keeps the usage the list showed when an edit comes back without uses', () => {
+    const { uses: _u, ...result } = { ...used, prompt_en: 'Edited' };
+    const { list, entry: merged } = mergePoolEntry([used, entry('b', [])], result);
+    expect(merged).toMatchObject({ prompt_en: 'Edited', uses: [{ context: 'city_puzzle', id: 4 }] });
+    expect(list.map((e) => e.id)).toEqual(['a', 'b']);
+    expect(list[0]!.uses).toHaveLength(1);
+  });
+  it('gives a new entry no uses and puts it first', () => {
+    const { uses: _u, ...fresh } = entry('new', []);
+    const { list, entry: merged } = mergePoolEntry([used], fresh);
+    expect(merged.uses).toEqual([]);
+    expect(list.map((e) => e.id)).toEqual(['new', 'a']);
   });
 });
