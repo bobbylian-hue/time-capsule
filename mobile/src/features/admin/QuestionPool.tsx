@@ -54,12 +54,14 @@ export function QuestionPool({ city }: { city: string }) {
           <Pill tone={e.type === "price" ? "brass" : "blue"} label={h.type[e.type]} />
           <Pill tone={STATUS_TONE[e.status]} label={h.status[e.status]} />
           {e.needs_recheck && <Pill tone="wax" label={h.recheck} />}
+          {e.outside_coverage && <Pill label={h.outsideMap} />}
         </View>
         <Text style={{ fontFamily: serif, fontSize: 16, lineHeight: 23, color: C.ink }}>{zh ? e.prompt_zh : e.prompt_en}</Text>
         <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>
           📍 {zh ? e.place_zh : e.place_en} · {e.uses.length ? h.usedIn(e.uses.length) : h.unused}
         </Text>
         {!hasPlace(e) && <Text style={{ fontFamily: sans, fontSize: 12, color: C.wax }}>{h.noPlace}</Text>}
+        {e.status === "hidden" && !!e.hidden_reason && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{h.hiddenWhy(e.hidden_reason)}</Text>}
       </Card>)}
       {cursor && <View style={{ alignItems: "center" }}><AButton small tone="ghost" title={h.more} onPress={() => void load(true)} /></View>}
     </View>}
@@ -107,7 +109,7 @@ function PoolSheet({ city, entry, mayEdit, onClose, onSaved }: {
     setBusy(true);
     try {
       // The server keeps the fields it decides itself; send only what the form edits.
-      const { needs_recheck: _n, uses: _u, status: _s, ...body } = payload as PoolEntry & PoolSave;
+      const { needs_recheck: _n, uses: _u, status: _s, outside_coverage: _o, hidden_reason: _r, ...body } = payload as PoolEntry & PoolSave;
       const out = await adminHuntLoop.savePool(body);
       onSaved(out); setNote({ tone: "info", text: h.saved }); setAnswer(undefined); setLocal("");
     } catch (e) { setNote({ tone: "stop", text: loopError(h, e) }); }
@@ -140,7 +142,9 @@ function PoolSheet({ city, entry, mayEdit, onClose, onSaved }: {
       <Pill tone={STATUS_TONE[entry.status]} label={h.status[entry.status]} />
       {entry.needs_recheck && <Pill tone="wax" label={h.recheck} />}
       <Pill label={entry.uses.length ? h.usedIn(entry.uses.length) : h.unused} />
+      {entry.outside_coverage && <Pill label={h.outsideMap} />}
     </View>}
+    {entry?.status === "hidden" && !!entry.hidden_reason && <Notice tone="info" text={h.hiddenWhy(entry.hidden_reason)} />}
     {isNew && <Choice value={f.type!} onChange={(type) => set(type === "price" ? { type, kind: null, choices: null } : { type, kind: "choice", choices: [{ zh: "", en: "" }, { zh: "", en: "" }] })}
       options={[{ value: "question", label: h.type.question }, { value: "price", label: h.type.price }]} />}
     <Group title={h.place}>

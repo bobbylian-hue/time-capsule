@@ -27,9 +27,11 @@ export type PoolEntry = {
   photo: string | null; photo_credit: string | null; photo_license: string | null; photo_link: string | null;
   vessel: string | null; status: PoolStatus;
   needs_recheck: boolean; uses: { context: string; id: string | number }[];
+  /** From HL-Q1: the place is outside our map tiles, and why a seed row was hidden. */
+  outside_coverage?: boolean; hidden_reason?: string | null;
 };
 /** What a save sends. Leaving out answer, typed_aliases or local_amount keeps what the server has. */
-export type PoolSave = Partial<Omit<PoolEntry, "status" | "needs_recheck" | "uses">> & {
+export type PoolSave = Partial<Omit<PoolEntry, "status" | "needs_recheck" | "uses" | "outside_coverage" | "hidden_reason">> & {
   answer?: number | string; typed_aliases?: string[]; local_amount?: number;
 };
 export type PoolPage = { items: PoolEntry[]; next_cursor: string | null };
@@ -129,7 +131,7 @@ const entries: (PoolEntry & { secret: { answer?: number | string; usd?: number; 
   { ...blank, id: "pool-1", city: "taipei", type: "question", place_zh: "台北101 觀景台入口", place_en: "Taipei 101 observatory entrance", ...near("taipei", 0, 0),
     prompt_zh: "台北101 地上有幾層？", prompt_en: "How many floors does Taipei 101 have above ground?", kind: "choice",
     choices: [{ zh: "88", en: "88" }, { zh: "101", en: "101" }, { zh: "108", en: "108" }], currency: null, rate: null,
-    source_url: "https://www.taipei-101.com.tw/", checked_on: "2026-11-10", status: "published", needs_recheck: false, secret: { answer: 1 } },
+    source_url: "https://www.taipei-101.com.tw/", checked_on: "2026-11-10", status: "published", outside_coverage: true, needs_recheck: false, secret: { answer: 1 } },
   { ...blank, id: "pool-2", city: "taipei", type: "price", place_zh: "春水堂 信義店", place_en: "Chun Shui Tang, Xinyi", ...near("taipei", 300, -200),
     prompt_zh: "一杯珍珠奶茶（中杯）多少錢？", prompt_en: "How much is a medium bubble milk tea?", kind: null, choices: null, currency: "TWD", rate: 32.4,
     source_url: "https://chunshuitang.com.tw/", checked_on: "2026-11-12", status: "published", needs_recheck: false, uses: [{ context: "city_puzzle", id: 4 }], secret: { local_amount: 85, usd: 2.62 } },
@@ -145,7 +147,7 @@ const entries: (PoolEntry & { secret: { answer?: number | string; usd?: number; 
   { ...blank, id: "pool-6", city: "macau", type: "question", place_zh: "大三巴牌坊", place_en: "Ruins of St. Paul's", ...near("macau", 400, 150),
     prompt_zh: "教堂在哪一年被火燒毀？", prompt_en: "In which year did the church burn down?", kind: "choice",
     choices: [{ zh: "1835", en: "1835" }, { zh: "1902", en: "1902" }], currency: null, rate: null,
-    source_url: "https://www.wh.mo/", checked_on: "2026-10-20", status: "hidden", needs_recheck: false, secret: { answer: 0 } },
+    source_url: "https://www.wh.mo/", checked_on: "2026-10-20", status: "hidden", hidden_reason: "Sample: the source page could not be checked", needs_recheck: false, secret: { answer: 0 } },
 ];
 const publicEntry = ({ secret: _secret, ...e }: (typeof entries)[number]): PoolEntry => ({ ...e, needs_recheck: !!e.checked_on && Date.parse(e.checked_on) < Date.now() - 182 * 86400000 });
 
