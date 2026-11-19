@@ -7,7 +7,7 @@ import { haptics } from "../../components/haptics";
 import { CITIES } from "../../services/cityPuzzle";
 import type { QuestKind } from "../../services/quests";
 import {
-  arriveStop, cityAt, landmarkNear, ROUTE_LIMITS, routes, stopFromPool, stopProblems,
+  arriveStop, cityAt, homePlace, landmarkNear, retypeStop, ROUTE_LIMITS, routes, stopFromPool, stopProblems,
   type RouteStop, type RouteTemplate,
 } from "../../services/routes";
 import { C, radii, sans, serif, spacing } from "../../theme";
@@ -56,9 +56,13 @@ export function RouteBuilder({ stops, onChange, zh, you }: {
     void haptics.tick();
     if (type === s.type) return;
     setMissing((m) => ({ ...m, [s.key]: false }));
-    if (type === "question" || type === "price") { void another(s, type, used(s.key)); return; }
-    update(s.key, { type, pool: null, own_question: undefined, own_answer: undefined, catch_count: type === "catch" ? s.catch_count ?? 3 : undefined });
+    const next = retypeStop(s, type);
+    if (next === "pool") void another(s, type as "question" | "price", used(s.key));
+    else update(s.key, next);
   };
+  // Renaming a stop at the sender's own place renames that place too, so it survives a trip through the pool.
+  const rename = (s: RouteStop, patch: { name_zh: string } | { name_en: string }) =>
+    update(s.key, s.home && !s.pool ? { ...patch, home: { ...s.home, ...patch } } : patch);
   const useTemplate = (t: RouteTemplate) => { void haptics.tick(); onChange(t.stops.map(stopFromPool)); setMissing({}); };
   const full = stops.length >= ROUTE_LIMITS.stops;
 
@@ -91,7 +95,7 @@ export function RouteBuilder({ stops, onChange, zh, you }: {
             <Text style={{ fontFamily: serif, fontSize: 14, color: C.white }}>{i + 1}</Text>
           </View>
           <TextInput accessibilityLabel={`${q.stop(i + 1)} ${q.stopName}`} value={name(s)} maxLength={ROUTE_LIMITS.name}
-            onChangeText={(v) => update(s.key, zh ? { name_zh: v } : { name_en: v })}
+            onChangeText={(v) => rename(s, zh ? { name_zh: v } : { name_en: v })}
             style={[input, { flex: 1, paddingVertical: 8, fontFamily: serif }]} />
           <Pressable accessibilityRole="button" accessibilityLabel={`${q.remove} ${q.stop(i + 1)}`} onPress={() => { void haptics.tap(); onChange(stops.filter((x) => x.key !== s.key)); }} style={{ paddingVertical: 6 }}>
             <Text style={{ fontFamily: sans, fontSize: 13, color: C.wax, textDecorationLine: "underline" }}>{q.remove}</Text>
@@ -104,7 +108,7 @@ export function RouteBuilder({ stops, onChange, zh, you }: {
             onAnother={s.pool ? () => void another(s, s.pool!.type, [...used(), s.pool!.pool_id]) : undefined} />}
         {s.type === "question" && <Pressable accessibilityRole="button" onPress={() => {
           if (own) void another(s, "question", used(s.key));
-          else update(s.key, { pool: null, own_question: s.own_question ?? "", own_answer: s.own_answer ?? "" });
+          else update(s.key, { ...homePlace(s), pool: null, own_question: s.own_question ?? "", own_answer: s.own_answer ?? "" });
         }} style={{ alignSelf: "flex-start" }}>
           <Text style={{ fontFamily: sans, fontSize: 13, color: C.blue, textDecorationLine: "underline" }}>{own ? q.fromPool : q.writeOwn}</Text>
         </Pressable>}
