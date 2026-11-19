@@ -5,7 +5,7 @@ import { Pressable, Text, View } from "react-native";
 import { useLanguage } from "../../i18n";
 import { can } from "../../services/admin";
 import {
-  adminHuntLoop, canPublish, hasPlace, mergePoolEntry, poolProblems, usdOf,
+  adminHuntLoop, afterSave, canPublish, hasPlace, mergePoolEntry, poolProblems, usdOf,
   type PoolEntry, type PoolFilter, type PoolResult, type PoolSave, type PoolStatus,
 } from "../../services/adminHuntLoop";
 import { C, radii, sans, serif, spacing } from "../../theme";
@@ -82,9 +82,10 @@ function PoolSheet({ city, entry, mayEdit, onClose, onSaved }: {
   city: string; entry: PoolEntry | null; mayEdit: boolean; onClose: () => void; onSaved: (e: PoolResult) => void;
 }) {
   const h = useHuntLoopText();
-  const isNew = !entry;
   const [f, setF] = useState<PoolSave>(() => entry ? { ...entry } : { city, type: "question", kind: "choice", place_zh: "", place_en: "", prompt_zh: "", prompt_en: "",
     choices: [{ zh: "", en: "" }, { zh: "", en: "" }], location_lat: null, location_lng: null, source_url: null, checked_on: null, currency: null, rate: null });
+  // Once saved, a new entry is an existing row: later saves update it, and its answer is already on the server.
+  const isNew = !entry && !f.id;
   const [whereText, setWhereText] = useState(entry ? where(entry) : "");
   const [answer, setAnswer] = useState<number | string | undefined>(undefined);
   const [aliases, setAliases] = useState("");
@@ -112,14 +113,18 @@ function PoolSheet({ city, entry, mayEdit, onClose, onSaved }: {
       // The server keeps the fields it decides itself; send only what the form edits.
       const { needs_recheck: _n, uses: _u, status: _s, outside_coverage: _o, hidden_reason: _r, ...body } = payload as PoolEntry & PoolSave;
       const out = await adminHuntLoop.savePool(body);
+      // The sheet stays open, so later saves must update this row: keep the id the server gave a new entry.
+      // The answer and local price are kept on the server; leaving them out of the next save keeps them.
+      setF((x) => afterSave(x, out));
       onSaved(out); setNote({ tone: "info", text: h.saved }); setAnswer(undefined); setLocal("");
     } catch (e) { setNote({ tone: "stop", text: loopError(h, e) }); }
     finally { setBusy(false); }
   };
   const status = async (s: PoolStatus) => {
-    if (!entry) return;
+    const id = f.id ?? entry?.id;
+    if (!id) return;
     setBusy(true);
-    try { onSaved(await adminHuntLoop.setPoolStatus(entry.id, s)); }
+    try { onSaved(await adminHuntLoop.setPoolStatus(id, s)); }
     catch (e) { setNote({ tone: "stop", text: loopError(h, e) }); }
     finally { setBusy(false); }
   };

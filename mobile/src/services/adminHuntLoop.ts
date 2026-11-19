@@ -35,12 +35,23 @@ export type PoolSave = Partial<Omit<PoolEntry, "status" | "needs_recheck" | "use
   answer?: number | string; typed_aliases?: string[]; local_amount?: number;
 };
 export type PoolPage = { items: PoolEntry[]; next_cursor: string | null };
-/** What save and set_status return: the row without `uses`, which only the list adds. */
-export type PoolResult = Omit<PoolEntry, "uses"> & { uses?: PoolEntry["uses"] };
-/** Puts a save or status result into the list, keeping the usage the list already knew (a new entry has none). */
-export function mergePoolEntry(list: PoolEntry[], e: PoolResult): { list: PoolEntry[]; entry: PoolEntry } {
+/** What save and set_status return: the table row, without `uses` and `needs_recheck`, which only the list adds. */
+export type PoolResult = Omit<PoolEntry, "uses" | "needs_recheck"> & { uses?: PoolEntry["uses"]; needs_recheck?: boolean };
+/** The form after a save: it now edits the saved row (a new entry gets the server's id). */
+export const afterSave = (form: PoolSave, saved: Pick<PoolResult, "id">): PoolSave => ({ ...form, id: saved.id });
+/** The list's rule: checked more than 6 calendar months before today (dates as YYYY-MM-DD). */
+export function needsRecheck(checkedOn: string | null | undefined, today = new Date().toISOString().slice(0, 10)) {
+  if (!checkedOn) return false;
+  const [y, m, d] = today.split("-").map(Number) as [number, number, number];
+  const back = new Date(Date.UTC(y, m - 1 - 6, 1));
+  const day = Math.min(d, new Date(Date.UTC(back.getUTCFullYear(), back.getUTCMonth() + 1, 0)).getUTCDate());
+  return checkedOn < `${back.getUTCFullYear()}-${String(back.getUTCMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+/** Puts a save or status result into the list, keeping the usage the list already knew (a new entry has none)
+ *  and working out the re-check flag from the saved checked date. */
+export function mergePoolEntry(list: PoolEntry[], e: PoolResult, today?: string): { list: PoolEntry[]; entry: PoolEntry } {
   const prev = list.find((y) => y.id === e.id);
-  const entry: PoolEntry = { ...prev, ...e, uses: e.uses ?? prev?.uses ?? [] };
+  const entry: PoolEntry = { ...prev, ...e, uses: e.uses ?? prev?.uses ?? [], needs_recheck: e.needs_recheck ?? needsRecheck(e.checked_on, today) };
   return { entry, list: prev ? list.map((y) => y.id === e.id ? entry : y) : [entry, ...list] };
 }
 
@@ -157,9 +168,9 @@ const entries: (PoolEntry & { secret: { answer?: number | string; usd?: number; 
     choices: [{ zh: "1835", en: "1835" }, { zh: "1902", en: "1902" }], currency: null, rate: null,
     source_url: "https://www.wh.mo/", checked_on: "2026-10-20", status: "hidden", hidden_reason: "Sample: the source page could not be checked", needs_recheck: false, secret: { answer: 0 } },
 ];
-// Like the server: only the list adds `uses`; save and set_status return the row without it.
-const withoutUses = ({ uses: _uses, ...e }: PoolEntry): PoolResult => e;
-const publicEntry = ({ secret: _secret, ...e }: (typeof entries)[number]): PoolEntry => ({ ...e, needs_recheck: !!e.checked_on && Date.parse(e.checked_on) < Date.now() - 182 * 86400000 });
+// Like the server: only the list adds `uses` and `needs_recheck`; save and set_status return the row without them.
+const withoutUses = ({ uses: _uses, needs_recheck: _n, ...e }: PoolEntry): PoolResult => e;
+const publicEntry = ({ secret: _secret, ...e }: (typeof entries)[number]): PoolEntry => ({ ...e, needs_recheck: needsRecheck(e.checked_on) });
 
 const rackState = new Map<string, RackEntry[]>();
 const SENDERS = [{ name: "阿哲", id: "02" }, { name: "Lena", id: "03" }, { name: "小雨", id: "05" }, { name: "Sam", id: "07" }];
@@ -317,4 +328,10 @@ const sample = {
 };
 
 /** The sample's copies settings, read by the sample spawning so the Capsules page shows them. */
+/** Tests only: the development sample's question pool, called directly, and what it stores for grading. */
+export const samplePool = {
+  save: (payload: PoolSave) => sample.savePool(payload),
+  rows: () => entries.length,
+  grading: (id: string) => ({ ...entries.find((e) => e.id === id)?.secret }),
+};
 export const sampleCopies = { perCatch: () => copiesPerCatch, unlimited: (vessel: string) => unlimited.get(vessel) };
