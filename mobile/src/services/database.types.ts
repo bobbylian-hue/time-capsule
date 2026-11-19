@@ -76,6 +76,8 @@ export type Database = {
           public_capsule_returns: number
           public_capsule_spot: string | null
           recipient: string | null
+          route_done: number
+          route_total: number
           sea: boolean | null
           sea_returns: number | null
           sealed_at: string
@@ -109,6 +111,8 @@ export type Database = {
           public_capsule_returns?: number
           public_capsule_spot?: string | null
           recipient?: string | null
+          route_done?: number
+          route_total?: number
           sea?: boolean | null
           sea_returns?: number | null
           sealed_at?: string
@@ -142,6 +146,8 @@ export type Database = {
           public_capsule_returns?: number
           public_capsule_spot?: string | null
           recipient?: string | null
+          route_done?: number
+          route_total?: number
           sea?: boolean | null
           sea_returns?: number | null
           sealed_at?: string
@@ -1444,6 +1450,37 @@ export type Database = {
         Args: { p_id: string; p_note?: string; p_visible: boolean }
         Returns: Json
       }
+      admin_todays_hunt_calendar: {
+        Args: {
+          p_city: string
+          p_days: number
+          p_from: string
+        }
+        Returns: Json
+      }
+      admin_todays_hunt_set: {
+        Args: {
+          p_catch_count?: number
+          p_city: string
+          p_date: string
+          p_location_lat?: number
+          p_location_lng?: number
+          p_name_en?: string
+          p_name_zh?: string
+          p_ordinal: number
+          p_pool_id?: string
+        }
+        Returns: Json
+      }
+      admin_todays_hunt_swap: {
+        Args: {
+          p_a: number
+          p_b: number
+          p_city: string
+          p_date: string
+        }
+        Returns: Json
+      }
       admin_undo: {
         Args: { p_action_id: number; p_note?: string }
         Returns: Json
@@ -1845,6 +1882,28 @@ export type Database = {
         Returns: undefined
       }
       public_capsule_return: { Args: { p_id: string }; Returns: undefined }
+      route_attempt: {
+        Args: { p_capsule: string; p_payload: Json }
+        Returns: Json
+      }
+      route_pool_pick: {
+        Args: {
+          p_city: string
+          p_exclude?: string[]
+          p_lat: number
+          p_lng: number
+          p_type: string
+        }
+        Returns: Json
+      }
+      route_progress: {
+        Args: { p_capsule: string }
+        Returns: Json
+      }
+      route_templates: {
+        Args: { p_city: string }
+        Returns: Json
+      }
       sea_nearby: {
         Args: { p_accuracy: number; p_lat: number; p_lng: number }
         Returns: {
@@ -1899,6 +1958,7 @@ export type Database = {
               p_place?: string
               p_prediction?: string
               p_recipient: string
+              p_route?: Json
               p_vessel: string
               p_voice?: string
               p_voice_ms?: number
@@ -1928,6 +1988,16 @@ export type Database = {
         Args: { p_id: string; p_verdict: boolean }
         Returns: undefined
       }
+      todays_hunt: { Args: { p_city: string }; Returns: Json }
+      todays_hunt_attempt: {
+        Args: {
+          p_answer: Json
+          p_city: string
+          p_ordinal: number
+        }
+        Returns: Json
+      }
+      todays_hunt_friends: { Args: { p_city: string }; Returns: Json }
       vessel_stock: {
         Args: never
         Returns: {

@@ -1,3 +1,5 @@
+CE1 Macau correction (2026-11-19): migration `20261119000708` retires only Macau seq 15. Hosted rollback passed row/play preservation, 19 published questions, unchanged other cities, yesterday/new-player today/guess and an existing play on the retired question. Production application is pending the 2026-11-20 Macau midnight window, directly through SQL with only its history entry; no db push or held hunt-loop migration.
+
 # Task board
 
 CE1 Singapore price correction (2026-11-18): Roy approved unpublishing eight outdated questions; hosted rollback passed. Migration is held for the midnight Singapore window after green CI and owner squash merge; other held migrations must not be applied.
@@ -70,8 +72,8 @@ Status: `todo` → `doing` → `review` (report sent to Claude) → `done`. Move
 | HL-Q1 | Question pool for Taipei, Hong Kong, Singapore, Macau | Codex (`codex/question-pool`) | Data file + review doc with sources; loads into HL-C3 tables after review. |
 | HL-U1 | Quest pin component, Journey gem = Waypost only, Waypost card (Spin + rack + leave form) | Claude (`claude/hunt-racks-ui`) | Screens behind a mock flag; wired after HL-C1. |
 | HL-U2 | Copies in Create, Cabinet and Album | Claude (`claude/vessel-copies-ui`) | Behind a mock flag; wired after HL-C2. |
-| HL-C4 | Today's Hunt backend | Codex | Wave 2, after HL-C3 review. |
-| HL-C5 | Route capsules backend and city route templates | Codex | Wave 2, after HL-C3 review. |
+| HL-C4 | Today's Hunt backend | Codex (`codex/todays-hunt`) | Merged in [PR #161](https://github.com/royai202600-cyber/time-capsule/pull/161). Hold `20261118134846` for HL-U3 (draft PR #163), after C2 → C1 → C3 and before C5. Pool data comes from HL-Q1. See the [API and verification notes](review/todays-hunt.md). |
+| HL-C5 | Route capsules backend and city route templates | Codex (`codex/route-capsules`) | [PR #160](https://github.com/royai202600-cyber/time-capsule/pull/160) merged. See the [API handoff](review/route-capsules.md). Hosted rollback and local real-JWT friend and Memory Routes passed. Hold migration `20261118135059` until HL-U4 ships. HL-Q1 supplies the real pool. |
 | HL-U3 | Today's Hunt screen with motion | Claude | Wave 2. |
 | HL-U4 | Shared quest editor (private hunt + route), City Hunt quest pins, recipient route view | Claude | Wave 2. Draft PR stacked on HL-U3, against samples; `HUNT_QUESTS_BACKEND` and `ROUTES_BACKEND` turn on when HL-C3 and HL-C5 migrations are applied. |
 | HL-U5 | Admin: question pool, Today's Hunt calendar, rack contents, copies | Claude | Wave 2. |
