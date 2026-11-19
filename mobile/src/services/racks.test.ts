@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('./supabase', () => ({ supabase: {} }));
-import { answerMatches, fromServer, RackError, racks, RACK_FILTERS, RACK_PAGE } from './racks';
+import { answerMatches, fromServer, RackError, racks, RACK_FILTERS, RACK_PAGE, RACK_BACKEND } from './racks';
 
 const at = { lat: 0, lng: 0, accuracy: 10 };
 
@@ -10,7 +10,7 @@ describe('rack sample follows HL-C1', () => {
     expect(answerMatches('Blue Sky', 'bluesky')).toBe(true);
     expect(answerMatches('藍', '藍色')).toBe(false);
   });
-  it('pages with a { sealed_at, id } cursor passed back unchanged', async () => {
+  it.skipIf(RACK_BACKEND)('pages with a { sealed_at, id } cursor passed back unchanged', async () => {
     for (let i = 0; i < 30; i++) await racks.leave('w-page', at, { body: `letter ${i}`, hint: '', wait: 1 });
     const first = await racks.list('w-page', 'mine');
     expect(first.items).toHaveLength(RACK_PAGE);
@@ -21,13 +21,13 @@ describe('rack sample follows HL-C1', () => {
     expect(second.next_cursor).toBeNull();
     expect(new Set([...first.items, ...second.items].map((c) => c.capsule_id)).size).toBe(30);
   });
-  it('refuses too-long text, an unknown filter, and opening your own capsule', async () => {
+  it.skipIf(RACK_BACKEND)('refuses too-long text, an unknown filter, and opening your own capsule', async () => {
     await expect(racks.leave('w-x', at, { body: 'x'.repeat(281), hint: '', wait: 1 })).rejects.toMatchObject({ code: 'rejected' });
     await expect(racks.list('w-x', 'nope' as never)).rejects.toBeInstanceOf(RackError);
     const left = await racks.leave('w-x', at, { body: 'hi', hint: '', wait: 1 });
     await expect(racks.open(left.capsule_id, at)).rejects.toMatchObject({ code: 'taken' });
   });
-  it('opens a ready capsule with its question answered, and returns the open_capsule row', async () => {
+  it.skipIf(RACK_BACKEND)('opens a ready capsule with its question answered, and returns the open_capsule row', async () => {
     const { items } = await racks.list('w-q', 'has_question');
     const ready = items.find((c) => c.ready)!;
     expect(ready.lock_question).toBeTruthy();
