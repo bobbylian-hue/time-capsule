@@ -63,6 +63,15 @@ export const arriveStop = (lat: number, lng: number, name: string): RouteStop =>
   key: stopKey(), type: "arrive", location_lat: lat, location_lng: lng, name_zh: name, name_en: name,
   home: { location_lat: lat, location_lng: lng, name_zh: name, name_en: name },
 });
+/** Pool picks per stop where only the newest may land: any later change to the stop cancels a pick still loading. */
+export function pickGuard() {
+  const latest: Record<string, number> = {};
+  return {
+    start: (key: string) => (latest[key] = (latest[key] ?? 0) + 1),
+    cancel: (key: string) => { latest[key] = (latest[key] ?? 0) + 1; },
+    current: (key: string, token: number) => latest[key] === token,
+  };
+}
 /** Where a stop stands once it no longer uses a pool item: the sender's own place if they picked one, else where it is. */
 export const homePlace = (s: RouteStop) => s.home ?? { location_lat: s.location_lat, location_lng: s.location_lng, name_zh: s.name_zh, name_en: s.name_en };
 /** What a stop becomes for a type: a place the sender picked asks their own question there instead of moving to a pool question. */

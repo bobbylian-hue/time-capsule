@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@react-native-async-storage/async-storage', () => ({ default: { getItem: vi.fn(async () => null), setItem: vi.fn() } }));
 vi.mock('./supabase', () => ({ supabase: {} }));
 import { CITIES } from './cityPuzzle';
-import { answerMatches, arriveStop, cityAt, homePlace, landmarkNear, retypeStop, routes, stopForSend, stopFromPool, stopProblems, type PoolItem, ROUTES_BACKEND } from './routes';
+import { answerMatches, arriveStop, cityAt, homePlace, landmarkNear, pickGuard, retypeStop, routes, stopForSend, stopFromPool, stopProblems, type PoolItem, ROUTES_BACKEND } from './routes';
 
 const taipei = CITIES.find((c) => c.id === 'taipei')!;
 const pool: PoolItem = { pool_id: 'p1', type: 'price', location_lat: taipei.lat, location_lng: taipei.lng, name_zh: '店', name_en: 'Shop' };
@@ -62,5 +62,18 @@ describe('a place the sender picked (Memory Route)', () => {
   });
   it("doesn't send the remembered place", () => {
     expect(stopForSend(mine, false)).not.toHaveProperty('home');
+  });
+});
+
+describe('pool picks per stop', () => {
+  it('lets only the newest pick land, and a later change cancels one still loading', () => {
+    const g = pickGuard();
+    const price = g.start('a');
+    g.cancel('a'); // Price → Catch while the price is loading
+    expect(g.current('a', price)).toBe(false);
+    const q1 = g.start('a'), q2 = g.start('a');
+    expect(g.current('a', q1)).toBe(false);
+    expect(g.current('a', q2)).toBe(true);
+    expect(g.current('b', g.start('b'))).toBe(true);
   });
 });
