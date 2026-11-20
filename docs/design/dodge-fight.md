@@ -30,20 +30,20 @@ City Hunt and private-hunt catch quests count Journey catches, so they follow au
 - **Win:** the light burst, cracks gone, then today's restore result card (copies, stars, XP) unchanged.
 - **Lose:** see Rules below.
 
-## Rules (defaults; Roy to confirm the starred ones)
+## Rules (Roy confirmed these defaults on 2026-11-20)
 
 | | Corrupted Capsule | Landmark fight | Today's Hunt catch |
 |---|---|---|---|
-| Health, in wax hits | common 3, uncommon 4, rare 5 ★ | 20 ★ | 3 |
+| Health, in wax hits | common 3, uncommon 4, rare 5 | 20 | 3 |
 | Typical length | 10–25 s | 60–100 s | 10 s |
-| Timer | none | 150 s ★ | none |
-| Attacks | shot, wave; double shot after 25% damage | all three from the start, faster warnings, and a combo (wave then shot) after 50% ★ | shot, wave |
-| Ball cost | 1 ball per throw ★ | 1 ball per throw | free |
-| Gold ball | 2 damage ★ | 2 damage (as today) | — |
-| Losing (3 hits taken) | the capsule breaks free and uses one of its 3 tries; health resets next time ★ | ends the attempt, same as time running out ★ | the quest stays open; try again |
+| Timer | none | 150 s | none |
+| Attacks | shot, wave; double shot after 25% damage | all three from the start, faster warnings, and a combo (wave then shot) after 50% | shot, wave |
+| Ball cost | 1 ball per throw | 1 ball per throw | free |
+| Gold ball | 2 damage | 2 damage (as today) | — |
+| Losing (3 hits taken) | the capsule breaks free and uses one of its 3 tries; health resets next time | ends the attempt, same as time running out | the quest stays open; try again |
 
 - **Balls:** the existing wax/gold toggle stays. When the chosen kind runs out the game switches to the other; with no balls at all, gathering stops and the player sees 「沒有蠟球了」 with the existing Waypost hint.
-- **Ball skins** are looks only, separate from wax/gold (gold stays the stronger ball). How players get skins is a later decision ★; the first release shows only the skins a player owns, which is just the default.
+- **Ball skins** are looks only, separate from wax/gold (gold stays the stronger ball). How players get skins is a later decision; the first release shows only the skins a player owns, which is just the default.
 - **Player figure:** the back-view layered figure from Codex's art task. The fight uses the figure matching the player's chosen portrait (01–08). Until all eight are approved, the release waits; development may use the front figures.
 
 ## Phone and desktop
