@@ -129,9 +129,6 @@ button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
   <button type="button" data-mode="corrupted" id="mC">破損膠囊</button>
   <button type="button" data-mode="hunt" id="mH">今日尋寶 ×3</button>
   <button type="button" data-mode="landmark" id="mL">地標</button>
-  <span id="tSpk">尖刺</span>
-  <button type="button" data-spk="a" id="sA">A</button>
-  <button type="button" data-spk="b" id="sB">B</button>
   <span id="tBall">手上的球</span>
   <button type="button" data-bsz="1" id="b100">100%</button>
   <button type="button" data-bsz=".8" id="b80">−20%</button>
@@ -198,7 +195,7 @@ button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
 (() => {
   const ART = "../../../public/art/";
   const STR = {
-    zh: { title: "閃避戰 · 簡化試玩", sub: "按住拖動，往上一撥跳，會一直自動投擲", lang: "EN", mode: "戰鬥", spk: "尖刺", hball: "手上的球",
+    zh: { title: "閃避戰 · 簡化試玩", sub: "按住拖動，往上一撥跳，會一直自動投擲", lang: "EN", mode: "戰鬥", hball: "手上的球",
       mC: "破損膠囊", mH: "今日尋寶 ×3", mL: "地標",
       jump: "↑ 往上跳！", dodge: "← 閃開 →", brace: "撐住！", hl: "‹ 按住拖動 ›", keys: "電腦：方向鍵移動，空白鍵跳。",
       introH: { corrupted: "打敗破損膠囊", hunt: "修復三個破損膠囊", landmark: "挑戰地標" },
@@ -208,7 +205,7 @@ button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
       winP: "破損膠囊恢復原樣，加入你的收藏。", loseH: "膠囊逃走了", loseP: "三次被擊中。看到紅圈就換一格，看到黑帶就跳。",
       timeH: "時間到了", again: "再玩一次", huntH: (n) => `修好 ${n}/3 個`, huntP: "修好的數量會交給今日尋寶計分。",
       legend: "比較：按鈕與球的面板拿掉了，改成按住拖動；不用站著聚光；血條移到膠囊和人物旁邊。上面一排只是試玩用的切換，不會出現在 app 裡。" },
-    en: { title: "Dodge fight · simpler demo", sub: "Hold and drag to move, flick up to jump, throwing never stops", lang: "中文", mode: "Fight", spk: "Spikes", hball: "Ball in hand",
+    en: { title: "Dodge fight · simpler demo", sub: "Hold and drag to move, flick up to jump, throwing never stops", lang: "中文", mode: "Fight", hball: "Ball in hand",
       mC: "Corrupted", mH: "Today's Hunt ×3", mL: "Landmark",
       jump: "↑ Jump!", dodge: "← Move →", brace: "Brace!", hl: "‹ Hold and drag ›", keys: "On a computer: arrow keys to move, Space to jump.",
       introH: { corrupted: "Restore the Corrupted Capsule", hunt: "Restore three Corrupted Capsules", landmark: "Landmark challenge" },
@@ -233,7 +230,6 @@ button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
   // then release 80, follow-through 150 and recover 130, then the rest pose.
   const BALL_WINDUP = [658 / 1024, 264 / 1024], BALL_RELEASE = [530 / 1024, 219 / 1024];
   const THROW_POSES = [["cock", -.14, 0, 1], ["release", 0, .08, 2], ["follow", .08, .23, 3], ["recover", .23, .36, 4]];
-  let spk = store.get("tc-dodge2-spk", "b");
   // Load every throw pose once at start. Swapping one <img>'s src four times in half a second made the
   // browser skip frames that hadn't decoded yet, so some throws looked complete and some didn't.
   for (const part of ["upper", "lower"]) for (let k = 1; k <= 4; k++) {
@@ -255,7 +251,7 @@ button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
     const s = T();
     document.documentElement.lang = lang === "zh" ? "zh-Hant" : "en";
     $("tTitle").firstChild.nodeValue = s.title; $("tSub").textContent = s.sub; $("lang").textContent = s.lang;
-    $("tMode").textContent = s.mode; $("tSpk").textContent = s.spk; $("tBall").textContent = s.hball;
+    $("tMode").textContent = s.mode; $("tBall").textContent = s.hball;
     for (const k of ["mC", "mH", "mL"]) $(k).textContent = s[k];
     $("tJump").textContent = s.jump; $("tHL").textContent = s.hl; $("tKeys").textContent = s.keys;
     $("tIntroH").textContent = s.introH[mode]; $("tR1").textContent = s.r1; $("tR2").textContent = s.r2; $("tR3").textContent = s.r3;
@@ -264,13 +260,10 @@ button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
   }
   function applyPicks() {
     document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
-    document.querySelectorAll("[data-spk]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.spk === spk)));
     document.querySelectorAll("[data-bsz]").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.bsz) === bsz)));
-    $("jspikes").src = `${ART}game/jump-spikes${spk === "b" ? "-b" : ""}.webp`;
   }
   $("lang").onclick = () => { lang = lang === "zh" ? "en" : "zh"; store.set("tc-dodge2-lang", lang); applyLang(); };
   document.querySelectorAll("[data-bsz]").forEach((b) => (b.onclick = () => { bsz = Number(b.dataset.bsz); store.set("tc-dodge2-bsz", String(bsz)); applyPicks(); }));
-  document.querySelectorAll("[data-spk]").forEach((b) => (b.onclick = () => { spk = b.dataset.spk; store.set("tc-dodge2-spk", spk); applyPicks(); }));
   document.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => { mode = b.dataset.mode; store.set("tc-dodge2-mode", mode); applyPicks(); toIntro(); }));
 
   let G;
