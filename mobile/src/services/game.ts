@@ -15,7 +15,7 @@ export type Waypost = { id: string; kind: "common" | "landmark"; name_zh: string
 export type Nearby = { corrupted: CorruptedCapsule[]; wayposts: Waypost[] };
 /** What a won fight gives. Copies are null for an unlimited vessel (a starter or an earned Landmark vessel). */
 export type Restored = { vessel: string; copies: number | null; stars: number; is_new: boolean; xp_gained: number };
-export type LandmarkAttempt = { id: string; waypost: string; vessel: string; cracks: number; expires_at: string };
+export type LandmarkAttempt = { id: string; waypost: string; vessel: string; cracks: number; maxCracks: number; expires_at: string };
 // Normalize names from the old server until the timed-hunt migration ships.
 export const cityHuntNameZh = (name: string) => name.replace("城市尋寶", "城市定向");
 export type PassportHunt = { id: string; name_zh: string; name_en: string; at: string };
@@ -152,9 +152,11 @@ export const game = {
       fail(error);
       const row = data?.[0];
       if (!row) throw new GameError("unknown");
-      return { id: row.attempt_id, waypost: target.id, vessel: LANDMARK_VESSEL[target.place ?? ""] ?? "hourglass", cracks: row.cracks, expires_at: row.expires_at };
+      return { id: row.attempt_id, waypost: target.id, vessel: LANDMARK_VESSEL[target.place ?? ""] ?? "hourglass", cracks: row.cracks,
+        // DF3's landmark_start also returns max_health; the older one only the cracks left, out of 20.
+        maxCracks: (row as { max_health?: number }).max_health ?? Math.max(row.cracks, 20), expires_at: row.expires_at };
     }
-    return { id: `dev-fight-${Date.now()}`, waypost: target.id, vessel: "bamboo-tower", cracks: 20, expires_at: new Date(Date.now() + 150_000).toISOString() };
+    return { id: `dev-fight-${Date.now()}`, waypost: target.id, vessel: "bamboo-tower", cracks: 40, maxCracks: 40, expires_at: new Date(Date.now() + 150_000).toISOString() };
   },
   /** Signed-out development: a won practice fight restores the sample capsule so the wave shrinks as it would live. */
   devRestore(id: string): Restored | null {
@@ -251,7 +253,7 @@ export const dodgeFights = {
   async start(target: DodgeTarget): Promise<DodgeSession> {
     if (target.landmark) {
       const row = await game.landmarkStartOnce(target.landmark);
-      return { id: row.id, health: row.cracks, maxHealth: 20, expiresAt: Date.parse(row.expires_at), attemptsLeft: 1 };
+      return { id: row.id, health: row.cracks, maxHealth: row.maxCracks, expiresAt: Date.parse(row.expires_at), attemptsLeft: 1 };
     }
     const row = await dodgeRow(supabase.rpc("corrupted_fight_start", { p_spawn: target.capsule.id, ...coords() }));
     return { id: row.fight_id, health: row.health, maxHealth: row.max_health, expiresAt: Date.parse(row.expires_at), attemptsLeft: row.attempts_left };

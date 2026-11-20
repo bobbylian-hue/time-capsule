@@ -57,6 +57,12 @@ const rigs: Record<string, FightRig> = {
     legRight: { source: require("../../../../public/art/characters/fight-02-leg-right.webp"), pivot: [545, 570] },
     legsJump: require("../../../../public/art/characters/fight-02-legs-jump.webp"),
     hand: { shoulder: [560, 393], ball: [600, 176] },
+    throw: [
+      { upper: require("../../../../public/art/characters/fight-02-throw-1-upper.webp"), lower: require("../../../../public/art/characters/fight-02-throw-1-lower.webp"), ball: [643, 325] },
+      { upper: require("../../../../public/art/characters/fight-02-throw-2-upper.webp"), lower: require("../../../../public/art/characters/fight-02-throw-2-lower.webp"), ball: [530, 318] },
+      { upper: require("../../../../public/art/characters/fight-02-throw-3-upper.webp"), lower: require("../../../../public/art/characters/fight-02-throw-3-lower.webp"), ball: [402, 665] },
+      { upper: require("../../../../public/art/characters/fight-02-throw-4-upper.webp"), lower: require("../../../../public/art/characters/fight-02-throw-4-lower.webp"), ball: [660, 610] },
+    ],
   },
   "03": {
     body: require("../../../../public/art/characters/fight-03-body.webp"),
@@ -66,6 +72,12 @@ const rigs: Record<string, FightRig> = {
     legRight: { source: require("../../../../public/art/characters/fight-03-leg-right.webp"), pivot: [544, 550] },
     legsJump: require("../../../../public/art/characters/fight-03-legs-jump.webp"),
     hand: { shoulder: [561, 400], ball: [601, 163] },
+    throw: [
+      { upper: require("../../../../public/art/characters/fight-03-throw-1-upper.webp"), lower: require("../../../../public/art/characters/fight-03-throw-1-lower.webp"), ball: [653, 284] },
+      { upper: require("../../../../public/art/characters/fight-03-throw-2-upper.webp"), lower: require("../../../../public/art/characters/fight-03-throw-2-lower.webp"), ball: [520, 259] },
+      { upper: require("../../../../public/art/characters/fight-03-throw-3-upper.webp"), lower: require("../../../../public/art/characters/fight-03-throw-3-lower.webp"), ball: [386, 662] },
+      { upper: require("../../../../public/art/characters/fight-03-throw-4-upper.webp"), lower: require("../../../../public/art/characters/fight-03-throw-4-lower.webp"), ball: [644, 610] },
+    ],
   },
   "04": {
     body: require("../../../../public/art/characters/fight-04-body.webp"),
@@ -75,6 +87,12 @@ const rigs: Record<string, FightRig> = {
     legRight: { source: require("../../../../public/art/characters/fight-04-leg-right.webp"), pivot: [551, 536] },
     legsJump: require("../../../../public/art/characters/fight-04-legs-jump.webp"),
     hand: { shoulder: [572, 344], ball: [614, 119] },
+    throw: [
+      { upper: require("../../../../public/art/characters/fight-04-throw-1-upper.webp"), lower: require("../../../../public/art/characters/fight-04-throw-1-lower.webp"), ball: [648, 265] },
+      { upper: require("../../../../public/art/characters/fight-04-throw-2-upper.webp"), lower: require("../../../../public/art/characters/fight-04-throw-2-lower.webp"), ball: [531, 250] },
+      { upper: require("../../../../public/art/characters/fight-04-throw-3-upper.webp"), lower: require("../../../../public/art/characters/fight-04-throw-3-lower.webp"), ball: [404, 649] },
+      { upper: require("../../../../public/art/characters/fight-04-throw-4-upper.webp"), lower: require("../../../../public/art/characters/fight-04-throw-4-lower.webp"), ball: [671, 600] },
+    ],
   },
   "05": {
     body: require("../../../../public/art/characters/fight-05-body.webp"),
@@ -84,6 +102,12 @@ const rigs: Record<string, FightRig> = {
     legRight: { source: require("../../../../public/art/characters/fight-05-leg-right.webp"), pivot: [546, 556] },
     legsJump: require("../../../../public/art/characters/fight-05-legs-jump.webp"),
     hand: { shoulder: [557, 405], ball: [598, 176] },
+    throw: [
+      { upper: require("../../../../public/art/characters/fight-05-throw-1-upper.webp"), lower: require("../../../../public/art/characters/fight-05-throw-1-lower.webp"), ball: [636, 281] },
+      { upper: require("../../../../public/art/characters/fight-05-throw-2-upper.webp"), lower: require("../../../../public/art/characters/fight-05-throw-2-lower.webp"), ball: [515, 297] },
+      { upper: require("../../../../public/art/characters/fight-05-throw-3-upper.webp"), lower: require("../../../../public/art/characters/fight-05-throw-3-lower.webp"), ball: [413, 664] },
+      { upper: require("../../../../public/art/characters/fight-05-throw-4-upper.webp"), lower: require("../../../../public/art/characters/fight-05-throw-4-lower.webp"), ball: [646, 616] },
+    ],
   },
   "06": {
     body: require("../../../../public/art/characters/fight-06-body.webp"),
@@ -93,6 +117,12 @@ const rigs: Record<string, FightRig> = {
     legRight: { source: require("../../../../public/art/characters/fight-06-leg-right.webp"), pivot: [549, 516] },
     legsJump: require("../../../../public/art/characters/fight-06-legs-jump.webp"),
     hand: { shoulder: [564, 365], ball: [602, 122] },
+    throw: [
+      { upper: require("../../../../public/art/characters/fight-06-throw-1-upper.webp"), lower: require("../../../../public/art/characters/fight-06-throw-1-lower.webp"), ball: [663, 290] },
+      { upper: require("../../../../public/art/characters/fight-06-throw-2-upper.webp"), lower: require("../../../../public/art/characters/fight-06-throw-2-lower.webp"), ball: [538, 247] },
+      { upper: require("../../../../public/art/characters/fight-06-throw-3-upper.webp"), lower: require("../../../../public/art/characters/fight-06-throw-3-lower.webp"), ball: [377, 624] },
+      { upper: require("../../../../public/art/characters/fight-06-throw-4-upper.webp"), lower: require("../../../../public/art/characters/fight-06-throw-4-lower.webp"), ball: [672, 592] },
+    ],
   },
   "07": {
     body: require("../../../../public/art/characters/fight-07-body.webp"),
@@ -102,6 +132,12 @@ const rigs: Record<string, FightRig> = {
     legRight: { source: require("../../../../public/art/characters/fight-07-leg-right.webp"), pivot: [545, 548] },
     legsJump: require("../../../../public/art/characters/fight-07-legs-jump.webp"),
     hand: { shoulder: [559, 406], ball: [597, 174] },
+    throw: [
+      { upper: require("../../../../public/art/characters/fight-07-throw-1-upper.webp"), lower: require("../../../../public/art/characters/fight-07-throw-1-lower.webp"), ball: [666, 295] },
+      { upper: require("../../../../public/art/characters/fight-07-throw-2-upper.webp"), lower: require("../../../../public/art/characters/fight-07-throw-2-lower.webp"), ball: [519, 268] },
+      { upper: require("../../../../public/art/characters/fight-07-throw-3-upper.webp"), lower: require("../../../../public/art/characters/fight-07-throw-3-lower.webp"), ball: [364, 620] },
+      { upper: require("../../../../public/art/characters/fight-07-throw-4-upper.webp"), lower: require("../../../../public/art/characters/fight-07-throw-4-lower.webp"), ball: [658, 591] },
+    ],
   },
   "08": {
     body: require("../../../../public/art/characters/fight-08-body.webp"),
@@ -111,6 +147,12 @@ const rigs: Record<string, FightRig> = {
     legRight: { source: require("../../../../public/art/characters/fight-08-leg-right.webp"), pivot: [546, 538] },
     legsJump: require("../../../../public/art/characters/fight-08-legs-jump.webp"),
     hand: { shoulder: [561, 378], ball: [601, 134] },
+    throw: [
+      { upper: require("../../../../public/art/characters/fight-08-throw-1-upper.webp"), lower: require("../../../../public/art/characters/fight-08-throw-1-lower.webp"), ball: [652, 251] },
+      { upper: require("../../../../public/art/characters/fight-08-throw-2-upper.webp"), lower: require("../../../../public/art/characters/fight-08-throw-2-lower.webp"), ball: [518, 230] },
+      { upper: require("../../../../public/art/characters/fight-08-throw-3-upper.webp"), lower: require("../../../../public/art/characters/fight-08-throw-3-lower.webp"), ball: [385, 646] },
+      { upper: require("../../../../public/art/characters/fight-08-throw-4-upper.webp"), lower: require("../../../../public/art/characters/fight-08-throw-4-lower.webp"), ball: [672, 582] },
+    ],
   },
 };
 

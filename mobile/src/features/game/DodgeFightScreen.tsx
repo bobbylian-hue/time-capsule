@@ -119,10 +119,11 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
     if (resolving.current) return;
     setError(null);
     const damage = stock.wax + 2 * stock.gold;
-    // An online Corrupted fight checks against the health the server returns, because a resumed fight keeps its saved health.
-    // A Landmark checks first, because its start call begins the 150-second clock.
+    // An online fight checks against the health the server returns: a resumed fight keeps its saved health, and the
+    // server's Landmark health can differ from this app's (20 before the DF3 migration, 40 after). A Landmark start the
+    // server refuses for too few balls is rolled back, so its 150-second clock doesn't begin.
     const healthNeeded = fightHealth(mode, capsule.rarity);
-    if (!home && !(remote && mode === "corrupted") && damage < healthNeeded) {
+    if (!home && !remote && damage < healthNeeded) {
       setNeeded(healthNeeded);
       return;
     }
@@ -156,7 +157,9 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
       setPaused(away.current);
       setPhase("playing");
     } catch (e) {
-      if (live.current) setError(describeError(e));
+      if (!live.current) return;
+      if (e instanceof GameError && e.code === "no_balls" && landmark) setNeeded(healthNeeded);
+      else setError(describeError(e));
     } finally {
       resolving.current = false;
       if (live.current) setBusy(false);
