@@ -206,6 +206,7 @@ function AimedShot({ width, height, motion, reduced, attack, lane }: Scene & { a
   const ringWidth = width * .26;
   const ringHeight = ringWidth / 2.6;
   const orbSize = width * .09;
+  const orbBox = orbSize * 2;
   const triple = attack.kind === "triple";
   const reticle = useAnimatedStyle(() => ({
     opacity: motion.value.now < attack.at + attack.warning ? 1 : .7,
@@ -216,8 +217,8 @@ function AimedShot({ width, height, motion, reduced, attack, lane }: Scene & { a
     return {
       opacity: k > 0 ? 1 : 0,
       transform: [
-        { translateX: width * lerp(.5, x, k) - orbSize / 2 },
-        { translateY: lerp(height * BOSS_Y, height * GROUND - width * .14, k) - Math.sin(k * Math.PI) * height * .06 - orbSize / 2 },
+        { translateX: width * lerp(.5, x, k) - orbBox / 2 },
+        { translateY: lerp(height * BOSS_Y, height * GROUND - width * .14, k) - Math.sin(k * Math.PI) * height * .06 - orbBox / 2 },
         { scale: lerp(.6, 1.9, k * k) },
       ],
     };
@@ -230,11 +231,31 @@ function AimedShot({ width, height, motion, reduced, attack, lane }: Scene & { a
           fill={triple ? "rgba(163,54,79,.3)" : "rgba(163,54,79,.18)"} stroke={C.wax} strokeWidth={triple ? 3.5 : 2.5} strokeDasharray="5 4" />
       </Svg>
     </Animated.View>
-    <Animated.View style={[{ position: "absolute", width: orbSize, height: orbSize, backgroundColor: "#3B1E3D",
-      borderRadius: orbSize / 2, borderWidth: 2, borderColor: C.ink, alignItems: "center", justifyContent: "center" }, orb]}>
-      <View style={{ width: "45%", height: "45%", borderRadius: orbSize, backgroundColor: "#8C5B8F", opacity: .55 }} />
+    <Animated.View style={[{ position: "absolute", width: orbBox, height: orbBox }, orb]}>
+      <ShotOrb size={orbSize} />
     </Animated.View>
   </>;
+}
+
+/** The capsule's shot, as in the demo: a glossy plum orb lit from the top left, a navy edge and a soft plum glow. */
+function ShotOrb({ size }: { size: number }) {
+  const box = size * 2, c = box / 2, r = size / 2;
+  return <Svg width={box} height={box}>
+    <Defs>
+      <RadialGradient id="shotGlow" cx="50%" cy="50%" r="50%">
+        <Stop offset=".4" stopColor={C.plum} stopOpacity={.5} />
+        <Stop offset="1" stopColor={C.plum} stopOpacity={0} />
+      </RadialGradient>
+      <RadialGradient id="shotBody" cx="35%" cy="35%" r="92%" fx="35%" fy="35%">
+        <Stop offset="0" stopColor="#8C5B8F" />
+        <Stop offset=".45" stopColor="#3B1E3D" />
+        <Stop offset=".7" stopColor={C.ink} />
+        <Stop offset="1" stopColor={C.ink} />
+      </RadialGradient>
+    </Defs>
+    <Circle cx={c} cy={c} r={c} fill="url(#shotGlow)" />
+    <Circle cx={c} cy={c} r={r} fill="url(#shotBody)" stroke="rgba(22,38,63,.6)" strokeWidth={2} />
+  </Svg>;
 }
 
 /** A glowing plum ring drawn as an ellipse; `glow` adds the soft outer halo. */
