@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ATTACK_WEIGHTS, attackTable, CHARGE, DodgeFight, dodgeSwipe, fightHealthTicks, FLIGHT, LIVES, pickAttack, TRIPLE_CAP, WIND, fightHealth, type AttackKind } from "./dodgeFightRules";
+import { ATTACK_WEIGHTS, attackTable, DodgeFight, dragLane, FIRE, FIRST_THROW, FLIGHT, isFlick, LIVES, pickAttack, TRIPLE_CAP, fightHealth, type AttackKind } from "./dodgeFightRules";
 
 const stock = { wax: 30, gold: 2 };
 function advance(fight: DodgeFight, seconds: number) {
@@ -15,54 +15,50 @@ function seeded(seed = 1) {
 }
 
 describe("dodge fight rules", () => {
-  it("uses rarity health 5/6/7, 20 HP for landmarks, and 5 HP at home", () => {
-    expect((["common", "uncommon", "rare"] as const).map((rarity) => fightHealth("corrupted", rarity))).toEqual([5, 6, 7]);
-    expect(fightHealth("landmark", "common")).toBe(20);
-    expect(fightHealth("home", "rare")).toBe(5);
+  it("doubles health: rarity 10/12/14, 40 HP for landmarks, and 10 HP at home", () => {
+    expect((["common", "uncommon", "rare"] as const).map((rarity) => fightHealth("corrupted", rarity))).toEqual([10, 12, 14]);
+    expect(fightHealth("landmark", "common")).toBe(40);
+    expect(fightHealth("home", "rare")).toBe(10);
   });
 
-  it("gathers, winds up, launches, then hits for one wax damage", () => {
+  it("throws a ball every second from the start, and each wax ball hits for one", () => {
     const fight = new DodgeFight("corrupted", "common", stock, () => .5);
-    advance(fight, CHARGE + .02);
-    expect(fight.frame.wind).toBeGreaterThan(0);
+    calm(fight, FIRST_THROW - .02);
     expect(fight.flight).toBeNull();
-    advance(fight, WIND);
+    calm(fight, .04);
     expect(fight.flight?.ball).toBe("wax");
     expect(fight.stock.wax).toBe(29);
-    expect(fight.hp).toBe(5);
-    advance(fight, FLIGHT);
-    expect(fight.hp).toBe(4);
+    expect(fight.frame.nextThrowAt).toBeCloseTo(fight.frame.throwAt + FIRE);
+    calm(fight, FLIGHT);
+    expect(fight.hp).toBe(9);
     expect(fight.damage).toBe(1);
+    calm(fight, FIRE);
+    expect(fight.used.wax).toBe(2);
   });
 
-  it("scatters a windup on a step and only charges once back on the ground", () => {
+  it("keeps throwing while moving and jumping", () => {
     const fight = new DodgeFight("corrupted", "rare", stock);
-    advance(fight, 1);
-    fight.input("left");
-    expect(fight.frame.scatterAt).toBe(fight.frame.now);
-    advance(fight, .15);
-    expect(fight.frame.x).toBeCloseTo(.2);
-    expect(fight.flight).toBeNull();
+    calm(fight, .7);
     fight.input("left");
     fight.input("jump");
-    advance(fight, .38);
-    expect(fight.frame.jump).toBeGreaterThan(.9);
-    expect(fight.frame.charge).toBe(0);
-    advance(fight, .5);
-    expect(fight.frame.x).toBeCloseTo(.2);
-    expect(fight.frame.charge).toBeGreaterThan(0);
+    calm(fight, .15);
+    expect(fight.flight).not.toBeNull();
+    fight.moveTo(2);
+    calm(fight, 1);
+    expect(fight.frame.x).toBeCloseTo(.8);
+    expect(fight.used.wax).toBe(2);
   });
 
   it("uses gold for two damage and falls back to wax, then stops without a ball", () => {
     const fight = new DodgeFight("landmark", "common", { wax: 1, gold: 1 }, () => .5);
     fight.chooseBall("gold");
-    advance(fight, 1.15);
+    calm(fight, .82);
     expect(fight.flight?.ball).toBe("gold");
     expect(fight.ball).toBe("wax");
-    advance(fight, .62);
-    expect(fight.hp).toBe(18);
-    advance(fight, 1.3);
-    expect(fight.hp).toBe(17);
+    calm(fight, .62);
+    expect(fight.hp).toBe(38);
+    calm(fight, 1.3);
+    expect(fight.hp).toBe(37);
     expect(fight.end).toBe("empty");
   });
 
@@ -82,7 +78,7 @@ describe("dodge fight rules", () => {
     advance(fight, 1.82);
     expect(fight.attack?.kind).toBe("shot");
     fight.input("left");
-    calm(fight, 7);
+    calm(fight, 10);
     expect(fight.end).toBe("won");
     expect(fight.stock).toEqual({ wax: 0, gold: 0 });
   });
@@ -177,8 +173,6 @@ describe("dodge fight rules", () => {
     advance(grounded, .55);
     expect(jumper.lives).toBe(LIVES);
     expect(grounded.lives).toBe(LIVES - 1);
-    expect(grounded.frame.charge).toBeLessThan(.2);
-    expect(grounded.frame.scatterAt).toBeGreaterThan(0);
   });
 
   it("uses faster Landmark warnings, waves followed by shots at half HP, and one-second protection", () => {
@@ -204,9 +198,9 @@ describe("dodge fight rules", () => {
     expect(lost.lives).toBe(0);
     expect(lost.end).toBe("lost");
 
-    const timed = new DodgeFight("landmark", "common", { wax: 500, gold: 0 }, () => .5);
+    const timed = new DodgeFight("landmark", "common", { wax: 500, gold: 0 }, () => .5, { health: 1000, maxHealth: 1000 });
     expect(timed.secondsLeft).toBe(150);
-    // Keep changing lanes between frames, dodging aimed shots without launching.
+    // Keep changing lanes between frames with attacks cancelled, against more health than 150 throws can take.
     for (let i = 0; i < 751; i++) {
       timed.input(i % 2 ? "right" : "left");
       timed.attack = null;
@@ -239,27 +233,24 @@ describe("dodge fight rules", () => {
     expect(fight.stock).toEqual({ wax: 0, gold: 0 });
   });
 
-  it("does not count a charge interrupted before launch or free home throws", () => {
-    const fight = new DodgeFight("corrupted", "common", stock);
-    advance(fight, CHARGE);
-    fight.input("left");
-    expect(fight.used).toEqual({ wax: 0, gold: 0 });
+  it("keeps home throws free", () => {
     const home = new DodgeFight("home", "common", { wax: 0, gold: 0 });
     calm(home, 2);
-    expect(home.hp).toBe(4);
+    expect(home.hp).toBe(9);
     expect(home.used).toEqual({ wax: 0, gold: 0 });
   });
 
-  it("marks hits on the health bar and recognizes swipes from movement", () => {
-    expect(fightHealthTicks("home", 3)).toEqual([1 / 3, 2 / 3]);
-    expect(fightHealthTicks("corrupted", 4)).toEqual([.25, .5, .75]);
-    expect(fightHealthTicks("corrupted", 5)).toEqual([.2, .4, .6, .8]);
-    expect(fightHealthTicks("landmark", 20)).toEqual([.25, .5, .75]);
-    expect(dodgeSwipe(23, 0)).toBeNull();
-    expect(dodgeSwipe(24, 6)).toBe("right");
-    expect(dodgeSwipe(-24, -5)).toBe("left");
-    expect(dodgeSwipe(10, -24)).toBe("jump");
-    expect(dodgeSwipe(0, 50)).toBeNull();
+  it("snaps a drag to lanes and recognizes an upward flick", () => {
+    expect(dragLane(1, 0, 400)).toBe(1);
+    expect(dragLane(1, 40, 400)).toBe(1);
+    expect(dragLane(1, 60, 400)).toBe(2);
+    expect(dragLane(1, -60, 400)).toBe(0);
+    expect(dragLane(0, 400, 400)).toBe(2);
+    expect(dragLane(2, -999, 400)).toBe(0);
+    expect(isFlick(4, -31, 120)).toBe(true);
+    expect(isFlick(4, -31, 200)).toBe(false);
+    expect(isFlick(40, -31, 100)).toBe(false);
+    expect(isFlick(0, 40, 100)).toBe(false);
   });
 
   it("never lets the Landmark combo make a third wave in a row", () => {

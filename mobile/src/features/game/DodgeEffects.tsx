@@ -1,6 +1,6 @@
 import React from "react";
 import { Animated as RNAnimated, Image, Platform, StyleSheet, Text, View } from "react-native";
-import Animated, { useAnimatedProps, useAnimatedStyle, type SharedValue } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
 import Svg, { Circle, Defs, Ellipse, Pattern, RadialGradient, Rect, Stop } from "react-native-svg";
 import { gameArt, vesselParts } from "../../art/manifest";
 import { crackOverlays } from "../../art/crackOverlays";
@@ -8,7 +8,7 @@ import type { VesselKind } from "../../components/Vessel";
 import type { BallKind } from "../../services/game";
 import { C, sans, serif } from "../../theme";
 import { BOSS_Y, FLIGHT, GROUND, LANES, type Attack, type FightFrame, type Flight } from "./dodgeFightRules";
-import { fightHandPoint, RELEASE_ANGLE, RIG_CANVAS, RIG_FEET, RIG_WIDTH, type HandGeometry } from "./fightRigs";
+import { fightHandPoint, RELEASE_ANGLE, RIG_CANVAS, RIG_FEET, RIG_WIDTH, throwPose, type FightRig } from "./fightRigs";
 import { RestoreLightBurst } from "./RestoreResult";
 
 type Scene = { width: number; height: number; motion: SharedValue<FightFrame>; reduced: boolean };
@@ -16,9 +16,6 @@ const lerp = (a: number, b: number, t: number) => {
   "worklet";
   return a + (b - a) * t;
 };
-const FillCircle = Animated.createAnimatedComponent(Circle);
-const fillLength = Math.PI * 36;
-const motes = Array.from({ length: 6 }, (_, i) => i / 6);
 
 export function FightShadow({ kind }: { kind: "boss" | "player" }) {
   const id = `fight-${kind}-shadow`;
@@ -112,75 +109,49 @@ export function FightBoss({ width, height, motion, reduced, vessel, health, warn
   </View>;
 }
 
-type BallScene = Scene & { hand: HandGeometry };
+type BallScene = Scene & { figure: FightRig };
 const ballSize = (width: number) => width * .085;
+/** The ball in the hand before it's thrown is 20% smaller than the flying ball (Roy, 2026-11-20). */
+const HELD_SCALE = .8;
 
-function handAt(width: number, height: number, lane: number, jump: number, hand: HandGeometry, angle: number) {
+/** A point on the rig (1024 canvas) placed on the stage, for a figure at lane position x and jump height. */
+function rigAt(width: number, height: number, x: number, jump: number, point: readonly [number, number]) {
   "worklet";
   const scale = width * RIG_WIDTH / RIG_CANVAS;
-  const [x, y] = fightHandPoint(hand, angle);
-  return [lane * width + (x - RIG_CANVAS / 2) * scale,
-    height * (GROUND - jump * .17) + (y - RIG_FEET) * scale] as const;
+  return [x * width + (point[0] - RIG_CANVAS / 2) * scale,
+    height * (GROUND - jump * .17) + (point[1] - RIG_FEET) * scale] as const;
+}
+/** Where the ball sits in the cock pose, and where it leaves the hand on release. */
+function heldPoint(figure: FightRig) {
+  return figure.throw ? figure.throw[0].ball : fightHandPoint(figure.hand, RELEASE_ANGLE);
+}
+function releasePoint(figure: FightRig) {
+  return figure.throw ? figure.throw[1].ball : fightHandPoint(figure.hand, RELEASE_ANGLE);
 }
 
-function Mote({ offset, width, height, motion, hand }: Omit<BallScene, "reduced"> & { offset: number }) {
+/** The next ball shows in the hand only during the cock pose, just before it flies. */
+export function HeldBall({ width, height, motion, figure, ball }: BallScene & { ball: BallKind }) {
+  const size = ballSize(width) * HELD_SCALE;
+  const point = heldPoint(figure);
   const style = useAnimatedStyle(() => {
-    const { now, x, charge, jump, wind, scatterAt, scatterX } = motion.value;
-    const scatter = Math.min(1, (now - scatterAt) / .25);
-    const k = (now * 1.6 + offset) % 1;
-    const angle = offset * Math.PI * 2 + now * 1.4;
-    const r = width * (scatter < 1 ? lerp(.02, .22, scatter) : lerp(.18, .02, k));
-    const opacity = scatter < 1 ? 1 - scatter : Math.sin(k * Math.PI) * Math.min(1, charge * 2);
-    const [handX, handY] = handAt(width, height, scatter < 1 ? scatterX : x, jump, hand, wind * RELEASE_ANGLE);
+    const { now, x, jump, throwAt, nextThrowAt } = motion.value;
+    const [handX, handY] = rigAt(width, height, x, jump, point);
     return {
-      opacity,
-      transform: [
-        { translateX: handX + Math.cos(angle) * r },
-        { translateY: handY + Math.sin(angle) * r * .9 },
-        { scale: lerp(.5, 1.1, k) },
-      ],
+      opacity: throwPose(now, throwAt, nextThrowAt) === 0 ? 1 : 0,
+      transform: [{ translateX: handX - size / 2 }, { translateY: handY - size / 2 }],
     };
   });
-  return <Animated.View style={[styles.mote, { width: width * .018, height: width * .018 }, style]} />;
+  return <Animated.Image pointerEvents="none" source={gameArt.ball[ball]} resizeMode="contain"
+    style={[{ position: "absolute", left: 0, top: 0, width: size, height: size }, style]} />;
 }
 
-export function GatherBall({ width, height, motion, reduced, hand, ball }: BallScene & { ball: BallKind }) {
+function InFlight({ width, height, motion, reduced, figure, flight, delay = 0 }: BallScene & { flight: Flight; delay?: number }) {
   const size = ballSize(width);
-  const gather = useAnimatedStyle(() => {
-    const { now, x, jump, charge, wind } = motion.value;
-    const p = 1 - (1 - charge) ** 2;
-    const beat = reduced ? 0 : Math.sin(now * lerp(6, 22, charge)) * .05 * charge * (1 - wind);
-    const [handX, handY] = handAt(width, height, x, jump, hand, reduced ? 0 : wind * RELEASE_ANGLE);
-    return {
-      opacity: Math.min(1, charge * 4),
-      transform: [
-        { translateX: handX - size / 2 },
-        { translateY: handY - size / 2 },
-        { scale: lerp(.35, 1, p) + beat },
-      ],
-    };
-  });
-  const fill = useAnimatedProps(() => ({ strokeDashoffset: fillLength * (1 - motion.value.charge) }));
-  return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-    {!reduced && motes.map((offset) => <Mote key={offset} offset={offset} width={width} height={height} motion={motion} hand={hand} />)}
-    <Animated.View style={[{ position: "absolute", width: size, height: size }, gather]}>
-      <View style={{ position: "absolute", width: "210%", height: "210%", top: "-55%", left: "-55%" }}><Glow /></View>
-      <Svg width="144%" height="144%" viewBox="0 0 40 40" style={{ position: "absolute", top: "-22%", left: "-22%" }}>
-        <Circle cx={20} cy={20} r={18} stroke="rgba(255,244,214,.35)" strokeWidth={2} fill="none" />
-        <FillCircle cx={20} cy={20} r={18} stroke="#FFF4D6" strokeWidth={2.6} fill="none"
-          strokeLinecap="round" strokeDasharray={[fillLength, fillLength]} transform="rotate(-90 20 20)" animatedProps={fill} />
-      </Svg>
-      <Image source={gameArt.ball[ball]} style={styles.layer} resizeMode="contain" />
-    </Animated.View>
-  </View>;
-}
-
-function InFlight({ width, height, motion, reduced, hand, flight, delay = 0 }: BallScene & { flight: Flight; delay?: number }) {
-  const size = ballSize(width);
+  const point = releasePoint(figure);
   const style = useAnimatedStyle(() => {
     const age = motion.value.now - flight.at - delay;
     const k = Math.max(0, Math.min(1, age / FLIGHT));
-    const [startX, startY] = handAt(width, height, flight.x, 0, hand, reduced ? 0 : RELEASE_ANGLE);
+    const [startX, startY] = rigAt(width, height, flight.x, 0, point);
     return {
       opacity: age < 0 ? 0 : delay === 0 ? 1 : .36 - delay * 1.6,
       transform: [
@@ -259,15 +230,6 @@ function ShotOrb({ size }: { size: number }) {
   </Svg>;
 }
 
-/** A glowing plum ring drawn as an ellipse with a soft outer halo. */
-function WaveRing({ w, h }: { w: number; h: number }) {
-  return <Svg width={w} height={h}>
-    <Ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 9} ry={h / 2 - 9} fill="none" stroke={C.plum} strokeOpacity={.3} strokeWidth={16} />
-    <Ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 9} ry={h / 2 - 9} fill="rgba(110,43,63,.1)" stroke="#3B1E3D" strokeWidth={6} />
-    <Ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 9} ry={h / 2 - 9} fill="none" stroke="#8C5B8F" strokeOpacity={.55} strokeWidth={2} />
-  </Svg>;
-}
-
 /** The demo's jump warning: a striped band across the ground at the player's feet, shown for the whole wave. */
 function JumpBand({ width, height, motion, reduced, warn }: Scene & { warn: string }) {
   const pulse = useAnimatedStyle(() => ({ opacity: reduced ? 1 : .75 + .25 * Math.sin(motion.value.now * 16) }));
@@ -283,32 +245,41 @@ function JumpBand({ width, height, motion, reduced, warn }: Scene & { warn: stri
   </Animated.View>;
 }
 
-function DarkWave({ width, height, motion, reduced, attack, warn }: Scene & { attack: Attack; warn: string }) {
-  const ringW = width * 1.4;
-  const ringH = width * .308;
-  // The plum ring spreads across the ground from under the capsule and reaches the player's feet at impact.
-  const ring = useAnimatedStyle(() => {
-    const k = Math.max(0, Math.min(1, (motion.value.now - attack.at - attack.warning) / attack.travel));
-    return {
-      opacity: k > 0 ? Math.min(1, k * 5) : 0,
-      transform: [
-        { translateY: lerp((BOSS_Y + .12) * height, GROUND * height, k) - ringH / 2 },
-        { scale: lerp(.2, 1, k) },
-      ],
-    };
+// The spike art (1536 wide): the ground line is row ~632 and the spikes fill rows 470–645.
+const SPIKE_CANVAS = 1536, SPIKE_GROUND = 632, SPIKE_TOP = 470, SPIKE_BASE = 645, SPIKE_SPAN = 1.06;
+const SPIKE_UP = .12, SPIKE_HOLD = .2, SPIKE_DOWN = .18;
+
+/**
+ * The jump attack's hit: spikes burst up from the ground across the stage at the player's feet, hold, then sink.
+ * Nothing shows on the ground during the warning (Roy removed the crack). `hitAt` is the coming hit while a
+ * jump attack is on; afterwards the frame's spikeAt carries the last hit.
+ */
+export function JumpSpikes({ width, height, motion, reduced, hitAt }: Scene & { hitAt: number | null }) {
+  const span = width * SPIKE_SPAN;
+  const scale = span / SPIKE_CANVAS;
+  const tall = (SPIKE_BASE - SPIKE_TOP) * scale;
+  const top = height * GROUND - (SPIKE_GROUND - SPIKE_TOP) * scale;
+  const style = useAnimatedStyle(() => {
+    const { now, spikeAt } = motion.value;
+    let rise = 0;
+    if (hitAt !== null) rise = Math.max(0, Math.min(1, (now - (hitAt - SPIKE_UP)) / SPIKE_UP));
+    else {
+      const since = now - spikeAt;
+      rise = since < SPIKE_HOLD ? 1 : Math.max(0, 1 - (since - SPIKE_HOLD) / SPIKE_DOWN);
+    }
+    if (reduced) rise = rise > 0 ? 1 : 0;
+    return { opacity: rise > 0 ? 1 : 0, transform: [{ translateY: (1 - rise) * tall }] };
   });
-  return <>
-    <JumpBand width={width} height={height} motion={motion} reduced={reduced} warn={warn} />
-    <Animated.View style={[{ position: "absolute", top: 0, left: -width * .2 }, ring]}>
-      <WaveRing w={ringW} h={ringH} />
-    </Animated.View>
-  </>;
+  return <View pointerEvents="none" style={{ position: "absolute", left: (width - span) / 2, top, width: span, height: tall, overflow: "hidden" }}>
+    <Animated.Image source={gameArt.jumpSpikes} resizeMode="stretch"
+      style={[{ position: "absolute", left: 0, top: -SPIKE_TOP * scale, width: span, height: span * 1024 / SPIKE_CANVAS }, style]} />
+  </View>;
 }
 
 export function FightAttack(props: Scene & { attack: Attack; label: string; warn: string }) {
   const { label, warn, ...scene } = props;
   return <View pointerEvents="none" accessible accessibilityLiveRegion="assertive" accessibilityLabel={label} style={StyleSheet.absoluteFill}>
-    {scene.attack.kind === "wave" ? <DarkWave {...scene} warn={warn} />
+    {scene.attack.kind === "wave" ? <JumpBand {...scene} warn={warn} />
       // A triple can't be dodged, so it shows one "brace" pill in the middle instead of three "move" pills.
       : scene.attack.lanes.map((lane) => <AimedShot key={lane} {...scene} lane={lane}
         warn={scene.attack.kind !== "triple" || lane === 1 ? warn : null} />)}
@@ -341,7 +312,6 @@ const styles = StyleSheet.create({
   warning: { fontFamily: sans, fontSize: 12, fontWeight: "700", color: C.white, paddingHorizontal: 8, paddingVertical: 3, overflow: "hidden", borderRadius: 20 },
   bandText: { fontSize: 14, paddingHorizontal: 12, backgroundColor: C.ink },
   layer: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
-  mote: { position: "absolute", backgroundColor: "#FFF4D6", borderRadius: 8, shadowColor: C.brass, shadowOpacity: 1, shadowRadius: 5, shadowOffset: { width: 0, height: 0 } },
   damage: { position: "absolute", width: "100%", textAlign: "center", fontFamily: serif, fontSize: 18, fontWeight: "700", color: C.white,
     textShadowColor: C.plum, textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 },
   praise: { position: "absolute", width: "100%", textAlign: "center", fontFamily: serif, fontSize: 28, fontWeight: "700",

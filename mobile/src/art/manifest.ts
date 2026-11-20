@@ -2220,6 +2220,8 @@ export const gameArt = {
   /** Ready to spin (ink blue); the purple file is the after-spin state. */
   waypostGemBlue: require('../../../public/art/game/waypost-gem-blue.webp'),
   landmarkGem: require('../../../public/art/game/landmark-gem.webp'),
+  /** The jump attack: spikes that burst up from the ground at the player's feet (PR #188, option B; 1536 wide). */
+  jumpSpikes: require('../../../public/art/game/jump-spikes.webp'),
   wheel: {
     park: require('../../../public/art/game/wheel/scene-park.webp'),
     garden: require('../../../public/art/game/wheel/scene-garden.webp'),

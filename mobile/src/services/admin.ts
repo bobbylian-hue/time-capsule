@@ -70,7 +70,9 @@ export type WaveConfig = { wave_minutes: number;
   /** Copies a catch gives (HL-C2). */
   copies_per_catch?: number; spawn_chance: number; weights: Record<Rarity, number>; nearby_max: number;
   /** A wave length chosen but not started yet: it starts at a moment that ends a wave under both lengths. */
-  next_length?: { minutes: number; starts_at: string } | null };
+  next_length?: { minutes: number; starts_at: string } | null;
+  /** Wax balls a common Waypost spin gives, picked between min and max (DF3: 10). */
+  spin_wax_min?: number; spin_wax_max?: number };
 /** A place vessels can be assigned to: a country with several cities (Taiwan), or a city. */
 export type SpawnPlace = { id: string; parent: string | null; name_zh: string; name_en: string; country_zh: string; country_en: string; has_spots: boolean };
 export type Spawning = {
@@ -207,6 +209,8 @@ export const adminEdit = {
   change: (change: SpawnChange, note: string | null): Promise<void> =>
     ADMIN_SAMPLE ? sample.change(change, note) : rpc(CHANGE_RPC[change.call], { ...changeArgs(change), p_note: note }),
   /** Returns when the new length starts. */
+  setSpinReward: (min: number, max: number, note: string | null): Promise<void> =>
+    ADMIN_SAMPLE ? sample.setSpinReward(min, max, note) : rpc("admin_set_spin_reward", { p_wax_min: min, p_wax_max: max, p_note: note }),
   setWaveLength: (minutes: number, note: string | null): Promise<string> =>
     ADMIN_SAMPLE ? sample.setWaveLength(minutes, note) : rpc("admin_wave_length_set", { p_minutes: minutes, p_note: note }),
   undo: (action: number, note: string | null): Promise<void> =>

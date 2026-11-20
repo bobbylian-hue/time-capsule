@@ -116,7 +116,8 @@ const parentOf = (id: string) => PLACES.find((p) => p.id === id)?.parent ?? null
 const poolFor = (city: string, list: SpawnRule[]) => list.filter((r) => (r.places ?? []).some((p) => p === city || p === parentOf(city)));
 const withRegions = (list: SpawnRule[]) => list.map((r) => ({ ...r, regions: REGIONS.filter((c) => (r.places ?? []).some((p) => p === c.id || p === parentOf(c.id))).map((c) => c.id) }));
 
-let config: WaveConfig = { wave_minutes: 10, spawn_chance: 0.55, weights: { common: 70, uncommon: 25, rare: 5 }, nearby_max: 6, next_length: null };
+let config: WaveConfig = { wave_minutes: 10, spawn_chance: 0.55, weights: { common: 70, uncommon: 25, rare: 5 }, nearby_max: 6, next_length: null,
+  spin_wax_min: 10, spin_wax_max: 10 };
 const postState = new Map<string, MapWaypost[]>();
 const spotState = new Map<string, MapSpot[]>();
 function postsFor(region: Region): MapWaypost[] {
@@ -405,6 +406,15 @@ export const sample = {
         target_label: where ? `${name} · ${where}` : name, before: ruleSnapshot(old), after: ruleSnapshot(now), note });
     }
     ruleState = next.list; config = next.cfg;
+    await pause(null);
+  },
+  setSpinReward: async (min: number, max: number, note: string | null) => {
+    canEdit();
+    if (!Number.isInteger(min) || !Number.isInteger(max) || min < 0 || max > 50 || max < min) fail("bad_rule");
+    const before = { spin_wax_min: config.spin_wax_min, spin_wax_max: config.spin_wax_max };
+    config = { ...config, spin_wax_min: min, spin_wax_max: max };
+    log({ action: "config.spin", target_type: "config", target_id: "spin", target_label: "Waypost spin",
+      before, after: { spin_wax_min: min, spin_wax_max: max }, note });
     await pause(null);
   },
   setWaveLength: async (minutes: number, note: string | null) => {

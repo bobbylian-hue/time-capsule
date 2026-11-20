@@ -12,6 +12,7 @@ import { useAdminText, type AdminText } from "./strings";
 import { AButton, Card, Failed, Loading, Page, Pill, Section, Segmented, Stat, VesselThumb, useColumns, useLoad, type Tone } from "./ui";
 import { PlaceEditor, RuleSheet, WaveEditButtons } from "./SpawnEditor";
 import { ADMIN_HUNT_LOOP } from "../../services/adminHuntLoop";
+import { SpinButton, spinOf } from "./SpinControls";
 import { CopiesButton, VesselCopies, perCatchOf } from "./CopiesControls";
 import { useHuntLoopText } from "./huntLoopStrings";
 
@@ -35,7 +36,7 @@ export default function CapsulesScreen() {
       {mayEdit && <AButton small tone={editing ? "blue" : "ghost"} title={editing ? a.ed.done : a.ed.edit} onPress={() => setEditing((x) => !x)} />}
     </View>}>
     {data.error ? <Failed onRetry={data.reload} /> : !data.data ? <Loading /> : <>
-      <WaveSettings config={data.data.config}>{on && <WaveEditButtons data={data.data} cities={cities} onSaved={saved} />}{on && ADMIN_HUNT_LOOP && <CopiesButton config={data.data.config} onSaved={saved} />}</WaveSettings>
+      <WaveSettings config={data.data.config}>{on && <WaveEditButtons data={data.data} cities={cities} onSaved={saved} />}{on && ADMIN_HUNT_LOOP && <CopiesButton config={data.data.config} onSaved={saved} />}{on && <SpinButton config={data.data.config} onSaved={saved} />}</WaveSettings>
       {view === "vessel" ? <ByVessel data={data.data} cities={cities} onSaved={on ? saved : undefined} />
         : on ? <PlaceEditor data={data.data} cities={cities} onSaved={saved} />
         : <ByPlace data={data.data} cities={cities} focus={place} />}
@@ -51,7 +52,8 @@ function WaveSettings({ config, children }: { config: Spawning["config"]; childr
   const at = next ? new Date(next.starts_at) : null;
   const items = [a.waveEvery(config.wave_minutes), a.showChance(Math.round(config.spawn_chance * 100)),
     a.weights(config.weights.common, config.weights.uncommon, config.weights.rare), a.nearbyMax(config.nearby_max),
-    ...(ADMIN_HUNT_LOOP ? [h.copiesPerCatch(perCatchOf(config))] : [])];
+    ...(ADMIN_HUNT_LOOP ? [h.copiesPerCatch(perCatchOf(config))] : []),
+    ...(spinOf(config) ? [a.spinReward(...spinOf(config)!)] : [])];
   return <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" }}>
     <Text style={{ fontFamily: serif, fontSize: 14, color: C.ink, marginRight: 4 }}>{a.waveSettings}</Text>
     {items.map((x) => <Pill key={x} label={x} />)}
