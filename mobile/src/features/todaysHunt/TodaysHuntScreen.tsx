@@ -59,7 +59,7 @@ export function TodaysHuntScreen({ city, language, map, gameState, onState, onMa
   const [note, setNote] = useState("");
   const [fast, setFast] = useState(false);
   const [friends, setFriends] = useState<HuntFriend[] | null>(null);
-  const [catching, setCatching] = useState({ n: 0, caught: 0 });
+  const [catching, setCatching] = useState<{ n: number; caught: number; results: boolean[] }>({ n: 0, caught: 0, results: [] });
   const [score, setScore] = useState(0);
   const [flying, setFlying] = useState<number | null>(null);
   const speed = useRef(1);
@@ -196,7 +196,7 @@ export function TodaysHuntScreen({ city, language, map, gameState, onState, onMa
   // Catch from home: one free throw screen per capsule, then the count goes to the server.
   const catchCount = quest?.catch_count ?? 3;
   const caughtOne = (caught: boolean) => {
-    const now = { n: catching.n + 1, caught: catching.caught + (caught ? 1 : 0) };
+    const now = { n: catching.n + 1, caught: catching.caught + (caught ? 1 : 0), results: [...catching.results, caught] };
     setCatching(now);
     if (now.n >= catchCount) void endCatch(now.caught);
   };
@@ -233,7 +233,8 @@ export function TodaysHuntScreen({ city, language, map, gameState, onState, onMa
     };
     const props = { capsule, state: gameState ?? FALLBACK_STATE, onState, onClose: caughtOne };
     const onQuit = () => void endCatch(catching.caught);
-    return <DodgeFightScreen key={catching.n} {...props} avatar={profile?.avatar} home={{ onQuit, onBack: () => setPhase("card") }} />;
+    return <DodgeFightScreen key={catching.n} {...props} avatar={profile?.avatar}
+      home={{ onQuit, onBack: () => setPhase("card"), index: catching.n, total: catchCount, results: catching.results }} />;
   }
 
   const cardStyle = {
@@ -275,7 +276,7 @@ export function TodaysHuntScreen({ city, language, map, gameState, onState, onMa
       <SafeAreaView edges={["bottom"]} pointerEvents="box-none" style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
         {phase === "card" && quest && <Animated.View style={[card, cardStyle]}>
           <QuestCard quest={quest} zh={zh} result={result} picked={picked} marks={marks} text={text} busy={busy} catchCount={catchCount}
-            caught={catching.caught} onText={setText} onChoose={choose} onGuess={guess} onCatch={() => { setCatching({ n: 0, caught: 0 }); setPhase("catch"); }} />
+            caught={catching.caught} onText={setText} onChoose={choose} onGuess={guess} onCatch={() => { setCatching({ n: 0, caught: 0, results: [] }); setPhase("catch"); }} />
           {result && <View style={{ gap: 8 }}>
             <Text style={{ fontFamily: serif, fontSize: 17, color: result.ok ? C.plum : C.ink }}>{result.ok ? t.right : t.wrong} · +{result.points}</Text>
             {!(result.ok && quest.type === "question") && !!answerText(quest, result) && <Text style={{ fontFamily: sans, fontSize: 14, color: C.ink }}>{t.answerWas(answerText(quest, result))}</Text>}

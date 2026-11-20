@@ -3,10 +3,28 @@ import type { ImageSourcePropType } from "react-native";
 type Point = readonly [number, number];
 export type HandGeometry = { shoulder: Point; ball: Point };
 type Limb = { source: ImageSourcePropType; pivot: Point };
+/** One whole-body throw pose, split at the waist so the upper half also plays over the jump legs. */
+export type ThrowPose = { upper: ImageSourcePropType; lower: ImageSourcePropType; ball: Point };
 export type FightRig = {
   body: ImageSourcePropType; armDown: ImageSourcePropType; armUp: ImageSourcePropType;
   legLeft: Limb; legRight: Limb; legsJump: ImageSourcePropType; hand: HandGeometry;
+  /** Cock, release, follow-through, recover (PR #189). A rig without them throws with the single raised arm. */
+  throw?: readonly [ThrowPose, ThrowPose, ThrowPose, ThrowPose];
 };
+
+/**
+ * The whole-body throw's timing in seconds, as drawn: cock starts this long before the ball leaves,
+ * then release, follow-through and recover run back to back from the moment it leaves.
+ */
+export const THROW_COCK = .14;
+export const THROW_ENDS = [.08, .23, .36] as const;
+/** Which throw pose shows now: 0–3, or -1 for the standing pose. */
+export function throwPose(now: number, throwAt: number, nextThrowAt: number) {
+  "worklet";
+  const after = now - throwAt;
+  if (after >= 0 && after < THROW_ENDS[2]) return after < THROW_ENDS[0] ? 1 : after < THROW_ENDS[1] ? 2 : 3;
+  return nextThrowAt - now <= THROW_COCK ? 0 : -1;
+}
 
 // Paths were checked in design/art/_checks/fight-player-assets.json. Coordinates are
 // from the corresponding assembled masters in design/art/manifest.json (1024 px).
@@ -24,6 +42,12 @@ const rigs: Record<string, FightRig> = {
     legRight: { source: require("../../../../public/art/characters/fight-01-leg-right.webp"), pivot: [551, 531] },
     legsJump: require("../../../../public/art/characters/fight-01-legs-jump.webp"),
     hand: { shoulder: [566, 393], ball: [604, 119] },
+    throw: [
+      { upper: require("../../../../public/art/characters/fight-01-throw-1-upper.webp"), lower: require("../../../../public/art/characters/fight-01-throw-1-lower.webp"), ball: [658, 264] },
+      { upper: require("../../../../public/art/characters/fight-01-throw-2-upper.webp"), lower: require("../../../../public/art/characters/fight-01-throw-2-lower.webp"), ball: [530, 219] },
+      { upper: require("../../../../public/art/characters/fight-01-throw-3-upper.webp"), lower: require("../../../../public/art/characters/fight-01-throw-3-lower.webp"), ball: [377, 616] },
+      { upper: require("../../../../public/art/characters/fight-01-throw-4-upper.webp"), lower: require("../../../../public/art/characters/fight-01-throw-4-lower.webp"), ball: [642, 608] },
+    ],
   },
   "02": {
     body: require("../../../../public/art/characters/fight-02-body.webp"),

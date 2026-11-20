@@ -8,9 +8,9 @@ export const LANES = [.2, .5, .8] as const;
 export const GROUND = .865;
 export const BOSS_Y = .31;
 export const LIVES = 3;
-export const CHARGE = .95;
-export const WIND = .14;
-export const THROW_RECOVERY = .16;
+/** A ball leaves every second, moving or not (DF3). The first one goes soon after the fight starts. */
+export const FIRE = 1;
+export const FIRST_THROW = .8;
 export const MOVE = .13;
 export const JUMP = .7;
 export const FLIGHT = .62;
@@ -18,7 +18,7 @@ export const INVULNERABLE = 1;
 export const LANDMARK_SECONDS = 150;
 
 export const fightHealth = (mode: FightMode, rarity: Rarity) =>
-  mode === "landmark" ? 20 : mode === "home" ? 5 : { common: 5, uncommon: 6, rare: 7 }[rarity];
+  mode === "landmark" ? 40 : mode === "home" ? 10 : { common: 10, uncommon: 12, rare: 14 }[rarity];
 
 export type AttackKind = "shot" | "double" | "wave" | "triple";
 type Weights = Record<AttackKind, number>;
@@ -50,15 +50,16 @@ export function pickAttack(table: Weights, recent: readonly AttackKind[], allowT
   return options[options.length - 1];
 }
 
-export function fightHealthTicks(mode: FightMode, maxHp: number) {
-  const section = mode === "landmark" ? 5 : 1;
-  return Array.from({ length: Math.ceil(maxHp / section) - 1 }, (_, index) => (index + 1) * section / maxHp);
+/** Drag on the stage: the figure moves one lane for about every quarter of the stage width dragged. */
+export const LANE_DRAG = .24;
+export function dragLane(startLane: number, dx: number, width: number) {
+  return Math.max(0, Math.min(2, startLane + Math.round(dx / (width * LANE_DRAG))));
 }
-
-export function dodgeSwipe(dx: number, dy: number): DodgeInput | null {
-  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return null;
-  if (Math.abs(dx) > Math.abs(dy)) return dx < 0 ? "left" : "right";
-  return dy < 0 ? "jump" : null;
+/** A quick upward flick jumps: at least 30 px up within 160 ms, mostly vertical. */
+export const FLICK_PX = 30;
+export const FLICK_MS = 160;
+export function isFlick(dx: number, dy: number, ms: number) {
+  return ms <= FLICK_MS && -dy >= FLICK_PX && -dy > Math.abs(dx);
 }
 
 export const otherBall = (ball: BallKind): BallKind => ball === "wax" ? "gold" : "wax";
@@ -77,12 +78,11 @@ export type Attack = {
 };
 export type Flight = { at: number; x: number; ball: BallKind };
 export type FightFrame = {
-  now: number; x: number; jump: number; charge: number; wind: number; moving: number;
-  scatterAt: number; scatterX: number; hurtAt: number; throwAt: number; hitAt: number;
+  now: number; x: number; jump: number; moving: number;
+  hurtAt: number; throwAt: number; nextThrowAt: number; hitAt: number; spikeAt: number;
 };
 export const initialFrame: FightFrame = {
-  now: 0, x: .5, jump: 0, charge: 0, wind: 0, moving: 0,
-  scatterAt: -10, scatterX: .5, hurtAt: -10, throwAt: -10, hitAt: -10,
+  now: 0, x: .5, jump: 0, moving: 0, hurtAt: -10, throwAt: -10, nextThrowAt: FIRST_THROW, hitAt: -10, spikeAt: -10,
 };
 
 /** The demo's active-play clock. All positions are fractions and all times are seconds. */
@@ -105,7 +105,6 @@ export class DodgeFight {
   private moveAt = -10;
   private moveFrom = .5;
   private jumpAt = -10;
-  private gatherFrom = 0;
   private nextAttackAt = 1.8;
   private comboShot = false;
   private recent: AttackKind[] = [];
@@ -142,30 +141,25 @@ export class DodgeFight {
 
   input(input: DodgeInput) {
     if (this.end || this.lives === 0) return;
-    const { now, x } = this.frame;
+    const { now } = this.frame;
     if (input === "jump") {
       if (now - this.jumpAt < JUMP) return;
       this.jumpAt = now;
-      this.interrupt(now + JUMP);
       return;
     }
-    const lane = Math.max(0, Math.min(2, this.lane + (input === "left" ? -1 : 1)));
-    if (lane === this.lane) return;
-    this.lane = lane;
-    this.moveFrom = x;
-    this.moveAt = now;
-    this.interrupt(now + MOVE);
+    this.moveTo(this.lane + (input === "left" ? -1 : 1));
   }
 
-  private interrupt(until: number) {
-    const frame = this.frame;
-    if (frame.charge > .15) {
-      frame.scatterAt = frame.now;
-      frame.scatterX = frame.x;
-    }
-    frame.charge = 0;
-    frame.wind = 0;
-    this.gatherFrom = Math.max(this.gatherFrom, until);
+  get currentLane() { return this.lane; }
+
+  /** Drag moves straight to a lane. Moving and jumping never stop the throwing. */
+  moveTo(target: number) {
+    if (this.end || this.lives === 0) return;
+    const lane = Math.max(0, Math.min(2, target));
+    if (lane === this.lane) return;
+    this.lane = lane;
+    this.moveFrom = this.frame.x;
+    this.moveAt = this.frame.now;
   }
 
   private announceAttack() {
@@ -195,8 +189,6 @@ export class DodgeFight {
   finish(end: FightEnd) {
     this.end = end;
     this.attack = this.flight = null;
-    this.frame.charge = 0;
-    this.frame.wind = 0;
   }
 
   /** Only advance while visible and playing. No timestamp from outside the fight enters these rules. */
@@ -224,6 +216,8 @@ export class DodgeFight {
     if (this.secondsLeft === 0) { this.finish("timeout"); return; }
 
     if (this.attack && now >= this.attack.at + this.attack.warning + this.attack.travel) {
+      // The jump attack's spikes burst up at this moment; a player still in the air clears them.
+      if (this.attack.kind === "wave") frame.spikeAt = now;
       const hit = this.attack.kind === "triple" ? true
         : this.attack.kind === "wave" ? jumpTime >= JUMP - .06
         : this.attack.lanes.some((lane) => Math.abs(frame.x - LANES[lane]) < .14);
@@ -231,7 +225,6 @@ export class DodgeFight {
       if (hit && now - frame.hurtAt >= INVULNERABLE) {
         frame.hurtAt = now;
         this.lives--;
-        this.interrupt(now);
         if (this.lives === 0) {
           this.attack = null;
           if (!this.flight) this.finish("lost");
@@ -244,21 +237,14 @@ export class DodgeFight {
     if (!ball && !this.flight) { this.finish("empty"); return; }
     if (!this.attack && now >= this.nextAttackAt) this.announceAttack();
 
-    if (!ball || move < 1 || jumpTime < JUMP) return;
-    const standing = Math.max(0, now - this.gatherFrom);
-    frame.charge = Math.min(1, standing / CHARGE);
-    frame.wind = Math.max(0, Math.min(1, (standing - CHARGE) / WIND));
-    if (standing < CHARGE + WIND) return;
-
+    if (!ball || now < frame.nextThrowAt || this.flight) return;
     this.flight = { at: now, x: frame.x, ball };
     if (this.mode !== "home") {
       this.stock[ball]--;
       this.used[ball]++;
     }
     this.selected = this.ball ?? ball;
-    this.gatherFrom = now + THROW_RECOVERY;
     frame.throwAt = now;
-    frame.charge = 0;
-    frame.wind = 0;
+    frame.nextThrowAt = now + FIRE;
   }
 }
