@@ -13,14 +13,9 @@ export type GameState = { xp: number; level: number; xp_to_next: number; wax_bal
 export type CorruptedCapsule = { id: string; vessel: string; rarity: Rarity; lat: number; lng: number; expires_at: string; attempts_left: number };
 export type Waypost = { id: string; kind: "common" | "landmark"; name_zh: string; name_en: string; lat: number; lng: number; cooldown_until: string | null; place?: string | null; scene?: string | null };
 export type Nearby = { corrupted: CorruptedCapsule[]; wayposts: Waypost[] };
-export type ThrowResult = {
-  result: "restored" | "broke_free" | "miss";
-  /** Copies after the catch; null for an unlimited vessel (a starter or an earned Landmark vessel). */
-  vessel: string; copies: number | null; stars: number; is_new: boolean; xp_gained: number;
-  attempts_left: number; state: GameState;
-};
+/** What a won fight gives. Copies are null for an unlimited vessel (a starter or an earned Landmark vessel). */
+export type Restored = { vessel: string; copies: number | null; stars: number; is_new: boolean; xp_gained: number };
 export type LandmarkAttempt = { id: string; waypost: string; vessel: string; cracks: number; expires_at: string };
-export type LandmarkHit = { result: "hit" | "won"; cracks: number; vessel: string; copies: number | null; stars: number; is_new: boolean; xp_gained: number; state: GameState };
 // Normalize names from the old server until the timed-hunt migration ships.
 export const cityHuntNameZh = (name: string) => name.replace("城市尋寶", "城市定向");
 export type PassportHunt = { id: string; name_zh: string; name_en: string; at: string };
@@ -44,7 +39,6 @@ const emit = (e: GameEvent) => { listeners.forEach((l) => { try { l(e); } catch 
 export const onGameEvent = (l: (e: GameEvent) => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
 const spots = new Map<string, { lat: number; lng: number }>();
 const posts = new Map<string, { lat: number; lng: number }>();
-const attemptPost = new Map<string, string>();
 const live = async () => {
   const present = !!(await supabase.auth.getSession()).data.session;
   if (!present && !__DEV__) throw new GameError("unknown");
@@ -69,12 +63,10 @@ type NearbyPayload = {
 const STAR_COPIES = [1, 3, 6, 10, 15];
 const starsFor = (copies: number) => STAR_COPIES.filter((c) => copies >= c).length;
 const XP_PER_LEVEL = 1000;
-const THROW_CHANCE: Record<Rarity, number> = { common: .55, uncommon: .35, rare: .18 };
 
 const dev = {
   xp: 0, wax: 30, gold: 2, seeded: false,
   corrupted: [] as CorruptedCapsule[], wayposts: [] as Waypost[], copies: new Map<string, number>(), publicCapsules: [] as DevLetter[],
-  attempts: new Map<string, { attempt: LandmarkAttempt; cracks: number }>(),
 };
 const stateNow = (): GameState => ({
   xp: dev.xp, level: Math.floor(dev.xp / XP_PER_LEVEL) + 1,
@@ -154,52 +146,6 @@ export const game = {
     dev.wayposts.forEach((w) => posts.set(w.id, { lat: w.lat, lng: w.lng }));
     return { corrupted: dev.corrupted.filter((c) => c.attempts_left > 0), wayposts: dev.wayposts.map((w) => ({ ...w })) };
   },
-  async throwBall(args: { id: string; ball: BallKind; ring: number; hit: boolean }): Promise<ThrowResult> {
-    const out = await game.throwOnce(args);
-    const at = spots.get(args.id);
-    if (out.result === "restored" && at) emit({ kind: "restore", ...at });
-    return out;
-  },
-  async throwOnce(args: { id: string; ball: BallKind; ring: number; hit: boolean }): Promise<ThrowResult> {
-    if (!args.id.startsWith("dev-") && await live()) {
-      const { data, error } = await supabase.rpc("corrupted_capsule_throw", { p_spawn: args.id, ...coords(), p_ball: args.ball, p_ring: args.ring, p_hit: args.hit });
-      fail(error);
-      const row = data?.[0];
-      if (!row) throw new GameError("unknown");
-      return {
-        result: row.result === "restored" ? "restored" : row.result === "miss" ? "miss" : "broke_free",
-        vessel: row.vessel, copies: row.copies, stars: row.stars ?? 0, is_new: row.is_new, xp_gained: row.xp_gained,
-        attempts_left: row.attempts_left, state: await liveState(),
-      };
-    }
-    const out = await game.devThrow(args);
-    return await live() ? { ...out, state: await liveState() } : out;
-  },
-  async devThrow(args: { id: string; ball: BallKind; ring: number; hit: boolean }): Promise<ThrowResult> {
-    const capsule = dev.corrupted.find((c) => c.id === args.id);
-    if (!capsule) throw new GameError("expired");
-    if (capsule.attempts_left <= 0) throw new GameError("no_attempts");
-    if (args.ball === "gold" ? dev.gold <= 0 : dev.wax <= 0) throw new GameError("no_balls");
-    if (args.ball === "gold") dev.gold -= 1; else dev.wax -= 1;
-    const base = { vessel: capsule.vessel, copies: dev.copies.get(capsule.vessel) ?? 0, is_new: false };
-    if (!args.hit) return { ...base, result: "miss", stars: starsFor(base.copies), xp_gained: 0, attempts_left: capsule.attempts_left, state: stateNow() };
-    capsule.attempts_left -= 1;
-    const ring = Math.max(0, Math.min(1, args.ring));
-    const restored = Math.random() < Math.min(.95, THROW_CHANCE[capsule.rarity] + ring * .35 + (args.ball === "gold" ? .2 : 0));
-    if (!restored) return { ...base, result: "broke_free", stars: starsFor(base.copies), xp_gained: 0, attempts_left: capsule.attempts_left, state: stateNow() };
-    const copies = base.copies + 1;
-    dev.copies.set(capsule.vessel, copies);
-    const is_new = copies === 1;
-    const xp_gained = 100 + (is_new ? 500 : 0);
-    dev.xp += xp_gained;
-    capsule.attempts_left = 0;
-    return { vessel: capsule.vessel, result: "restored", copies, stars: starsFor(copies), is_new, xp_gained, attempts_left: 0, state: stateNow() };
-  },
-  async landmarkStart(target: Waypost): Promise<LandmarkAttempt> {
-    const attempt = await game.landmarkStartOnce(target);
-    attemptPost.set(attempt.id, target.id);
-    return attempt;
-  },
   async landmarkStartOnce(target: Waypost): Promise<LandmarkAttempt> {
     if (await live()) {
       const { data, error } = await supabase.rpc("landmark_start", { p_waypost: target.id, ...coords() });
@@ -208,36 +154,20 @@ export const game = {
       if (!row) throw new GameError("unknown");
       return { id: row.attempt_id, waypost: target.id, vessel: LANDMARK_VESSEL[target.place ?? ""] ?? "hourglass", cracks: row.cracks, expires_at: row.expires_at };
     }
-    const attempt: LandmarkAttempt = { id: `dev-fight-${Date.now()}`, waypost: target.id, vessel: "bamboo-tower", cracks: 12, expires_at: new Date(Date.now() + 180_000).toISOString() };
-    dev.attempts.set(attempt.id, { attempt, cracks: attempt.cracks });
-    return attempt;
+    return { id: `dev-fight-${Date.now()}`, waypost: target.id, vessel: "bamboo-tower", cracks: 20, expires_at: new Date(Date.now() + 150_000).toISOString() };
   },
-  async landmarkHit(args: { attempt: string; ball: BallKind; ring: number }): Promise<LandmarkHit> {
-    const out = await game.landmarkHitOnce(args);
-    const post = attemptPost.get(args.attempt);
-    if (out.result === "won" && post) emit({ kind: "landmark", waypost: post });
-    return out;
-  },
-  async landmarkHitOnce(args: { attempt: string; ball: BallKind; ring: number }): Promise<LandmarkHit> {
-    if (await live()) {
-      const { data, error } = await supabase.rpc("landmark_hit", { p_attempt: args.attempt, ...coords(), p_ball: args.ball, p_ring: args.ring });
-      fail(error);
-      const row = data?.[0];
-      if (!row) throw new GameError("unknown");
-      return { result: row.result === "won" ? "won" : "hit", cracks: row.cracks, vessel: row.vessel ?? "", copies: row.copies, stars: row.stars ?? 0, is_new: row.is_new, xp_gained: row.xp_gained, state: await liveState() };
-    }
-    const fight = dev.attempts.get(args.attempt);
-    if (!fight || new Date(fight.attempt.expires_at).getTime() <= Date.now()) throw new GameError("expired");
-    if (args.ball === "gold" ? dev.gold <= 0 : dev.wax <= 0) throw new GameError("no_balls");
-    if (args.ball === "gold") dev.gold -= 1; else dev.wax -= 1;
-    fight.cracks = Math.max(0, fight.cracks - (args.ball === "gold" || args.ring >= .8 ? 2 : 1));
-    const vessel = fight.attempt.vessel;
-    if (fight.cracks > 0) return { result: "hit", cracks: fight.cracks, vessel, copies: 0, stars: 0, is_new: false, xp_gained: 0, state: stateNow() };
-    const copies = (dev.copies.get(vessel) ?? 0) + 1;
-    dev.copies.set(vessel, copies);
-    dev.xp += 2000;
-    dev.attempts.delete(args.attempt);
-    return { result: "won", cracks: 0, vessel, copies, stars: starsFor(copies), is_new: copies === 1, xp_gained: 2000, state: stateNow() };
+  /** Signed-out development: a won practice fight restores the sample capsule so the wave shrinks as it would live. */
+  devRestore(id: string): Restored | null {
+    const capsule = dev.corrupted.find((c) => c.id === id);
+    if (!capsule) return null;
+    capsule.attempts_left = 0;
+    const copies = (dev.copies.get(capsule.vessel) ?? 0) + 1;
+    dev.copies.set(capsule.vessel, copies);
+    const xp_gained = 100 + (copies === 1 ? 500 : 0);
+    dev.xp += xp_gained;
+    const at = spots.get(id);
+    if (at) emit({ kind: "restore", ...at });
+    return { vessel: capsule.vessel, copies, stars: starsFor(copies), is_new: copies === 1, xp_gained };
   },
   async collection(): Promise<Record<string, { copies: number | null; stars: number }>> {
     if (await live()) {
@@ -291,10 +221,6 @@ export const game = {
     return { wax, gold, state: stateNow() };
   },
 };
-
-/** DF1's migration ships separately. Keep the hosted RPCs opt-in until it is applied. */
-export const DODGE_FIGHT_RPC = process.env.EXPO_PUBLIC_DODGE_FIGHT === "1";
-export const DODGE_FIGHT = DODGE_FIGHT_RPC || (typeof __DEV__ !== "undefined" && __DEV__ && process.env.EXPO_PUBLIC_DODGE_FIGHT !== "0");
 
 export type DodgeTarget = { capsule: CorruptedCapsule; landmark?: Waypost };
 export type DodgeSession = { id: string; health: number; maxHealth: number; expiresAt: number; attemptsLeft: number };

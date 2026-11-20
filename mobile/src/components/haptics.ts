@@ -20,4 +20,9 @@ export const haptics = {
   },
   success: () => { playSound("success"); return native && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
   warn: () => { playSound("warn"); return native && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); },
+  /** Dodge fight moments: a throw leaves the hand, the capsule is hit, the player is hit, an attack is coming. */
+  fightThrow: () => { playSound("fightThrow"); return native && Haptics.selectionAsync(); },
+  fightHit: () => { playSound("fightHit"); return native && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); },
+  fightHurt: () => { playSound("fightHurt"); return native && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); },
+  fightWarn: () => { playSound("fightWarn"); },
 };

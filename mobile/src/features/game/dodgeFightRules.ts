@@ -18,7 +18,37 @@ export const INVULNERABLE = 1;
 export const LANDMARK_SECONDS = 150;
 
 export const fightHealth = (mode: FightMode, rarity: Rarity) =>
-  mode === "landmark" ? 20 : mode === "home" ? 3 : { common: 3, uncommon: 4, rare: 5 }[rarity];
+  mode === "landmark" ? 20 : mode === "home" ? 5 : { common: 5, uncommon: 6, rare: 7 }[rarity];
+
+export type AttackKind = "shot" | "double" | "wave" | "triple";
+type Weights = Record<AttackKind, number>;
+/** How often each attack comes. Rare capsules use the late table from the start. */
+export const ATTACK_WEIGHTS: Record<"early" | "late" | "landmark", Weights> = {
+  early: { shot: 50, double: 20, wave: 25, triple: 5 },
+  late: { shot: 35, double: 25, wave: 25, triple: 15 },
+  landmark: { shot: 30, double: 25, wave: 30, triple: 15 },
+};
+/** A triple shot can't be dodged, so it is capped per fight and never takes the last life. */
+export const TRIPLE_CAP: Record<FightMode, number> = { corrupted: 1, home: 1, landmark: 2 };
+export const LATE_DAMAGE = .4;
+
+export function attackTable(mode: FightMode, rarity: Rarity, tough: number) {
+  return mode === "landmark" ? ATTACK_WEIGHTS.landmark : rarity === "rare" || tough >= LATE_DAMAGE ? ATTACK_WEIGHTS.late : ATTACK_WEIGHTS.early;
+}
+
+/** Weighted pick that never repeats the same attack three times running and skips a triple when it isn't allowed. */
+export function pickAttack(table: Weights, recent: readonly AttackKind[], allowTriple: boolean, random: () => number): AttackKind {
+  const [a, b] = recent.slice(-2);
+  const options = (Object.keys(table) as AttackKind[])
+    .filter((kind) => table[kind] > 0 && (kind !== "triple" || allowTriple) && !(a === kind && b === kind));
+  const total = options.reduce((sum, kind) => sum + table[kind], 0);
+  let roll = random() * total;
+  for (const kind of options) {
+    roll -= table[kind];
+    if (roll < 0) return kind;
+  }
+  return options[options.length - 1];
+}
 
 export function fightHealthTicks(mode: FightMode, maxHp: number) {
   const section = mode === "landmark" ? 5 : 1;
@@ -42,7 +72,7 @@ export type Attack = {
   at: number;
   warning: number;
   travel: number;
-  kind: "shot" | "double" | "wave";
+  kind: AttackKind;
   lanes: number[];
 };
 export type Flight = { at: number; x: number; ball: BallKind };
@@ -69,6 +99,8 @@ export class DodgeFight {
   flight: Flight | null = null;
   readonly used: BallStock = { wax: 0, gold: 0 };
   damage = 0;
+  /** Which praise word the last capsule hit shows (0–2). */
+  hitWord = 0;
   private lane = 1;
   private moveAt = -10;
   private moveFrom = .5;
@@ -76,8 +108,12 @@ export class DodgeFight {
   private gatherFrom = 0;
   private nextAttackAt = 1.8;
   private comboShot = false;
+  private recent: AttackKind[] = [];
+  /** Tests only: attacks to use next, in order, before the weighted pick. */
+  forcedAttacks: AttackKind[] = [];
+  private triples = 0;
 
-  constructor(readonly mode: FightMode, rarity: Rarity, stock: BallStock,
+  constructor(readonly mode: FightMode, private readonly rarity: Rarity, stock: BallStock,
     private readonly random = Math.random, remote?: { health: number; maxHealth: number; seconds?: number }) {
     this.timer = Math.min(LANDMARK_SECONDS, remote?.seconds ?? LANDMARK_SECONDS);
     this.maxHp = remote?.maxHealth ?? fightHealth(mode, rarity);
@@ -136,16 +172,20 @@ export class DodgeFight {
     const { now } = this.frame;
     const tough = 1 - this.hp / this.maxHp;
     const landmark = this.mode === "landmark";
-    const roll = this.random();
-    const combo = !this.comboShot && landmark && tough >= .5 && roll < .35;
-    const kind = this.comboShot ? "shot"
-      : combo || roll < .27 ? "wave"
-      : roll > .78 && (landmark || (this.mode === "corrupted" && tough >= .25)) ? "double" : "shot";
-    const warning = .85 - .23 * tough - (landmark ? .12 : 0);
+    const [a, b] = this.recent.slice(-2);
+    const combo = !this.comboShot && landmark && tough >= .5 && !(a === "wave" && b === "wave") && this.random() < .35;
+    const allowTriple = this.lives >= 2 && this.triples < TRIPLE_CAP[this.mode];
+    const forced = this.forcedAttacks.shift();
+    const kind: AttackKind = forced ?? (this.comboShot ? "shot" : combo ? "wave" : null) ??
+      pickAttack(attackTable(this.mode, this.rarity, tough), this.recent, allowTriple, this.random);
+    if (kind === "triple") this.triples++;
+    this.recent = [...this.recent.slice(-1), kind];
+    // A triple glows longer so the player sees the unavoidable hit coming.
+    const warning = .85 - .23 * tough - (landmark ? .12 : 0) + (kind === "triple" ? .3 : 0);
     const travel = kind === "wave" ? .62 : .7 - .15 * tough;
     // Double shots always threaten the player's lane and leave one of the other lanes safe.
     const otherLanes = [0, 1, 2].filter((lane) => lane !== this.lane);
-    const lanes = kind === "wave" ? [] : kind === "double"
+    const lanes = kind === "wave" ? [] : kind === "triple" ? [0, 1, 2] : kind === "double"
       ? [this.lane, otherLanes[this.random() < .5 ? 0 : 1]].sort() : [this.lane];
     this.attack = { at: now, warning, travel, kind, lanes };
     this.nextAttackAt = now + warning + (combo ? travel + .12 : 1.25 + this.random() * .85 - tough * .5);
@@ -175,6 +215,7 @@ export class DodgeFight {
       this.flight = null;
       this.damage = Math.min(this.hp, ball === "gold" ? 2 : 1);
       this.hp -= this.damage;
+      this.hitWord = Math.floor(this.random() * 3);
       frame.hitAt = now;
       if (this.hp === 0) { this.finish("won"); return; }
       if (this.lives === 0) { this.finish("lost"); return; }
@@ -183,7 +224,8 @@ export class DodgeFight {
     if (this.secondsLeft === 0) { this.finish("timeout"); return; }
 
     if (this.attack && now >= this.attack.at + this.attack.warning + this.attack.travel) {
-      const hit = this.attack.kind === "wave" ? jumpTime >= JUMP - .06
+      const hit = this.attack.kind === "triple" ? true
+        : this.attack.kind === "wave" ? jumpTime >= JUMP - .06
         : this.attack.lanes.some((lane) => Math.abs(frame.x - LANES[lane]) < .14);
       this.attack = null;
       if (hit && now - frame.hurtAt >= INVULNERABLE) {

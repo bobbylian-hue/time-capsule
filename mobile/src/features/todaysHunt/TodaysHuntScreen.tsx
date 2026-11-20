@@ -7,13 +7,12 @@ import { Avatar } from "../../components/Avatar";
 import { haptics } from "../../components/haptics";
 import { useAuth } from "../../services/auth";
 import { localPriceText, localText, parseGuess, usdText, type ExplorerCity, type GuessMark } from "../../services/cityPuzzle";
-import { DODGE_FIGHT, type CorruptedCapsule, type GameState } from "../../services/game";
+import { type CorruptedCapsule, type GameState } from "../../services/game";
 import { guessHint, type Quest, type QuestResult } from "../../services/quests";
 import { CITY_STAMP, HOME_CATCH_VESSELS, todaysHunt, TODAYS_HUNT_REWARD, TODAYS_HUNT_SAMPLE, TodaysHuntError, type HuntFriend, type TodaysHunt } from "../../services/todaysHunt";
 import { C, radii, sans, serif, shadows, spacing } from "../../theme";
 import { useReducedMotion } from "../../useReducedMotion";
 import { useExplorerText } from "../explorer/strings";
-import { ThrowScreen } from "../game/ThrowScreen";
 import { DodgeFightScreen } from "../game/DodgeFightScreen";
 import { questImageSource, questImageUri } from "../hunt/questImage";
 import { Btn, Chip } from "../journey/JourneyControls";
@@ -234,9 +233,7 @@ export function TodaysHuntScreen({ city, language, map, gameState, onState, onMa
     };
     const props = { capsule, state: gameState ?? FALLBACK_STATE, onState, onClose: caughtOne };
     const onQuit = () => void endCatch(catching.caught);
-    return DODGE_FIGHT
-      ? <DodgeFightScreen key={catching.n} {...props} avatar={profile?.avatar} home={{ onQuit, onBack: () => setPhase("card") }} />
-      : <ThrowScreen key={catching.n} {...props} home={{ onQuit }} />;
+    return <DodgeFightScreen key={catching.n} {...props} avatar={profile?.avatar} home={{ onQuit, onBack: () => setPhase("card") }} />;
   }
 
   const cardStyle = {

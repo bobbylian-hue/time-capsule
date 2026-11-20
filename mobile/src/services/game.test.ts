@@ -13,8 +13,7 @@ describe("development capsule waves",()=>{
  it("has six in a fresh wave and does not refill after restoration",async()=>{
   const {game}=await import("./game");const at={lat:25.037546,lng:121.562754,accuracy:10};
   const first=await game.nearby(at);expect(first.corrupted).toHaveLength(6);
-  const random=vi.spyOn(Math,"random").mockReturnValue(0);
-  expect((await game.throwBall({id:first.corrupted[0].id,ball:"gold",ring:1,hit:true})).result).toBe("restored");random.mockRestore();
+  expect(game.devRestore(first.corrupted[0].id)?.vessel).toBe(first.corrupted[0].vessel);
   const after=await game.nearby(at);expect(after.corrupted).toHaveLength(5);
   expect(after.corrupted.every(c=>first.corrupted.some(p=>p.id===c.id))).toBe(true);
  });

@@ -13,6 +13,10 @@ const SOURCES = {
   build2: require("../../assets/audio/sfx/build2.wav"),
   success: require("../../assets/audio/sfx/success.wav"),
   warn: require("../../assets/audio/sfx/warn.wav"),
+  fightThrow: require("../../assets/audio/sfx/fightThrow.wav"),
+  fightHit: require("../../assets/audio/sfx/fightHit.wav"),
+  fightHurt: require("../../assets/audio/sfx/fightHurt.wav"),
+  fightWarn: require("../../assets/audio/sfx/fightWarn.wav"),
 };
 export type Sound = keyof typeof SOURCES;
 const KEY = "tc.sfx";

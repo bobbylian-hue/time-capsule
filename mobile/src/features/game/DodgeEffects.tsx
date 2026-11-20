@@ -1,7 +1,7 @@
 import React from "react";
 import { Animated as RNAnimated, Image, Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedProps, useAnimatedStyle, type SharedValue } from "react-native-reanimated";
-import Svg, { Circle, Defs, Ellipse, Pattern, RadialGradient, Rect, Stop } from "react-native-svg";
+import Svg, { Circle, Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 import { gameArt, vesselParts } from "../../art/manifest";
 import { crackOverlays } from "../../art/crackOverlays";
 import type { VesselKind } from "../../components/Vessel";
@@ -48,8 +48,11 @@ function Glow({ warning = false }: { warning?: boolean }) {
   </Svg>;
 }
 
-export function FightBoss({ width, height, motion, reduced, vessel, health, warning, damage, burst, finishTime }: Scene & {
-  vessel: string; health: number; warning: Attack | null; damage: number; burst: RNAnimated.Value; finishTime: SharedValue<number>;
+const PRAISE_COLORS = [C.wax, C.blue, "#9A7430"];
+
+export function FightBoss({ width, height, motion, reduced, vessel, health, warning, damage, praise, burst, finishTime }: Scene & {
+  vessel: string; health: number; warning: Attack | null; damage: number; praise: { text: string; index: number } | null;
+  burst: RNAnimated.Value; finishTime: SharedValue<number>;
 }) {
   const size = width * .36;
   const source = vesselParts[vessel as VesselKind]?.assembled;
@@ -78,6 +81,14 @@ export function FightBoss({ width, height, motion, reduced, vessel, health, warn
     const progress = Math.min(1, (motion.value.now + finishTime.value - motion.value.hitAt) / .7);
     return { opacity: Math.min(1, (1 - progress) / .3), transform: [{ translateY: reduced ? 0 : -progress * height * .06 }] };
   });
+  const word = useAnimatedStyle(() => {
+    const progress = Math.min(1, (motion.value.now + finishTime.value - motion.value.hitAt) / .85);
+    const pop = progress < .12 ? lerp(.6, 1.15, progress / .12) : progress < .22 ? lerp(1.15, 1, (progress - .12) / .1) : 1;
+    return {
+      opacity: progress < .08 ? progress / .08 : Math.min(1, (1 - progress) / .3),
+      transform: reduced ? [] : [{ translateY: -progress * height * .05 }, { scale: pop }],
+    };
+  });
   const darken = Platform.OS === "web"
     ? ({ filter: "saturate(.55) brightness(.8)" } as object) : { tintColor: C.ink, opacity: .3 };
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -96,7 +107,8 @@ export function FightBoss({ width, height, motion, reduced, vessel, health, warn
         {!reduced && <Animated.Image source={gameArt.hitDust} style={[styles.layer, dust]} resizeMode="contain" />}
       </Animated.View>
     </View>
-    {damage > 0 && <Animated.Text style={[styles.damage, { top: height * (BOSS_Y - .06) }, floating]}>−{damage}</Animated.Text>}
+    {damage > 0 && <Animated.Text style={[styles.damage, { top: height * (BOSS_Y - .02) }, floating]}>−{damage}</Animated.Text>}
+    {praise && <Animated.Text allowFontScaling={false} style={[styles.praise, { top: height * (BOSS_Y + .13), color: PRAISE_COLORS[praise.index % 3] }, word]}>{praise.text}</Animated.Text>}
   </View>;
 }
 
@@ -189,75 +201,174 @@ export function PlayerThrow(props: BallScene & { flight: Flight }) {
   </View>;
 }
 
-function AimedShot({ width, height, motion, reduced, attack, lane, label }: Scene & { attack: Attack; lane: number; label: string }) {
+function AimedShot({ width, height, motion, reduced, attack, lane, warn }: Scene & { attack: Attack; lane: number; warn: string | null }) {
   const x = LANES[lane];
   const ringWidth = width * .26;
   const ringHeight = ringWidth / 2.6;
   const orbSize = width * .09;
+  const orbBox = orbSize * 2;
+  const triple = attack.kind === "triple";
   const reticle = useAnimatedStyle(() => ({
     opacity: motion.value.now < attack.at + attack.warning ? 1 : .7,
-    transform: [{ scale: reduced ? 1 : 1 + .06 * Math.sin(motion.value.now * 16) }],
+    transform: [{ scale: reduced ? 1 : 1 + (triple ? .1 : .06) * Math.sin(motion.value.now * (triple ? 22 : 16)) }],
   }));
   const orb = useAnimatedStyle(() => {
     const k = Math.max(0, Math.min(1, (motion.value.now - attack.at - attack.warning) / attack.travel));
     return {
       opacity: k > 0 ? 1 : 0,
       transform: [
-        { translateX: width * lerp(.5, x, k) - orbSize / 2 },
-        { translateY: lerp(height * BOSS_Y, height * GROUND - width * .14, k) - Math.sin(k * Math.PI) * height * .06 - orbSize / 2 },
+        { translateX: width * lerp(.5, x, k) - orbBox / 2 },
+        { translateY: lerp(height * BOSS_Y, height * GROUND - width * .14, k) - Math.sin(k * Math.PI) * height * .06 - orbBox / 2 },
         { scale: lerp(.6, 1.9, k * k) },
       ],
     };
   });
   return <>
-    <Animated.View style={[{ position: "absolute", alignItems: "center", top: height * GROUND - ringHeight / 2,
+    <Animated.View style={[{ position: "absolute", top: height * GROUND - ringHeight / 2,
       left: width * x - ringWidth / 2, width: ringWidth, height: ringHeight }, reticle]}>
       <Svg width={ringWidth} height={ringHeight}>
         <Ellipse cx={ringWidth / 2} cy={ringHeight / 2} rx={ringWidth / 2 - 2} ry={ringHeight / 2 - 2}
-          fill="rgba(163,54,79,.18)" stroke={C.wax} strokeWidth={2.5} strokeDasharray="5 4" />
+          fill={triple ? "rgba(163,54,79,.3)" : "rgba(163,54,79,.18)"} stroke={C.wax} strokeWidth={triple ? 3.5 : 2.5} strokeDasharray="5 4" />
       </Svg>
-      <Text allowFontScaling={false} style={[styles.warning, { position: "absolute", top: -21, backgroundColor: C.wax }]}>{label}</Text>
+      {warn && <View style={styles.warnRow}><Text allowFontScaling={false} numberOfLines={1} style={[styles.warning, { backgroundColor: C.wax }]}>{warn}</Text></View>}
     </Animated.View>
-    <Animated.View style={[{ position: "absolute", width: orbSize, height: orbSize, backgroundColor: "#3B1E3D",
-      borderRadius: orbSize / 2, borderWidth: 2, borderColor: C.ink, alignItems: "center", justifyContent: "center" }, orb]}>
-      <View style={{ width: "45%", height: "45%", borderRadius: orbSize, backgroundColor: "#8C5B8F", opacity: .55 }} />
+    <Animated.View style={[{ position: "absolute", width: orbBox, height: orbBox }, orb]}>
+      <ShotOrb size={orbSize} />
     </Animated.View>
   </>;
 }
 
-function DarkWave({ width, height, motion, reduced, attack, label }: Scene & { attack: Attack; label: string }) {
-  const band = useAnimatedStyle(() => ({ opacity: reduced ? 1 : .84 + .16 * Math.sin(motion.value.now * 16) }));
-  const ellipse = useAnimatedStyle(() => {
+/** The capsule's shot, as in the demo: a glossy plum orb lit from the top left, a navy edge and a soft plum glow. */
+function ShotOrb({ size }: { size: number }) {
+  const box = size * 2, c = box / 2, r = size / 2;
+  return <Svg width={box} height={box}>
+    <Defs>
+      <RadialGradient id="shotGlow" cx="50%" cy="50%" r="50%">
+        <Stop offset=".4" stopColor={C.plum} stopOpacity={.5} />
+        <Stop offset="1" stopColor={C.plum} stopOpacity={0} />
+      </RadialGradient>
+      <RadialGradient id="shotBody" cx="35%" cy="35%" r="92%" fx="35%" fy="35%">
+        <Stop offset="0" stopColor="#8C5B8F" />
+        <Stop offset=".45" stopColor="#3B1E3D" />
+        <Stop offset=".7" stopColor={C.ink} />
+        <Stop offset="1" stopColor={C.ink} />
+      </RadialGradient>
+    </Defs>
+    <Circle cx={c} cy={c} r={c} fill="url(#shotGlow)" />
+    <Circle cx={c} cy={c} r={r} fill="url(#shotBody)" stroke="rgba(22,38,63,.6)" strokeWidth={2} />
+  </Svg>;
+}
+
+/** A glowing plum ring drawn as an ellipse; `glow` adds the soft outer halo. */
+function WaveRing({ w, h, glow = true }: { w: number; h: number; glow?: boolean }) {
+  return <Svg width={w} height={h}>
+    {glow && <Ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 9} ry={h / 2 - 9} fill="none" stroke={C.plum} strokeOpacity={.3} strokeWidth={16} />}
+    <Ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 9} ry={h / 2 - 9} fill="rgba(110,43,63,.1)" stroke="#3B1E3D" strokeWidth={6} />
+    <Ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 9} ry={h / 2 - 9} fill="none" stroke="#8C5B8F" strokeOpacity={.55} strokeWidth={2} />
+  </Svg>;
+}
+
+function FeetGlow() {
+  return <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+    <Defs>
+      <RadialGradient id="waveFeet" cx="50%" cy="50%" r="50%">
+        <Stop offset="0" stopColor="#3B1E3D" stopOpacity={.55} />
+        <Stop offset=".5" stopColor={C.plum} stopOpacity={.28} />
+        <Stop offset="1" stopColor={C.plum} stopOpacity={0} />
+      </RadialGradient>
+    </Defs>
+    <Ellipse cx={50} cy={50} rx={50} ry={50} fill="url(#waveFeet)" />
+  </Svg>;
+}
+
+function DarkWave({ width, height, motion, reduced, attack, warn }: Scene & { attack: Attack; warn: string }) {
+  const ringW = width * 1.4;
+  const ringH = width * .308;
+  const sourceW = width * .32;
+  const sourceH = sourceW * .3;
+  // Warning: a ring pulses on the ground under the capsule…
+  const source = useAnimatedStyle(() => {
+    const { now } = motion.value;
+    const warning = now < attack.at + attack.warning;
+    const beat = (now - attack.at) * 3 % 1;
+    return {
+      opacity: warning ? (reduced ? .7 : .85 * (1 - beat)) : 0,
+      transform: [{ scale: reduced ? 1 : lerp(.55, 1.25, beat) }],
+    };
+  });
+  // …and a dark glow gathers at the player's feet.
+  const feet = useAnimatedStyle(() => {
+    const { now, x } = motion.value;
+    const p = Math.max(0, Math.min(1, (now - attack.at) / attack.warning));
+    const end = now - attack.at - attack.warning - attack.travel;
+    return {
+      opacity: end > 0 ? 0 : reduced ? .8 : lerp(.2, .9, p) + (reduced ? 0 : .1 * Math.sin(now * 14)),
+      transform: [{ translateX: x * width - width * .2 }, { scale: reduced ? 1 : lerp(.6, 1, p) }],
+    };
+  });
+  // The warning pill follows the player until the wave arrives.
+  const label = useAnimatedStyle(() => {
+    const { now, x } = motion.value;
+    return {
+      opacity: now - attack.at - attack.warning - attack.travel > 0 ? 0 : 1,
+      transform: [{ translateX: x * width - width * .2 }],
+    };
+  });
+  // Reduce Motion: the ring sits still at the player's feet during the warning.
+  const still = useAnimatedStyle(() => ({ opacity: motion.value.now < attack.at + attack.warning ? .55 : 0 }));
+  const ring = useAnimatedStyle(() => {
     const k = Math.max(0, Math.min(1, (motion.value.now - attack.at - attack.warning) / attack.travel));
     return {
-      opacity: Math.min(1, k * 5),
+      opacity: k > 0 ? Math.min(1, k * 5) : 0,
       transform: [
-        { translateY: lerp((BOSS_Y + .12) * height, GROUND * height, k) - width * .154 },
-        { scale: lerp(.3 / 1.4, 1, k) },
+        { translateY: lerp((BOSS_Y + .1) * height, GROUND * height, k) - ringH / 2 },
+        { scale: lerp(.2, 1, k) },
       ],
     };
   });
   return <>
-    <Animated.View style={[{ position: "absolute", top: height * (GROUND - .055), height: height * .11, width, alignItems: "center",
-      justifyContent: "center", borderColor: "rgba(22,38,63,.55)", borderStyle: "dashed", borderTopWidth: 2, borderBottomWidth: 2 }, band]}>
-      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
-        <Defs><Pattern id="warningStripe" patternUnits="userSpaceOnUse" width={22} height={22} patternTransform="rotate(45)">
-          <Rect width={22} height={22} fill="rgba(22,38,63,.08)" /><Rect width={11} height={22} fill="rgba(22,38,63,.31)" />
-        </Pattern></Defs>
-        <Rect width="100%" height="100%" fill="url(#warningStripe)" />
-      </Svg>
-      <Text style={[styles.warning, { backgroundColor: C.ink }]}>{label}</Text>
+    <Animated.View style={[{ position: "absolute", width: width * .4, height: width * .12, top: height * GROUND - width * .06 }, feet]}>
+      <FeetGlow />
     </Animated.View>
-    <Animated.View style={[{ position: "absolute", width: width * 1.4, height: width * .308, left: -width * .2,
-      borderRadius: width, borderColor: "#3B1E3D", borderWidth: 6 }, ellipse]} />
+    <Animated.View style={[{ position: "absolute", width: width * .4, top: height * GROUND + width * .03 }, label]}>
+      <View style={styles.warnRow}><Text allowFontScaling={false} numberOfLines={1} style={[styles.warning, { backgroundColor: C.ink }]}>{warn}</Text></View>
+    </Animated.View>
+    <Animated.View style={[{ position: "absolute", left: (width - sourceW) / 2, top: height * (BOSS_Y + .1) - sourceH / 2 }, source]}>
+      <WaveRing w={sourceW} h={sourceH} glow={false} />
+    </Animated.View>
+    {reduced && <Animated.View style={[{ position: "absolute", left: -width * .2, top: height * GROUND - ringH / 2 }, still]}>
+      <WaveRing w={ringW} h={ringH} />
+    </Animated.View>}
+    <Animated.View style={[{ position: "absolute", top: 0, left: -width * .2 }, ring]}>
+      <WaveRing w={ringW} h={ringH} />
+    </Animated.View>
   </>;
 }
 
-export function FightAttack(props: Scene & { attack: Attack; waveLabel: string; shotLabel: string }) {
-  return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-    {props.attack.kind === "wave" ? <DarkWave {...props} label={props.waveLabel} />
-      : props.attack.lanes.map((lane) => <AimedShot key={lane} {...props} lane={lane} label={props.shotLabel} />)}
+export function FightAttack(props: Scene & { attack: Attack; label: string; warn: string }) {
+  const { label, warn, ...scene } = props;
+  return <View pointerEvents="none" accessible accessibilityLiveRegion="assertive" accessibilityLabel={label} style={StyleSheet.absoluteFill}>
+    {scene.attack.kind === "wave" ? <DarkWave {...scene} warn={warn} />
+      // A triple can't be dodged, so it shows one "brace" pill in the middle instead of three "move" pills.
+      : scene.attack.lanes.map((lane) => <AimedShot key={lane} {...scene} lane={lane}
+        warn={scene.attack.kind !== "triple" || lane === 1 ? warn : null} />)}
   </View>;
+}
+
+/** 「被打中了」 rises from the player when an attack lands. */
+export function HurtText({ width, height, motion, reduced, finishTime, text }: Scene & { finishTime: SharedValue<number>; text: string }) {
+  const style = useAnimatedStyle(() => {
+    const { now, hurtAt, x, jump } = motion.value;
+    const progress = Math.min(1, (now + finishTime.value - hurtAt) / .9);
+    return {
+      opacity: progress < .06 ? progress / .06 : Math.max(0, (1 - progress) / .35),
+      transform: [
+        { translateX: x * width - width * .25 },
+        { translateY: height * (GROUND - .3 - jump * .17) - (reduced ? 0 : progress * height * .05) },
+      ],
+    };
+  });
+  return <Animated.Text pointerEvents="none" allowFontScaling={false} style={[styles.hurt, { width: width * .5 }, style]}>{text}</Animated.Text>;
 }
 
 export function HitEdge({ motion, finishTime }: { motion: SharedValue<FightFrame>; finishTime: SharedValue<number> }) {
@@ -266,9 +377,14 @@ export function HitEdge({ motion, finishTime }: { motion: SharedValue<FightFrame
 }
 
 const styles = StyleSheet.create({
-  layer: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
+  warnRow: { position: "absolute", top: -24, left: -40, right: -40, alignItems: "center" },
   warning: { fontFamily: sans, fontSize: 12, fontWeight: "700", color: C.white, paddingHorizontal: 8, paddingVertical: 3, overflow: "hidden", borderRadius: 20 },
+  layer: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
   mote: { position: "absolute", backgroundColor: "#FFF4D6", borderRadius: 8, shadowColor: C.brass, shadowOpacity: 1, shadowRadius: 5, shadowOffset: { width: 0, height: 0 } },
-  damage: { position: "absolute", width: "100%", textAlign: "center", fontFamily: serif, fontSize: 20, fontWeight: "700", color: C.white,
+  damage: { position: "absolute", width: "100%", textAlign: "center", fontFamily: serif, fontSize: 18, fontWeight: "700", color: C.white,
     textShadowColor: C.plum, textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 },
+  praise: { position: "absolute", width: "100%", textAlign: "center", fontFamily: serif, fontSize: 28, fontWeight: "700",
+    textShadowColor: "rgba(255,255,255,.95)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
+  hurt: { position: "absolute", left: 0, top: 0, textAlign: "center", fontFamily: serif, fontSize: 22, fontWeight: "700", color: C.wax,
+    textShadowColor: "rgba(255,255,255,.95)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
 });
