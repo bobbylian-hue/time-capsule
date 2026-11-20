@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { CHARGE, DodgeFight, dodgeSwipe, fightHealthTicks, FLIGHT, LIVES, WIND, fightHealth } from "./dodgeFightRules";
+import { ATTACK_WEIGHTS, attackTable, CHARGE, DodgeFight, dodgeSwipe, fightHealthTicks, FLIGHT, LIVES, pickAttack, TRIPLE_CAP, WIND, fightHealth, type AttackKind } from "./dodgeFightRules";
 
 const stock = { wax: 30, gold: 2 };
 function advance(fight: DodgeFight, seconds: number) {
   for (let elapsed = 0; elapsed < seconds; elapsed += .01) fight.advance(Math.min(.01, seconds - elapsed));
 }
+/** Advance with every attack cancelled, to test throwing on its own. */
+function calm(fight: DodgeFight, seconds: number) {
+  for (let elapsed = 0; elapsed < seconds; elapsed += .01) { fight.attack = null; fight.advance(Math.min(.01, seconds - elapsed)); }
+}
+/** A repeatable random sequence. */
+function seeded(seed = 1) {
+  return () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+}
 
 describe("dodge fight rules", () => {
-  it("uses rarity health, 20 HP for landmarks, and 3 HP at home", () => {
-    expect((["common", "uncommon", "rare"] as const).map((rarity) => fightHealth("corrupted", rarity))).toEqual([3, 4, 5]);
+  it("uses rarity health 5/6/7, 20 HP for landmarks, and 5 HP at home", () => {
+    expect((["common", "uncommon", "rare"] as const).map((rarity) => fightHealth("corrupted", rarity))).toEqual([5, 6, 7]);
     expect(fightHealth("landmark", "common")).toBe(20);
-    expect(fightHealth("home", "rare")).toBe(3);
+    expect(fightHealth("home", "rare")).toBe(5);
   });
 
   it("gathers, winds up, launches, then hits for one wax damage", () => {
@@ -21,9 +29,9 @@ describe("dodge fight rules", () => {
     advance(fight, WIND);
     expect(fight.flight?.ball).toBe("wax");
     expect(fight.stock.wax).toBe(29);
-    expect(fight.hp).toBe(3);
+    expect(fight.hp).toBe(5);
     advance(fight, FLIGHT);
-    expect(fight.hp).toBe(2);
+    expect(fight.hp).toBe(4);
     expect(fight.damage).toBe(1);
   });
 
@@ -59,27 +67,29 @@ describe("dodge fight rules", () => {
   });
 
   it("uses gold automatically when wax runs out and wins with the last ball", () => {
-    const fight = new DodgeFight("corrupted", "common", { wax: 1, gold: 1 }, () => .5);
-    advance(fight, 1.12);
+    const fight = new DodgeFight("corrupted", "common", { wax: 1, gold: 1 }, () => .5, { health: 3, maxHealth: 5 });
+    calm(fight, 1.12);
     expect(fight.selected).toBe("gold");
-    advance(fight, 2);
+    calm(fight, 2);
     expect(fight.end).toBe("won");
     expect(fight.stock).toEqual({ wax: 0, gold: 0 });
   });
 
   it("keeps home throws free, with no gold and no double shot", () => {
     const fight = new DodgeFight("home", "rare", { wax: 0, gold: 0 }, () => .99);
+    fight.forcedAttacks = ["shot"];
     fight.chooseBall("gold");
     advance(fight, 1.82);
     expect(fight.attack?.kind).toBe("shot");
     fight.input("left");
-    advance(fight, 3.5);
+    calm(fight, 7);
     expect(fight.end).toBe("won");
     expect(fight.stock).toEqual({ wax: 0, gold: 0 });
   });
 
   it("locks shots to a lane, and dodging that lane saves a life", () => {
     const fight = new DodgeFight("corrupted", "rare", stock, () => .5);
+    fight.forcedAttacks = ["shot", "shot"];
     advance(fight, 1.82);
     expect(fight.attack?.lanes).toEqual([1]);
     fight.input("right");
@@ -87,19 +97,77 @@ describe("dodge fight rules", () => {
     expect(fight.lives).toBe(LIVES);
   });
 
-  it("announces two lanes only after 25 percent damage in Corrupted fights", () => {
-    const fight = new DodgeFight("corrupted", "rare", stock, () => .99);
+  it("always leaves a safe lane on a double shot", () => {
+    const fight = new DodgeFight("corrupted", "common", stock, () => .3);
+    fight.forcedAttacks = ["double"];
     advance(fight, 1.82);
-    expect(fight.attack?.kind).toBe("shot");
-    advance(fight, 2.85);
     expect(fight.attack?.kind).toBe("double");
     expect(new Set(fight.attack?.lanes).size).toBe(2);
+    expect(fight.attack?.lanes).toContain(1);
+  });
+
+  it("picks attacks by the weight tables", () => {
+    const random = seeded(42);
+    for (const [name, table] of Object.entries(ATTACK_WEIGHTS)) {
+      const counts: Record<AttackKind, number> = { shot: 0, double: 0, wave: 0, triple: 0 };
+      const draws = 40000;
+      for (let n = 0; n < draws; n++) counts[pickAttack(table, [], true, random)]++;
+      const total = Object.values(table).reduce((a, b) => a + b, 0);
+      for (const kind of Object.keys(table) as AttackKind[]) expect(counts[kind] / draws, `${name} ${kind}`).toBeCloseTo(table[kind] / total, 1);
+    }
+    expect(attackTable("corrupted", "common", 0)).toBe(ATTACK_WEIGHTS.early);
+    expect(attackTable("corrupted", "common", .4)).toBe(ATTACK_WEIGHTS.late);
+    expect(attackTable("corrupted", "rare", 0)).toBe(ATTACK_WEIGHTS.late);
+    expect(attackTable("home", "common", 0)).toBe(ATTACK_WEIGHTS.early);
+    expect(attackTable("landmark", "common", 0)).toBe(ATTACK_WEIGHTS.landmark);
+  });
+
+  it("never picks the same attack three times running, and skips a triple when not allowed", () => {
+    const random = seeded(7);
+    const shotOnly = { shot: 100, double: 1, wave: 1, triple: 1 };
+    for (let n = 0; n < 500; n++) {
+      expect(pickAttack(shotOnly, ["shot", "shot"], true, random)).not.toBe("shot");
+      expect(pickAttack({ shot: 1, double: 1, wave: 1, triple: 1000 }, [], false, random)).not.toBe("triple");
+    }
+  });
+
+  it("caps triple shots per fight and never uses one on the last life", () => {
+    for (const mode of ["corrupted", "home", "landmark"] as const) {
+      const fight = new DodgeFight(mode, "rare", { wax: 0, gold: 0 }, seeded(3));
+      let triples = 0;
+      let last: unknown = null;
+      for (let step = 0; step < 6000 && !fight.end; step++) {
+        if (fight.attack && fight.attack !== last) {
+          last = fight.attack;
+          if (fight.attack.kind === "triple") { triples++; expect(fight.lives).toBeGreaterThanOrEqual(2); }
+        }
+        // Dodge everything except triples, and keep the capsule alive by never throwing.
+        if (fight.attack && fight.attack.kind !== "triple") fight.attack.lanes = [];
+        if (fight.attack?.kind === "wave") fight.attack = null;
+        fight.input(step % 40 < 20 ? "left" : "right");
+        fight.advance(.05);
+      }
+      expect(triples).toBeLessThanOrEqual(TRIPLE_CAP[mode]);
+    }
+  });
+
+  it("hits through a jump and in every lane on a triple shot", () => {
+    const fight = new DodgeFight("corrupted", "common", stock, () => .5);
+    fight.forcedAttacks = ["triple"];
+    advance(fight, 1.82);
+    expect(fight.attack?.lanes).toEqual([0, 1, 2]);
+    fight.input("left");
+    advance(fight, fight.attack!.warning + fight.attack!.travel - .3);
+    fight.input("jump");
+    advance(fight, .35);
+    expect(fight.lives).toBe(LIVES - 1);
   });
 
   it("lets an airborne player clear a wave and hits a grounded player once", () => {
     const jumper = new DodgeFight("landmark", "rare", stock, () => .1);
     const grounded = new DodgeFight("landmark", "rare", stock, () => .1);
     for (const fight of [jumper, grounded]) {
+      fight.forcedAttacks = ["wave"];
       advance(fight, 1.82);
       expect(fight.attack?.kind).toBe("wave");
       advance(fight, .92);
@@ -141,7 +209,7 @@ describe("dodge fight rules", () => {
     // Keep changing lanes between frames, dodging aimed shots without launching.
     for (let i = 0; i < 751; i++) {
       timed.input(i % 2 ? "right" : "left");
-      if (timed.attack) timed.attack.lanes = [];
+      timed.attack = null;
       advance(timed, .2);
     }
     expect(timed.end).toBe("timeout");
@@ -159,13 +227,13 @@ describe("dodge fight rules", () => {
   });
 
   it("counts the balls actually thrown and resolves damage locally", () => {
-    const fight = new DodgeFight("corrupted", "rare", { wax: 1, gold: 2 }, () => .5);
-    advance(fight, 1.14);
+    const fight = new DodgeFight("corrupted", "rare", { wax: 1, gold: 2 }, () => .5, { health: 5, maxHealth: 7 });
+    calm(fight, 1.14);
     expect(fight.used).toEqual({ wax: 1, gold: 0 });
     expect(fight.hp).toBe(5);
-    advance(fight, FLIGHT);
+    calm(fight, FLIGHT);
     expect(fight.hp).toBe(4);
-    for (let n = 0; n < 14 && !fight.end; n++) advance(fight, .5);
+    for (let n = 0; n < 14 && !fight.end; n++) calm(fight, .5);
     expect(fight.end).toBe("won");
     expect(fight.used).toEqual({ wax: 1, gold: 2 });
     expect(fight.stock).toEqual({ wax: 0, gold: 0 });
@@ -177,8 +245,8 @@ describe("dodge fight rules", () => {
     fight.input("left");
     expect(fight.used).toEqual({ wax: 0, gold: 0 });
     const home = new DodgeFight("home", "common", { wax: 0, gold: 0 });
-    advance(home, 2);
-    expect(home.hp).toBe(2);
+    calm(home, 2);
+    expect(home.hp).toBe(4);
     expect(home.used).toEqual({ wax: 0, gold: 0 });
   });
 

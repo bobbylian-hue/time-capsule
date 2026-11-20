@@ -3,13 +3,13 @@ import { Animated, Pressable, Text, View } from "react-native";
 import { lightBurst } from "../../art/manifest";
 import { useLanguage } from "../../i18n";
 import { COPIES } from "../../services/copies";
-import type { ThrowResult } from "../../services/game";
+import type { Restored } from "../../services/game";
 import { C, radii, sans, serif, shadows, spacing } from "../../theme";
 import { useCopiesText } from "../copies/strings";
 import { VESSELS } from "../shop/strings";
 import { useGameText } from "./strings";
 
-export type Restored = Pick<ThrowResult, "vessel" | "copies" | "stars" | "is_new" | "xp_gained">;
+export type { Restored };
 
 export function RestoreLightBurst({ size, burst }: { size: number; burst: Animated.Value }) {
   return <Animated.Image source={lightBurst} resizeMode="contain" style={{

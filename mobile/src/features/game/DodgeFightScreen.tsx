@@ -1,26 +1,27 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated as RNAnimated, AppState, Easing, Image, PanResponder, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated as RNAnimated, AppState, Easing, Image, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { sealWax } from "../../art/manifest";
 import { ArtIcon } from "../../components/ArtIcon";
 import { haptics } from "../../components/haptics";
 import { useLanguage } from "../../i18n";
-import { DODGE_FIGHT_RPC, dodgeFights, GameError, type DodgeSession, type DodgeTarget } from "../../services/game";
+import { dodgeFights, game, GameError, type DodgeSession, type DodgeTarget } from "../../services/game";
 import { C, sans, serif, shadows } from "../../theme";
 import { useReducedMotion } from "../../useReducedMotion";
 import { VESSELS } from "../shop/strings";
 import { DodgeFight, dodgeSwipe, fightHealth, fightHealthTicks, initialFrame, LIVES, type DodgeInput } from "./dodgeFightRules";
-import { FightAttack, FightBoss, GatherBall, HitEdge, PlayerThrow } from "./DodgeEffects";
+import { FightAttack, FightBoss, GatherBall, HitEdge, HurtText, PlayerThrow } from "./DodgeEffects";
 import { DodgePlayer } from "./DodgePlayer";
 import { fightRigFor } from "./fightRigs";
 import fightStrings from "./dodgeStrings";
 import { noWebSelect, useNoWebDrag } from "./noWebDrag";
 import { RestoreResultCard, type Restored } from "./RestoreResult";
 import { errorKey, useGameText } from "./strings";
-import { ThrowBackground, WaxBall, type ThrowScreenProps } from "./ThrowScreen";
+import { ThrowBackground, WaxBall, type FightScreenProps } from "./ThrowScreen";
 
-type Props = Omit<ThrowScreenProps, "landmark" | "home"> & DodgeTarget & {
+type Props = FightScreenProps & DodgeTarget & {
   avatar?: unknown;
   home?: { onQuit: () => void; onBack: () => void };
 };
@@ -35,6 +36,8 @@ const keyInputs: Record<string, DodgeInput> = {
   arrowright: "right", d: "right",
 };
 const mockLosses = new Map<string, { left: number; expiresAt: number }>();
+// The how-to card shows on a player's first fight on this device; "?" reopens it.
+const INTRO_KEY = "tc.fightIntro";
 
 export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onState, onClose }: Props) {
   const { language, setLanguage } = useLanguage();
@@ -43,7 +46,7 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const mode = home ? "home" : landmark ? "landmark" : "corrupted";
-  const remote = !home && DODGE_FIGHT_RPC && !capsule.id.startsWith("dev-");
+  const remote = !home && !capsule.id.startsWith("dev-");
   const stock = { wax: state.wax_balls, gold: state.gold_balls };
   const [attempts, setAttempts] = useState(() => remote ? capsule.attempts_left : mockLosses.get(capsule.id)?.left ?? capsule.attempts_left);
   const [arena, setArena] = useState({ width: 0, height: 0 });
@@ -52,6 +55,8 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
   const [phase, setPhase] = useState<"intro" | "playing" | "finished">("intro");
   const [paused, setPaused] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [introSeen, setIntroSeen] = useState<boolean | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [needed, setNeeded] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ReturnType<typeof errorKey> | null>(null);
@@ -68,6 +73,7 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
   const resolving = useRef(false);
   const noticeDone = useRef(false);
   const leaving = useRef(false);
+  const autoStarted = useRef(false);
   const finish = useRef<(fight: DodgeFight) => void>(() => {});
   const motion = useSharedValue(initialFrame);
   const finishTime = useSharedValue(0);
@@ -109,6 +115,12 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
     update();
     query.addEventListener("change", update);
     return () => query.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    let on = true;
+    AsyncStorage.getItem(INTRO_KEY).then((v) => { if (on) setIntroSeen(v === "seen"); }).catch(() => { if (on) setIntroSeen(false); });
+    return () => { on = false; };
   }, []);
 
   useEffect(() => {
@@ -228,7 +240,8 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
       return;
     }
     if (active.end === "won") {
-      celebrate({ vessel: capsule.vessel, copies: landmark ? null : 1, stars: 1, is_new: true,
+      const practice = mode === "corrupted" ? game.devRestore(capsule.id) : null;
+      celebrate(practice ?? { vessel: capsule.vessel, copies: landmark ? null : 1, stars: 1, is_new: true,
         xp_gained: home ? 0 : landmark ? 2000 : 600 });
     } else if (submit && mode === "corrupted") {
       const left = Math.max(0, attempts - 1);
@@ -266,8 +279,10 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
       else active.advance(last === undefined ? 0 : (now - last) / 1000);
       last = now;
       motion.value = { ...active.frame };
-      if (active.flight && active.flight !== flight) void haptics.tick();
-      if (active.lives !== lives) void haptics.warn();
+      if (active.flight && active.flight !== flight) void haptics.fightThrow();
+      if (active.hp < hp) void haptics.fightHit();
+      if (active.lives < lives) void haptics.fightHurt();
+      if (active.attack && active.attack !== attack) void haptics.fightWarn();
       if (active.hp !== hp || active.lives !== lives || active.flight !== flight || active.attack !== attack || active.secondsLeft !== secondsLeft) redraw();
       if (active.end) { finish.current(active); return; }
       frameId = requestAnimationFrame(frame);
@@ -276,7 +291,24 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
     return () => cancelAnimationFrame(frameId);
   }, [motion, phase, paused]);
 
-  const playing = phase === "playing" && !paused && !confirmLeave;
+  const playing = phase === "playing" && !paused && !confirmLeave && !helpOpen;
+
+  // A returning player skips the card and the fight starts at once.
+  useEffect(() => {
+    if (introSeen !== true || phase !== "intro" || autoStarted.current) return;
+    autoStarted.current = true;
+    void start();
+  });
+  const startFromCard = () => {
+    if (!introSeen) {
+      setIntroSeen(true);
+      AsyncStorage.setItem(INTRO_KEY, "seen").catch(() => {});
+    }
+    void start();
+  };
+  const openHelp = () => { blocked.current = true; setHelpOpen(true); };
+  const closeHelp = () => { blocked.current = paused || away.current; setHelpOpen(false); };
+  const ready = useAnimatedStyle(() => ({ opacity: phase === "playing" ? Math.max(0, Math.min(1, (1.1 - motion.value.now) / .3)) : 0 }));
   const input = useRef<(key: DodgeInput) => void>(() => {});
   input.current = (key) => {
     if (playing && !blocked.current) engine.current?.input(key);
@@ -338,9 +370,13 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
         <View pointerEvents="none" style={styles.dim} />
         {arena.width > 0 && <>
           <View style={[StyleSheet.absoluteFill, web ? ({ touchAction: "none" } as object) : null]} {...pan.panHandlers}>
-            <FightBoss {...scene} vessel={capsule.vessel} health={submission !== "idle" ? Math.max(.16, health) : health} warning={fight.attack} damage={fight.damage} burst={burst} finishTime={finishTime} />
+            <FightBoss {...scene} vessel={capsule.vessel} health={submission !== "idle" ? Math.max(.16, health) : health} warning={fight.attack} damage={fight.damage}
+              praise={fight.damage > 0 ? { text: x.praise[fight.hitWord], index: fight.hitWord } : null} burst={burst} finishTime={finishTime} />
             <DodgePlayer {...scene} figure={portrait} />
-            {fight.attack && <FightAttack {...scene} attack={fight.attack} shotLabel={x.shot} waveLabel={x.wave} />}
+            {fight.attack && <FightAttack {...scene} attack={fight.attack}
+              label={fight.attack.kind === "wave" ? x.wave : fight.attack.kind === "triple" ? x.triple : x.shot} />}
+            <HurtText {...scene} finishTime={finishTime} text={x.hurt} />
+            <Animated.Text pointerEvents="none" style={[styles.ready, { top: arena.height * .5 }, ready]}>{x.ready}</Animated.Text>
             {playing && fight.ball && <GatherBall {...scene} ball={fight.ball} hand={portrait.hand} />}
             {fight.flight && <PlayerThrow {...scene} flight={fight.flight} hand={portrait.hand} />}
             <HitEdge motion={motion} finishTime={finishTime} />
@@ -363,6 +399,10 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
               </View>
               {!!clock && <View style={styles.clock}><Text style={styles.clockText}>{clock}</Text></View>}
               <View style={styles.hudActions}>
+                {phase === "playing" && <Pressable accessibilityRole="button" accessibilityLabel={x.help} style={styles.pill}
+                  disabled={confirmLeave || helpOpen} onPress={openHelp}>
+                  <Text style={styles.helpMark}>?</Text>
+                </Pressable>}
                 <Pressable accessibilityRole="button" accessibilityLabel={x.otherLanguage} style={styles.pill} onPress={() => setLanguage(language === "zh" ? "en" : "zh")}>
                   <Text style={styles.lang}>{x.languageButton}</Text>
                 </Pressable>
@@ -374,20 +414,27 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
             </View>
           </View>
         </>}
-        {phase === "intro" && <View style={styles.overlay}>
-          <View style={styles.card}>
+        {phase === "intro" && (introSeen === false || needed !== null || !!error) && <View style={styles.overlay}>
+          <ScrollView style={styles.scrollCard} contentContainerStyle={styles.cardContent}>
             <Text accessibilityRole="header" style={styles.title}>{landmark ? boss : x.intro}</Text>
-            <View style={styles.rule}><View style={styles.symbol}><WaxBall kind="wax" size={28} /></View><Text style={styles.ruleText}>{x.gatherRule}</Text></View>
-            <View style={styles.rule}><View style={styles.symbol}><Text style={styles.redSymbol}>← →</Text></View><Text style={styles.ruleText}>{x.dodgeRule}</Text></View>
-            <View style={styles.rule}><View style={styles.symbol}><Text style={styles.jumpSymbol}>↑</Text></View><Text style={styles.ruleText}>{x.jumpRule}</Text></View>
+            <Rules x={x} />
             {needed !== null ? <View accessibilityLiveRegion="polite" style={styles.requirement}>
               <Text style={styles.detail}>{x.needBalls(needed)}</Text>
               <Text style={styles.detail}>{x.waypostHint}</Text>
             </View> : <Text style={styles.detail}>{errorText ?? (pointer ? x.keyHint : x.touchHint)}</Text>}
-            <Action label={x.start} disabled={busy} onPress={() => void start()} />
-          </View>
+            <Action label={x.start} disabled={busy} onPress={startFromCard} />
+            {introSeen && <Action label={s("close")} secondary disabled={busy} onPress={home ? home.onBack : () => onClose(false)} />}
+          </ScrollView>
         </View>}
-        {paused && !confirmLeave && phase === "playing" && <View style={styles.overlay}>
+        {helpOpen && <View style={styles.overlay}>
+          <ScrollView accessibilityViewIsModal style={styles.scrollCard} contentContainerStyle={styles.cardContent}>
+            <Text accessibilityRole="header" style={styles.title}>{x.help}</Text>
+            <Rules x={x} />
+            <Text style={styles.detail}>{pointer ? x.keyHint : x.touchHint}</Text>
+            <Action label={x.resume} onPress={closeHelp} />
+          </ScrollView>
+        </View>}
+        {paused && !confirmLeave && !helpOpen && phase === "playing" && <View style={styles.overlay}>
           <View style={styles.card}>
             <Text accessibilityRole="header" style={styles.title}>{x.paused}</Text>
             <Action label={x.resume} onPress={() => { if (!away.current) { blocked.current = false; setPaused(false); } }} />
@@ -437,6 +484,15 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
   </View>;
 }
 
+function Rules({ x }: { x: (typeof fightStrings)["zh" | "en"] }) {
+  return <>
+    <View style={styles.rule}><View style={styles.symbol}><WaxBall kind="wax" size={28} /></View><Text style={styles.ruleText}>{x.gatherRule}</Text></View>
+    <View style={styles.rule}><View style={styles.symbol}><Text style={styles.redSymbol}>← →</Text></View><Text style={styles.ruleText}>{x.dodgeRule}</Text></View>
+    <View style={styles.rule}><View style={styles.symbol}><Text style={styles.jumpSymbol}>↑</Text></View><Text style={styles.ruleText}>{x.jumpRule}</Text></View>
+    <View style={styles.rule}><View style={styles.symbol}><Text style={styles.tripleSymbol}>●●●</Text></View><Text style={styles.ruleText}>{x.tripleRule}</Text></View>
+  </>;
+}
+
 function Action({ label, onPress, disabled, secondary }: { label: string; onPress: () => void; disabled?: boolean; secondary?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress}
     style={({ pressed }) => [styles.action, secondary && styles.secondary, (pressed || disabled) && { opacity: .65 }]}>
@@ -465,6 +521,9 @@ const styles = StyleSheet.create({
   pill: { justifyContent: "center", alignItems: "center", minWidth: 44, height: 44, paddingHorizontal: 8,
     backgroundColor: "rgba(246,248,251,.96)", borderRadius: 22 },
   lang: { color: C.blue, fontFamily: sans, fontSize: 12 },
+  helpMark: { color: C.blue, fontFamily: serif, fontSize: 18, fontWeight: "700" },
+  ready: { position: "absolute", width: "100%", textAlign: "center", fontFamily: serif, fontSize: 30, fontWeight: "700", color: C.white,
+    textShadowColor: "rgba(22,38,63,.7)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 },
   clock: { backgroundColor: C.paper, borderRadius: 20, paddingVertical: 4, paddingHorizontal: 9 },
   clockText: { color: C.ink, fontFamily: sans, fontVariant: ["tabular-nums"], fontSize: 12 },
   footer: { backgroundColor: C.paper, paddingVertical: 8, gap: 7, justifyContent: "center", borderBottomLeftRadius: 16, borderBottomRightRadius: 16 },
@@ -479,7 +538,9 @@ const styles = StyleSheet.create({
     backgroundColor: C.white, borderRadius: 20, gap: 3 },
   ballSelected: { borderColor: C.brass, borderWidth: 2, paddingHorizontal: 8 },
   ballEmpty: { opacity: .5 },
-  overlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(22,38,63,.38)", alignItems: "center", justifyContent: "center", padding: 14 },
+  overlay: { ...StyleSheet.absoluteFill, zIndex: 5, backgroundColor: "rgba(22,38,63,.38)", alignItems: "center", justifyContent: "center", padding: 14 },
+  scrollCard: { flexGrow: 0, maxHeight: "100%", width: "100%", maxWidth: 330, backgroundColor: C.paper, borderRadius: 18, ...shadows.card },
+  cardContent: { gap: 10, padding: 16 },
   card: { backgroundColor: C.paper, borderRadius: 18, width: "100%", maxWidth: 330, gap: 10, padding: 16, ...shadows.card },
   title: { fontFamily: serif, fontSize: 19, fontWeight: "700", textAlign: "center", color: C.ink },
   detail: { color: C.muted, fontFamily: sans, textAlign: "center", fontSize: 12 },
@@ -488,6 +549,7 @@ const styles = StyleSheet.create({
   ruleText: { flex: 1, color: C.ink, fontFamily: sans, fontSize: 13 },
   symbol: { width: 40, height: 34, borderRadius: 9, backgroundColor: "#E7EEF5", alignItems: "center", justifyContent: "center" },
   redSymbol: { fontSize: 16, fontWeight: "700", color: C.wax },
+  tripleSymbol: { fontSize: 9, letterSpacing: -.5, color: C.wax },
   jumpSymbol: { fontSize: 19, fontWeight: "700", color: C.ink },
   action: { minHeight: 44, justifyContent: "center", alignItems: "center", backgroundColor: C.wax, borderRadius: 22, paddingHorizontal: 10 },
   actionText: { fontFamily: serif, fontSize: 16, color: C.white },

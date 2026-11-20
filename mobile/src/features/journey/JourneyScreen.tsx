@@ -15,7 +15,7 @@ import { CITIES, CITY_EXPLORER, cityAt, cityPuzzle, type ExplorerCity, type Gues
 import { HuntError, hunt as hunts, keeperMark, onHuntChange, type Hunt } from "../../services/cityHunt";
 import { distanceMeters } from "../../services/data";
 import type { PassportHunt } from "../../services/game";
-import { DODGE_FIGHT, dodgeFights, game, GAME_ACTION_RADIUS_M, GAME_ENABLED, GameError, type CorruptedCapsule, type DevLetter, type GameState, type LandmarkAttempt, type Nearby, type Waypost } from "../../services/game";
+import { dodgeFights, game, GAME_ACTION_RADIUS_M, GAME_ENABLED, type CorruptedCapsule, type DevLetter, type GameState, type Nearby, type Waypost } from "../../services/game";
 import { useCapsules, usePlaces } from "../../services/hooks";
 import { clockText } from "../../services/huntClock";
 import { atGuide, guideSpot, guideStage, inOrder, onPrivateHuntChange, placed, PrivateHuntError, privateHunt as privateHunts, type LeaderRow, type PrivateHunt, type Quest } from "../../services/privateHunt";
@@ -31,8 +31,7 @@ import { useExplorerText } from "../explorer/strings";
 import { SpinScreen } from "../game/SpinScreen";
 import { RACK_FILTERS, RACK_SAMPLE, RACKS, RackError, rackStepTarget, racks, type RackFilter, type RackItem, type RackPage } from "../../services/racks";
 import { useRackText } from "../racks/strings";
-import { errorKey, useGameText } from "../game/strings";
-import { ThrowScreen } from "../game/ThrowScreen";
+import { useGameText } from "../game/strings";
 import { DodgeFightScreen } from "../game/DodgeFightScreen";
 import { KeeperCard, QuestSheet, RunChip } from "../hunt/HuntViews";
 import { GuideCard, JoinPrivateSheet, LeaderboardSheet, PrivateHuntCard, QuestScreen } from "../hunt/PrivateHuntViews";
@@ -93,7 +92,6 @@ export default function JourneyScreen() {
   const [dodgeLandmark, setDodgeLandmark] = useState<Waypost | undefined>();
   const [throwing, setThrowing] = useState<CorruptedCapsule | null>(null);
   const [devLetter, setDevLetter] = useState<DevLetter | null>(null);
-  const [fight, setFight] = useState<LandmarkAttempt | null>(null);
   const [passportStamps, setPassportStamps] = useState<Record<string, string>>({});
   const [huntStamps, setHuntStamps] = useState<PassportHunt[]>([]);
   const [privateHuntStamps, setPrivateHuntStamps] = useState<Awaited<ReturnType<typeof game.passport>>["privateHunts"]>([]);
@@ -452,32 +450,19 @@ export default function JourneyScreen() {
   // A catch or Landmark win can finish a quest, so its pins and checklist reload too.
   const closeFight = () => {
     setThrowing(null);
-    setFight(null);
     setDodgeLandmark(undefined);
     map.current?.recenter();
     void loadGame().finally(() => refreshPinQuests());
   };
-  const startLandmark = async (waypost: Waypost) => {
+  const startLandmark = (waypost: Waypost) => {
     if (busy) return;
-    if (DODGE_FIGHT) {
-      void haptics.tap();
-      setGameCard(null);
-      setDodgeLandmark(waypost);
-      setThrowing({ id: waypost.id, vessel: dodgeFights.landmarkVessel(waypost), rarity: "uncommon", lat: waypost.lat,
-        lng: waypost.lng, expires_at: "", attempts_left: 0 });
-      return;
-    }
-    setBusy(true);
-    try {
-      const attempt = await game.landmarkStart(waypost);
-      void haptics.tap();
-      setGameCard(null); setFight(attempt);
-      setThrowing({ id: attempt.id, vessel: attempt.vessel, rarity: "uncommon", lat: waypost.lat, lng: waypost.lng, expires_at: attempt.expires_at, attempts_left: 0 });
-    } catch (e) {
-      void haptics.warn();
-      setToast(g(errorKey(e instanceof GameError ? e.code : "unknown")));
-    } finally { setBusy(false); }
+    void haptics.tap();
+    setGameCard(null);
+    setDodgeLandmark(waypost);
+    setThrowing({ id: waypost.id, vessel: dodgeFights.landmarkVessel(waypost), rarity: "uncommon", lat: waypost.lat,
+      lng: waypost.lng, expires_at: "", attempts_left: 0 });
   };
+
   const huntAction = async (run: () => Promise<unknown>, done?: (out: unknown) => void) => {
     if (busy) return;
     setBusy(true);
@@ -717,10 +702,8 @@ export default function JourneyScreen() {
     {exploring && playingCity && playingPuzzle && <PriceGuessScreen city={playingCity} puzzle={playingPuzzle} streak={puzzleDay?.streak ?? 0} language={language}
       onResult={onGuess} onClose={() => setPlaying(null)} />}
     {spinning && <SpinScreen waypost={spinning} language={language} onState={setGameState} onClose={() => { setSpinning(null); void loadGame().then(() => setGameCard((c) => c && { ...c, waypost: nearbyRef.current.wayposts.find((x) => x.id === c.waypost.id) ?? c.waypost })); }} />}
-    {throwing && gameState && (DODGE_FIGHT
-      ? <DodgeFightScreen key={throwing.id} capsule={throwing} landmark={dodgeLandmark} avatar={profile?.avatar}
-          state={gameState} onState={setGameState} onClose={closeFight} />
-      : <ThrowScreen capsule={throwing} landmark={fight ?? undefined} state={gameState} onState={setGameState} onClose={closeFight} />)}
+    {throwing && gameState && <DodgeFightScreen key={throwing.id} capsule={throwing} landmark={dodgeLandmark} avatar={profile?.avatar}
+      state={gameState} onState={setGameState} onClose={closeFight} />}
     <Passport visible={passport} onClose={() => setPassport(false)} userId={userId} stamps={stampRows}
       hunts={[...huntStamps, ...(__DEV__ && !userId ? hunts.previewStamps() : []).filter((p) => !huntStamps.some((x) => x.id === p.id))]}
       privateHunts={[...privateHuntStamps, ...(__DEV__ && !userId ? privateHunts.demoStamps() : [])]} />

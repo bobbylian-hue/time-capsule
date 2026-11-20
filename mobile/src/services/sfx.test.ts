@@ -22,7 +22,7 @@ beforeEach(() => {
 describe('sound feedback latency', () => {
   it('prepares all players before an interaction and plays without seeking first', async () => {
     const sfx = await import('./sfx'); sfx.prepareSoundEffects();
-    expect(audio.create).toHaveBeenCalledTimes(9);
+    expect(audio.create).toHaveBeenCalledTimes(13);
     sfx.playSound('tick');
     expect(effects[0].play).toHaveBeenCalledOnce();
     expect(effects[0].seekTo).not.toHaveBeenCalled();

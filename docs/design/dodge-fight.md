@@ -22,9 +22,22 @@ City Hunt and private-hunt catch quests count Journey catches, so they follow au
 - **Standing still gathers power.** A ball appears above the player's head, grows, a thin ring fills around it, specks of light drift in and it pulses faster as it fills (about 0.95 s). The player crouches slightly, snaps up and **throws automatically**. Every throw hits; there is no aiming.
 - **Moving, jumping or getting hit scatters the ball** and gathering starts again. This is the whole tension: stand still to attack, move to stay safe.
 - **The capsule attacks**, always with a clear warning first:
-  - **Aimed shot:** a red dashed circle marks the player's lane (「← 閃開 →」), the capsule pulses dark, then a dark orb flies at that lane. Step to another lane.
+  - **Aimed shot:** a red dashed circle marks the player's lane, the capsule pulses dark, then a dark orb flies at that lane. Step to another lane.
   - **Double shot:** two lanes marked at once, one safe lane left.
-  - **Wave:** a dark striped band at the player's feet (「↑ 往上跳！」), then a dark ring rolls across every lane. Jump.
+  - **Wave:** the capsule rears up, a ring pulses on the ground under it and a dark glow gathers at the player's feet, then a glowing plum ring spreads across the ground to every lane. Jump.
+  - **Triple shot:** all three lanes marked, with a longer glow, and all three fire together. It can't be dodged or jumped (Roy, 2026-11-20: a rare "nowhere to go" moment is fun). It never comes on the last life, and at most once per Corrupted Capsule / Today's Hunt fight and twice per Landmark fight.
+  - No text on the warnings; the shapes carry them. Screen readers still hear each attack.
+- **Attack mix:** weighted random, never the same attack three times running. Early means the first 40% of damage; rare capsules use the late table from the start.
+
+  | | early | late | Landmark |
+  |---|---|---|---|
+  | Single shot | 50 | 35 | 30 |
+  | Double shot | 20 | 25 | 25 |
+  | Wave | 25 | 25 | 30 |
+  | Triple shot | 5 | 15 | 15 |
+
+- **Hit text and sounds:** a capsule hit shows 「命中了！」「很好！」 or 「漂亮！」 at random; a hit taken shows 「被打中了」. Sound effects (no voices): whoosh on throw, crack on a capsule hit, thump on a hit taken, a low tone before each attack, a chime on win. They follow the Me sound-effects switch.
+- **How-to card:** only on a player's first fight on the device. Later fights start at once with a short 「準備…」; the 「?」 button reopens the card and pauses.
 - **Three lives**, shown as wax seals. Each hit taken costs one, the screen edge flashes red and the player blinks, safe for 1 s.
 - **Boss health bar** at the top: name (「破損膠囊 · 珍珠奶茶」), bar with section ticks, a cream strip that trails each hit, and the HP number. Damage numbers float off the capsule. The cracks fade and colour returns as health drops.
 - **Win:** the light burst, cracks gone, then today's restore result card (copies, stars, XP) unchanged.
@@ -34,10 +47,10 @@ City Hunt and private-hunt catch quests count Journey catches, so they follow au
 
 | | Corrupted Capsule | Landmark fight | Today's Hunt catch |
 |---|---|---|---|
-| Health, in wax hits | common 3, uncommon 4, rare 5 | 20 | 3 |
-| Typical length | 10–25 s | 60–100 s | 10 s |
+| Health, in wax hits | common 5, uncommon 6, rare 7 (Roy, 2026-11-20) | 20 | 5 |
+| Typical length | 15–30 s | 60–100 s | 15 s |
 | Timer | none | 150 s | none |
-| Attacks | shot, wave; double shot after 25% damage | all three from the start, faster warnings, and a combo (wave then shot) after 50% | shot, wave |
+| Attacks | the early/late mix above | the Landmark mix, faster warnings, and a combo (wave then shot) after 50% | the early/late mix |
 | Ball cost | 1 ball per throw | 1 ball per throw | free |
 | Gold ball | 2 damage | 2 damage (as today) | — |
 | Losing (3 hits taken) | the capsule breaks free and uses one of its 3 tries; health resets next time | ends the attempt, same as time running out | the quest stays open; try again |
