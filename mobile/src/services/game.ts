@@ -26,10 +26,10 @@ export const cityHuntNameZh = (name: string) => name.replace("城市尋寶", "�
 export type PassportHunt = { id: string; name_zh: string; name_en: string; at: string };
 export type PrivateHuntStamp = { id: string; name: string; at: string };
 export type DevLetter = { publicCapsule: PublicCapsule; message: string };
-export type GameErrorCode = "no_balls" | "expired" | "no_attempts" | "already_caught" | "too_far" | "too_fast" | "cooldown" | "active_attempt" | "unknown";
+export type GameErrorCode = "no_balls" | "expired" | "no_attempts" | "already_caught" | "too_far" | "too_fast" | "cooldown" | "active_attempt" | "too_soon" | "not_enough_damage" | "network" | "unknown";
 export class GameError extends Error { constructor(public code: GameErrorCode) { super(code); } }
 
-const CODES: GameErrorCode[] = ["no_balls", "expired", "no_attempts", "already_caught", "too_far", "too_fast", "cooldown", "active_attempt"];
+const CODES: GameErrorCode[] = ["no_balls", "expired", "no_attempts", "already_caught", "too_far", "too_fast", "cooldown", "active_attempt", "too_soon", "not_enough_damage"];
 const fail = (error: { message?: string } | null) => {
   if (error) throw new GameError(CODES.find((c) => error.message?.includes(c)) ?? "unknown");
 };
@@ -289,5 +289,60 @@ export const game = {
     const gold = Math.random() < .05 ? 1 : 0;
     dev.wax += wax; dev.gold += gold; dev.xp += 20;
     return { wax, gold, state: stateNow() };
+  },
+};
+
+/** DF1's migration ships separately. Keep the hosted RPCs opt-in until it is applied. */
+export const DODGE_FIGHT_RPC = process.env.EXPO_PUBLIC_DODGE_FIGHT === "1";
+export const DODGE_FIGHT = DODGE_FIGHT_RPC || (typeof __DEV__ !== "undefined" && __DEV__ && process.env.EXPO_PUBLIC_DODGE_FIGHT !== "0");
+
+export type DodgeTarget = { capsule: CorruptedCapsule; landmark?: Waypost };
+export type DodgeSession = { id: string; health: number; maxHealth: number; expiresAt: number; attemptsLeft: number };
+async function dodgeRow<Row>(request: PromiseLike<{ data: Row[] | null; error: { message?: string } | null; status?: number }>): Promise<Row> {
+  const { data, error, status } = await request;
+  if (error && status === 0) throw new GameError("network");
+  fail(error);
+  const row = data?.[0];
+  if (!row) throw new GameError("unknown");
+  return row;
+}
+
+export type DodgeFinish = {
+  result: "won" | "lost";
+  vessel: string | null;
+  copies: number | null;
+  stars: number | null;
+  is_new: boolean;
+  xp_gained: number;
+  wax_balls: number;
+  gold_balls: number;
+  attempts_left: number;
+};
+
+/** Session methods serve the located fights only. Today's Hunt plays entirely on the device. */
+export const dodgeFights = {
+  landmarkVessel: (waypost: Waypost) => LANDMARK_VESSEL[waypost.place ?? ""] ?? "hourglass",
+  async start(target: DodgeTarget): Promise<DodgeSession> {
+    if (target.landmark) {
+      const row = await game.landmarkStartOnce(target.landmark);
+      return { id: row.id, health: row.cracks, maxHealth: 20, expiresAt: Date.parse(row.expires_at), attemptsLeft: 1 };
+    }
+    const row = await dodgeRow(supabase.rpc("corrupted_fight_start", { p_spawn: target.capsule.id, ...coords() }));
+    return { id: row.fight_id, health: row.health, maxHealth: row.max_health, expiresAt: Date.parse(row.expires_at), attemptsLeft: row.attempts_left };
+  },
+  async finish(target: DodgeTarget, session: DodgeSession, result: DodgeFinish["result"], used: Record<BallKind, number>) {
+    const args = {
+      p_fight: session.id, p_result: result, p_wax_used: used.wax, p_gold_used: used.gold, ...coords(),
+    };
+    const { data, error, status } = await supabase.rpc(target.landmark ? "landmark_finish" : "corrupted_fight_finish", args);
+    if (error && (status === 0 || status === 502 || status === 503 || status === 504)) throw new GameError("network");
+    fail(error);
+    if (!data || typeof data !== "object" || !("result" in data)) throw new GameError("unknown");
+    const out = data as DodgeFinish;
+    if (out.result === "won") {
+      if (target.landmark) emit({ kind: "landmark", waypost: target.landmark.id });
+      else emit({ kind: "restore", lat: target.capsule.lat, lng: target.capsule.lng });
+    }
+    return out;
   },
 };
