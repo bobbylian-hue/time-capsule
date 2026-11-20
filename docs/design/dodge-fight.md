@@ -2,7 +2,7 @@
 
 Roy approved this direction on 2026-11-20 after playing the demo (`docs/design/demos/dodge-fight.html`; open it from a local server at the repo root, for example `python3 -m http.server 8000` then `/docs/design/demos/dodge-fight.html`). It replaces flicking a ball at a target ring.
 
-**Who does what:** Claude plans, designs and reviews. Codex builds everything: backend, the fight screen, art, merging and release. The eight back-view player rigs were approved in PR #182.
+**Who does what:** Claude plans, designs, builds the fight screen and other UI, and reviews. Codex does the backend, art, merging and release. (Corrected 2026-11-20: Codex built DF2's screen by mistake; from DF3 on, the UI is Claude's.) The eight back-view player rigs were approved in PR #182.
 
 ## Where it applies
 
