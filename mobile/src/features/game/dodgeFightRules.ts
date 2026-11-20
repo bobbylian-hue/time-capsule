@@ -172,7 +172,8 @@ export class DodgeFight {
     const { now } = this.frame;
     const tough = 1 - this.hp / this.maxHp;
     const landmark = this.mode === "landmark";
-    const combo = !this.comboShot && landmark && tough >= .5 && this.random() < .35;
+    const [a, b] = this.recent.slice(-2);
+    const combo = !this.comboShot && landmark && tough >= .5 && !(a === "wave" && b === "wave") && this.random() < .35;
     const allowTriple = this.lives >= 2 && this.triples < TRIPLE_CAP[this.mode];
     const forced = this.forcedAttacks.shift();
     const kind: AttackKind = forced ?? (this.comboShot ? "shot" : combo ? "wave" : null) ??

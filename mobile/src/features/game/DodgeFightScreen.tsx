@@ -132,8 +132,9 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
     if (resolving.current) return;
     setError(null);
     const damage = stock.wax + 2 * stock.gold;
+    // Online fights check against the health the server returns, because a resumed fight keeps its saved health.
     const healthNeeded = fightHealth(mode, capsule.rarity);
-    if (!home && damage < healthNeeded) {
+    if (!home && !remote && damage < healthNeeded) {
       setNeeded(healthNeeded);
       return;
     }
@@ -424,7 +425,7 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
               <Text style={styles.detail}>{x.waypostHint}</Text>
             </View> : <Text style={styles.detail}>{errorText ?? (pointer ? x.keyHint : x.touchHint)}</Text>}
             <Action label={x.start} disabled={busy} onPress={startFromCard} />
-            {introSeen && <Action label={s("close")} secondary disabled={busy} onPress={home ? home.onBack : () => onClose(false)} />}
+            <Action label={s("close")} secondary disabled={busy} onPress={home ? home.onBack : () => onClose(false)} />
           </ScrollView>
         </View>}
         {helpOpen && <View style={styles.overlay}>
@@ -445,7 +446,7 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
           <View accessibilityViewIsModal style={styles.card}>
             <Text accessibilityRole="header" style={styles.title}>{x.leavingLoss}</Text>
             <Action label={x.keepPlaying} onPress={() => {
-              blocked.current = paused || away.current;
+              blocked.current = paused || away.current || helpOpen;
               setConfirmLeave(false);
             }} />
             <Action label={x.leave} secondary onPress={leave} />

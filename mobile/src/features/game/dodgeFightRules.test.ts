@@ -261,4 +261,17 @@ describe("dodge fight rules", () => {
     expect(dodgeSwipe(10, -24)).toBe("jump");
     expect(dodgeSwipe(0, 50)).toBeNull();
   });
+
+  it("never lets the Landmark combo make a third wave in a row", () => {
+    const fight = new DodgeFight("landmark", "common", { wax: 40, gold: 0 }, () => 0);
+    fight.hp = 10;
+    fight.forcedAttacks = ["wave", "wave"];
+    const kinds: string[] = [];
+    for (let n = 0; n < 3; n++) {
+      (fight as unknown as { comboShot: boolean }).comboShot = false;
+      (fight as unknown as { announceAttack(): void }).announceAttack();
+      kinds.push(fight.attack!.kind);
+    }
+    expect(kinds).toEqual(["wave", "wave", "shot"]);
+  });
 });
