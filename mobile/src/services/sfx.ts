@@ -16,7 +16,6 @@ const SOURCES = {
   fightThrow: require("../../assets/audio/sfx/fightThrow.wav"),
   fightHit: require("../../assets/audio/sfx/fightHit.wav"),
   fightHurt: require("../../assets/audio/sfx/fightHurt.wav"),
-  fightWarn: require("../../assets/audio/sfx/fightWarn.wav"),
 };
 export type Sound = keyof typeof SOURCES;
 const KEY = "tc.sfx";

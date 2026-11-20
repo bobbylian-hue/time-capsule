@@ -284,7 +284,6 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
       if (active.flight && active.flight !== flight) void haptics.fightThrow();
       if (active.hp < hp) void haptics.fightHit();
       if (active.lives < lives) void haptics.fightHurt();
-      if (active.attack && active.attack !== attack) void haptics.fightWarn();
       if (active.hp !== hp || active.lives !== lives || active.flight !== flight || active.attack !== attack || active.secondsLeft !== secondsLeft) redraw();
       if (active.end) { finish.current(active); return; }
       frameId = requestAnimationFrame(frame);

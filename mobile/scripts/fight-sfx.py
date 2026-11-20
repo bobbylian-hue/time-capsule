@@ -53,11 +53,3 @@ for i in range(n):
     out.append(math.sin(phase) * env(i, n, .006, 3) + .15 * random.uniform(-1, 1) * env(i, n, .002, 14))
 write("fightHurt", lowpass(out, .3), .55)
 
-# Attack warning: a low, soft two-pulse tone.
-n = int(RATE * .3)
-out = []
-for i in range(n):
-    t = i / RATE
-    pulse = math.sin(math.pi * min(1, (i % (n // 2)) / (n // 2))) ** 2
-    out.append((math.sin(2 * math.pi * 196 * t) + .35 * math.sin(2 * math.pi * 294 * t)) * pulse * (1 - i / n) ** .5)
-write("fightWarn", out, .3)

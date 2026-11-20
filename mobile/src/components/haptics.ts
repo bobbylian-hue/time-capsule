@@ -24,5 +24,4 @@ export const haptics = {
   fightThrow: () => { playSound("fightThrow"); return native && Haptics.selectionAsync(); },
   fightHit: () => { playSound("fightHit"); return native && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); },
   fightHurt: () => { playSound("fightHurt"); return native && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); },
-  fightWarn: () => { playSound("fightWarn"); },
 };

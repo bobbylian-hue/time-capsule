@@ -1,7 +1,7 @@
 import React from "react";
 import { Animated as RNAnimated, Image, Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedProps, useAnimatedStyle, type SharedValue } from "react-native-reanimated";
-import Svg, { Circle, Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
+import Svg, { Circle, Defs, Ellipse, Pattern, RadialGradient, Rect, Stop } from "react-native-svg";
 import { gameArt, vesselParts } from "../../art/manifest";
 import { crackOverlays } from "../../art/crackOverlays";
 import type { VesselKind } from "../../components/Vessel";
@@ -259,86 +259,46 @@ function ShotOrb({ size }: { size: number }) {
   </Svg>;
 }
 
-/** A glowing plum ring drawn as an ellipse; `glow` adds the soft outer halo. */
-function WaveRing({ w, h, glow = true }: { w: number; h: number; glow?: boolean }) {
+/** A glowing plum ring drawn as an ellipse with a soft outer halo. */
+function WaveRing({ w, h }: { w: number; h: number }) {
   return <Svg width={w} height={h}>
-    {glow && <Ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 9} ry={h / 2 - 9} fill="none" stroke={C.plum} strokeOpacity={.3} strokeWidth={16} />}
+    <Ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 9} ry={h / 2 - 9} fill="none" stroke={C.plum} strokeOpacity={.3} strokeWidth={16} />
     <Ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 9} ry={h / 2 - 9} fill="rgba(110,43,63,.1)" stroke="#3B1E3D" strokeWidth={6} />
     <Ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 9} ry={h / 2 - 9} fill="none" stroke="#8C5B8F" strokeOpacity={.55} strokeWidth={2} />
   </Svg>;
 }
 
-function FeetGlow() {
-  return <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-    <Defs>
-      <RadialGradient id="waveFeet" cx="50%" cy="50%" r="50%">
-        <Stop offset="0" stopColor="#3B1E3D" stopOpacity={.55} />
-        <Stop offset=".5" stopColor={C.plum} stopOpacity={.28} />
-        <Stop offset="1" stopColor={C.plum} stopOpacity={0} />
-      </RadialGradient>
-    </Defs>
-    <Ellipse cx={50} cy={50} rx={50} ry={50} fill="url(#waveFeet)" />
-  </Svg>;
+/** The demo's jump warning: a striped band across the ground at the player's feet, shown for the whole wave. */
+function JumpBand({ width, height, motion, reduced, warn }: Scene & { warn: string }) {
+  const pulse = useAnimatedStyle(() => ({ opacity: reduced ? 1 : .75 + .25 * Math.sin(motion.value.now * 16) }));
+  return <Animated.View style={[{ position: "absolute", top: height * (GROUND - .055), height: height * .11, width, alignItems: "center",
+    justifyContent: "center", borderColor: "rgba(22,38,63,.55)", borderStyle: "dashed", borderTopWidth: 2, borderBottomWidth: 2 }, pulse]}>
+    <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+      <Defs><Pattern id="jumpStripe" patternUnits="userSpaceOnUse" width={20} height={20} patternTransform="rotate(45)">
+        <Rect width={20} height={20} fill="rgba(22,38,63,.08)" /><Rect width={10} height={20} fill="rgba(22,38,63,.22)" />
+      </Pattern></Defs>
+      <Rect width="100%" height="100%" fill="url(#jumpStripe)" />
+    </Svg>
+    <Text allowFontScaling={false} numberOfLines={1} style={[styles.warning, styles.bandText]}>{warn}</Text>
+  </Animated.View>;
 }
 
 function DarkWave({ width, height, motion, reduced, attack, warn }: Scene & { attack: Attack; warn: string }) {
   const ringW = width * 1.4;
   const ringH = width * .308;
-  const sourceW = width * .32;
-  const sourceH = sourceW * .3;
-  // Warning: a ring pulses on the ground under the capsule…
-  const source = useAnimatedStyle(() => {
-    const { now } = motion.value;
-    const warning = now < attack.at + attack.warning;
-    const beat = (now - attack.at) * 3 % 1;
-    return {
-      opacity: warning ? (reduced ? .7 : .85 * (1 - beat)) : 0,
-      transform: [{ scale: reduced ? 1 : lerp(.55, 1.25, beat) }],
-    };
-  });
-  // …and a dark glow gathers at the player's feet.
-  const feet = useAnimatedStyle(() => {
-    const { now, x } = motion.value;
-    const p = Math.max(0, Math.min(1, (now - attack.at) / attack.warning));
-    const end = now - attack.at - attack.warning - attack.travel;
-    return {
-      opacity: end > 0 ? 0 : reduced ? .8 : lerp(.2, .9, p) + (reduced ? 0 : .1 * Math.sin(now * 14)),
-      transform: [{ translateX: x * width - width * .2 }, { scale: reduced ? 1 : lerp(.6, 1, p) }],
-    };
-  });
-  // The warning pill follows the player until the wave arrives.
-  const label = useAnimatedStyle(() => {
-    const { now, x } = motion.value;
-    return {
-      opacity: now - attack.at - attack.warning - attack.travel > 0 ? 0 : 1,
-      transform: [{ translateX: x * width - width * .2 }],
-    };
-  });
-  // Reduce Motion: the ring sits still at the player's feet during the warning.
-  const still = useAnimatedStyle(() => ({ opacity: motion.value.now < attack.at + attack.warning ? .55 : 0 }));
+  // The plum ring spreads across the ground from under the capsule and reaches the player's feet at impact.
   const ring = useAnimatedStyle(() => {
     const k = Math.max(0, Math.min(1, (motion.value.now - attack.at - attack.warning) / attack.travel));
     return {
       opacity: k > 0 ? Math.min(1, k * 5) : 0,
       transform: [
-        { translateY: lerp((BOSS_Y + .1) * height, GROUND * height, k) - ringH / 2 },
+        { translateY: lerp((BOSS_Y + .12) * height, GROUND * height, k) - ringH / 2 },
         { scale: lerp(.2, 1, k) },
       ],
     };
   });
   return <>
-    <Animated.View style={[{ position: "absolute", width: width * .4, height: width * .12, top: height * GROUND - width * .06 }, feet]}>
-      <FeetGlow />
-    </Animated.View>
-    <Animated.View style={[{ position: "absolute", width: width * .4, top: height * GROUND + width * .03 }, label]}>
-      <View style={styles.warnRow}><Text allowFontScaling={false} numberOfLines={1} style={[styles.warning, { backgroundColor: C.ink }]}>{warn}</Text></View>
-    </Animated.View>
-    <Animated.View style={[{ position: "absolute", left: (width - sourceW) / 2, top: height * (BOSS_Y + .1) - sourceH / 2 }, source]}>
-      <WaveRing w={sourceW} h={sourceH} glow={false} />
-    </Animated.View>
-    {reduced && <Animated.View style={[{ position: "absolute", left: -width * .2, top: height * GROUND - ringH / 2 }, still]}>
-      <WaveRing w={ringW} h={ringH} />
-    </Animated.View>}
+    <JumpBand width={width} height={height} motion={motion} reduced={reduced} warn={warn} />
     <Animated.View style={[{ position: "absolute", top: 0, left: -width * .2 }, ring]}>
       <WaveRing w={ringW} h={ringH} />
     </Animated.View>
@@ -379,6 +339,7 @@ export function HitEdge({ motion, finishTime }: { motion: SharedValue<FightFrame
 const styles = StyleSheet.create({
   warnRow: { position: "absolute", top: -24, left: -40, right: -40, alignItems: "center" },
   warning: { fontFamily: sans, fontSize: 12, fontWeight: "700", color: C.white, paddingHorizontal: 8, paddingVertical: 3, overflow: "hidden", borderRadius: 20 },
+  bandText: { fontSize: 14, paddingHorizontal: 12, backgroundColor: C.ink },
   layer: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
   mote: { position: "absolute", backgroundColor: "#FFF4D6", borderRadius: 8, shadowColor: C.brass, shadowOpacity: 1, shadowRadius: 5, shadowOffset: { width: 0, height: 0 } },
   damage: { position: "absolute", width: "100%", textAlign: "center", fontFamily: serif, fontSize: 18, fontWeight: "700", color: C.white,

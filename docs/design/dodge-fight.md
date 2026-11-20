@@ -24,7 +24,7 @@ City Hunt and private-hunt catch quests count Journey catches, so they follow au
 - **The capsule attacks**, always with a clear warning first:
   - **Aimed shot:** a red dashed circle marks the player's lane, the capsule pulses dark, then a dark orb flies at that lane. Step to another lane.
   - **Double shot:** two lanes marked at once, one safe lane left.
-  - **Wave:** the capsule rears up, a ring pulses on the ground under it and a dark glow gathers at the player's feet, then a glowing plum ring spreads across the ground to every lane. Jump.
+  - **Wave:** the capsule rears up and the demo's dark striped band, labelled 「↑ 往上跳！」, pulses across the ground at the player's feet. Then a glowing plum ring spreads from under the capsule to every lane. Jump.
   - **Triple shot:** all three lanes marked, with a longer glow, and all three fire together. It can't be dodged or jumped (Roy, 2026-11-20: a rare "nowhere to go" moment is fun). It never comes on the last life, and at most once per Corrupted Capsule / Today's Hunt fight and twice per Landmark fight.
   - Warnings keep their short text: 「← 閃開 →」 above the red circle, 「↑ 往上跳！」 under the player for the wave, and one 「撐住！」 / “Brace!” for the triple. The control buttons show only arrows, no words. Screen readers still hear each attack.
 - **Attack mix:** weighted random, never the same attack three times running. Early means the first 40% of damage; rare capsules use the late table from the start.
@@ -36,7 +36,7 @@ City Hunt and private-hunt catch quests count Journey catches, so they follow au
   | Wave | 25 | 25 | 30 |
   | Triple shot | 5 | 15 | 15 |
 
-- **Hit text and sounds:** a capsule hit shows 「命中了！」「很好！」 or 「漂亮！」 at random; a hit taken shows 「被打中了」. Sound effects (no voices): whoosh on throw, crack on a capsule hit, thump on a hit taken, a low tone before each attack, a chime on win. They follow the Me sound-effects switch.
+- **Hit text and sounds:** a capsule hit shows 「命中了！」「很好！」 or 「漂亮！」 at random; a hit taken shows 「被打中了」. Sound effects (no voices): whoosh on throw, crack on a capsule hit, thump on a hit taken, a chime on win. Warnings have no sound, so a sound always means something landed. They follow the Me sound-effects switch.
 - **How-to card:** only on a player's first fight on the device. Later fights start at once with a short 「準備…」; the 「?」 button reopens the card and pauses.
 - **Three lives**, shown as wax seals. Each hit taken costs one, the screen edge flashes red and the player blinks, safe for 1 s.
 - **Boss health bar** at the top: name (「破損膠囊 · 珍珠奶茶」), bar with section ticks, a cream strip that trails each hit, and the HP number. Damage numbers float off the capsule. The cracks fade and colour returns as health drops.
