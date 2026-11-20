@@ -132,9 +132,10 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
     if (resolving.current) return;
     setError(null);
     const damage = stock.wax + 2 * stock.gold;
-    // Online fights check against the health the server returns, because a resumed fight keeps its saved health.
+    // An online Corrupted fight checks against the health the server returns, because a resumed fight keeps its saved health.
+    // A Landmark checks first, because its start call begins the 150-second clock.
     const healthNeeded = fightHealth(mode, capsule.rarity);
-    if (!home && !remote && damage < healthNeeded) {
+    if (!home && !(remote && mode === "corrupted") && damage < healthNeeded) {
       setNeeded(healthNeeded);
       return;
     }
