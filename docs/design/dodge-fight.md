@@ -26,7 +26,7 @@ City Hunt and private-hunt catch quests count Journey catches, so they follow au
   - **Double shot:** two lanes marked at once, one safe lane left.
   - **Wave:** the capsule rears up, a ring pulses on the ground under it and a dark glow gathers at the player's feet, then a glowing plum ring spreads across the ground to every lane. Jump.
   - **Triple shot:** all three lanes marked, with a longer glow, and all three fire together. It can't be dodged or jumped (Roy, 2026-11-20: a rare "nowhere to go" moment is fun). It never comes on the last life, and at most once per Corrupted Capsule / Today's Hunt fight and twice per Landmark fight.
-  - No text on the warnings; the shapes carry them. Screen readers still hear each attack.
+  - Warnings keep their short text: 「← 閃開 →」 above the red circle, 「↑ 往上跳！」 under the player for the wave, and one 「撐住！」 / “Brace!” for the triple. The control buttons show only arrows, no words. Screen readers still hear each attack.
 - **Attack mix:** weighted random, never the same attack three times running. Early means the first 40% of damage; rare capsules use the late table from the start.
 
   | | early | late | Landmark |

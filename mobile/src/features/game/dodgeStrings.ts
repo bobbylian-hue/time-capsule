@@ -2,6 +2,7 @@ const fightStrings = {
   zh: {
     otherLanguage: "English", languageButton: "EN",
     left: "左閃", jump: "跳起", right: "右閃",
+    shotWarn: "← 閃開 →", waveWarn: "↑ 往上跳！", tripleWarn: "撐住！",
     shot: "紅圈攻擊，閃到另一列", wave: "黑浪來了，跳起來", triple: "三列一起攻擊",
     hurt: "被打中了", praise: ["命中了！", "很好！", "漂亮！"], ready: "準備…", help: "怎麼玩",
     intro: "打敗破損膠囊", start: "開始", resume: "繼續", paused: "已暫停",
@@ -27,6 +28,7 @@ const fightStrings = {
   en: {
     otherLanguage: "繁體中文", languageButton: "中文",
     left: "Left", jump: "Jump", right: "Right",
+    shotWarn: "← Move →", waveWarn: "↑ Jump!", tripleWarn: "Brace!",
     shot: "Red circle: step to another lane", wave: "Dark wave: jump", triple: "All three lanes at once",
     hurt: "Got hit!", praise: ["Direct hit!", "Nice!", "Beautiful!"], ready: "Ready…", help: "How to play",
     intro: "Restore the Corrupted Capsule", start: "Start", resume: "Continue", paused: "Paused",

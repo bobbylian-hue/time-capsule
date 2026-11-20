@@ -27,9 +27,9 @@ type Props = FightScreenProps & DodgeTarget & {
 };
 const web = Platform.OS === "web";
 const moves = [
-  { input: "left", icon: "←", keys: "← / A" },
-  { input: "jump", icon: "↑", keys: null },
-  { input: "right", icon: "→", keys: "→ / D" },
+  { input: "left", icon: "←" },
+  { input: "jump", icon: "↑" },
+  { input: "right", icon: "→" },
 ] as const;
 const keyInputs: Record<string, DodgeInput> = {
   arrowleft: "left", a: "left", arrowup: "jump", w: "jump", " ": "jump",
@@ -374,7 +374,8 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
               praise={fight.damage > 0 ? { text: x.praise[fight.hitWord], index: fight.hitWord } : null} burst={burst} finishTime={finishTime} />
             <DodgePlayer {...scene} figure={portrait} />
             {fight.attack && <FightAttack {...scene} attack={fight.attack}
-              label={fight.attack.kind === "wave" ? x.wave : fight.attack.kind === "triple" ? x.triple : x.shot} />}
+              label={fight.attack.kind === "wave" ? x.wave : fight.attack.kind === "triple" ? x.triple : x.shot}
+              warn={fight.attack.kind === "wave" ? x.waveWarn : fight.attack.kind === "triple" ? x.tripleWarn : x.shotWarn} />}
             <HurtText {...scene} finishTime={finishTime} text={x.hurt} />
             <Animated.Text pointerEvents="none" style={[styles.ready, { top: arena.height * .5 }, ready]}>{x.ready}</Animated.Text>
             {playing && fight.ball && <GatherBall {...scene} ball={fight.ball} hand={portrait.hand} />}
@@ -464,11 +465,10 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
       </View>
       <View style={[styles.footer, { minHeight: footerHeight, paddingLeft: Math.max(10, insets.left), paddingRight: Math.max(10, insets.right) }]}>
         <View style={styles.controls}>
-          {moves.map(({ input: key, icon, keys }) => <Pressable key={key} accessibilityRole="button" accessibilityLabel={x[key]}
+          {moves.map(({ input: key, icon }) => <Pressable key={key} accessibilityRole="button" accessibilityLabel={x[key]}
             disabled={!playing} onPress={() => input.current(key)}
             style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}>
-            <Text style={[styles.arrow, !playing && styles.disabledText]}>{pointer ? keys ?? x.jumpKeys : icon}</Text>
-            <Text style={styles.controlLabel}>{x[key]}</Text>
+            <Text style={[styles.arrow, !playing && styles.disabledText]}>{icon}</Text>
           </Pressable>)}
         </View>
         {home ? <Text style={styles.detail}>{x.homeFree}</Text> : <View style={styles.balls}>
@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
   controls: { flexDirection: "row", gap: 8 },
   control: { flex: 1, minHeight: 56, borderRadius: 15, borderColor: C.line, borderWidth: 1, backgroundColor: C.white, alignItems: "center", justifyContent: "center" },
   controlPressed: { backgroundColor: "#DCE8F2" },
-  arrow: { color: C.blue, fontSize: 19, lineHeight: 23, fontWeight: "700" },
+  arrow: { color: C.blue, fontSize: 26, lineHeight: 30, fontWeight: "700" },
   disabledText: { opacity: .65 },
   controlLabel: { color: C.ink, fontFamily: sans, fontSize: 11, textAlign: "center" },
   balls: { flexDirection: "row", gap: 8, justifyContent: "center" },

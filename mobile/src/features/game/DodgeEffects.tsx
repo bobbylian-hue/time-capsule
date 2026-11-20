@@ -1,12 +1,12 @@
 import React from "react";
-import { Animated as RNAnimated, Image, Platform, StyleSheet, View } from "react-native";
+import { Animated as RNAnimated, Image, Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedProps, useAnimatedStyle, type SharedValue } from "react-native-reanimated";
 import Svg, { Circle, Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 import { gameArt, vesselParts } from "../../art/manifest";
 import { crackOverlays } from "../../art/crackOverlays";
 import type { VesselKind } from "../../components/Vessel";
 import type { BallKind } from "../../services/game";
-import { C, serif } from "../../theme";
+import { C, sans, serif } from "../../theme";
 import { BOSS_Y, FLIGHT, GROUND, LANES, type Attack, type FightFrame, type Flight } from "./dodgeFightRules";
 import { fightHandPoint, RELEASE_ANGLE, RIG_CANVAS, RIG_FEET, RIG_WIDTH, type HandGeometry } from "./fightRigs";
 import { RestoreLightBurst } from "./RestoreResult";
@@ -201,7 +201,7 @@ export function PlayerThrow(props: BallScene & { flight: Flight }) {
   </View>;
 }
 
-function AimedShot({ width, height, motion, reduced, attack, lane }: Scene & { attack: Attack; lane: number }) {
+function AimedShot({ width, height, motion, reduced, attack, lane, warn }: Scene & { attack: Attack; lane: number; warn: string | null }) {
   const x = LANES[lane];
   const ringWidth = width * .26;
   const ringHeight = ringWidth / 2.6;
@@ -230,6 +230,7 @@ function AimedShot({ width, height, motion, reduced, attack, lane }: Scene & { a
         <Ellipse cx={ringWidth / 2} cy={ringHeight / 2} rx={ringWidth / 2 - 2} ry={ringHeight / 2 - 2}
           fill={triple ? "rgba(163,54,79,.3)" : "rgba(163,54,79,.18)"} stroke={C.wax} strokeWidth={triple ? 3.5 : 2.5} strokeDasharray="5 4" />
       </Svg>
+      {warn && <View style={styles.warnRow}><Text allowFontScaling={false} numberOfLines={1} style={[styles.warning, { backgroundColor: C.wax }]}>{warn}</Text></View>}
     </Animated.View>
     <Animated.View style={[{ position: "absolute", width: orbBox, height: orbBox }, orb]}>
       <ShotOrb size={orbSize} />
@@ -280,7 +281,7 @@ function FeetGlow() {
   </Svg>;
 }
 
-function DarkWave({ width, height, motion, reduced, attack }: Scene & { attack: Attack }) {
+function DarkWave({ width, height, motion, reduced, attack, warn }: Scene & { attack: Attack; warn: string }) {
   const ringW = width * 1.4;
   const ringH = width * .308;
   const sourceW = width * .32;
@@ -305,6 +306,14 @@ function DarkWave({ width, height, motion, reduced, attack }: Scene & { attack: 
       transform: [{ translateX: x * width - width * .2 }, { scale: reduced ? 1 : lerp(.6, 1, p) }],
     };
   });
+  // The warning pill follows the player until the wave arrives.
+  const label = useAnimatedStyle(() => {
+    const { now, x } = motion.value;
+    return {
+      opacity: now - attack.at - attack.warning - attack.travel > 0 ? 0 : 1,
+      transform: [{ translateX: x * width - width * .2 }],
+    };
+  });
   // Reduce Motion: the ring sits still at the player's feet during the warning.
   const still = useAnimatedStyle(() => ({ opacity: motion.value.now < attack.at + attack.warning ? .55 : 0 }));
   const ring = useAnimatedStyle(() => {
@@ -321,6 +330,9 @@ function DarkWave({ width, height, motion, reduced, attack }: Scene & { attack: 
     <Animated.View style={[{ position: "absolute", width: width * .4, height: width * .12, top: height * GROUND - width * .06 }, feet]}>
       <FeetGlow />
     </Animated.View>
+    <Animated.View style={[{ position: "absolute", width: width * .4, top: height * GROUND + width * .03 }, label]}>
+      <View style={styles.warnRow}><Text allowFontScaling={false} numberOfLines={1} style={[styles.warning, { backgroundColor: C.ink }]}>{warn}</Text></View>
+    </Animated.View>
     <Animated.View style={[{ position: "absolute", left: (width - sourceW) / 2, top: height * (BOSS_Y + .1) - sourceH / 2 }, source]}>
       <WaveRing w={sourceW} h={sourceH} glow={false} />
     </Animated.View>
@@ -333,11 +345,13 @@ function DarkWave({ width, height, motion, reduced, attack }: Scene & { attack: 
   </>;
 }
 
-export function FightAttack(props: Scene & { attack: Attack; label: string }) {
-  const { label, ...scene } = props;
+export function FightAttack(props: Scene & { attack: Attack; label: string; warn: string }) {
+  const { label, warn, ...scene } = props;
   return <View pointerEvents="none" accessible accessibilityLiveRegion="assertive" accessibilityLabel={label} style={StyleSheet.absoluteFill}>
-    {scene.attack.kind === "wave" ? <DarkWave {...scene} />
-      : scene.attack.lanes.map((lane) => <AimedShot key={lane} {...scene} lane={lane} />)}
+    {scene.attack.kind === "wave" ? <DarkWave {...scene} warn={warn} />
+      // A triple can't be dodged, so it shows one "brace" pill in the middle instead of three "move" pills.
+      : scene.attack.lanes.map((lane) => <AimedShot key={lane} {...scene} lane={lane}
+        warn={scene.attack.kind !== "triple" || lane === 1 ? warn : null} />)}
   </View>;
 }
 
@@ -363,6 +377,8 @@ export function HitEdge({ motion, finishTime }: { motion: SharedValue<FightFrame
 }
 
 const styles = StyleSheet.create({
+  warnRow: { position: "absolute", top: -24, left: -40, right: -40, alignItems: "center" },
+  warning: { fontFamily: sans, fontSize: 12, fontWeight: "700", color: C.white, paddingHorizontal: 8, paddingVertical: 3, overflow: "hidden", borderRadius: 20 },
   layer: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
   mote: { position: "absolute", backgroundColor: "#FFF4D6", borderRadius: 8, shadowColor: C.brass, shadowOpacity: 1, shadowRadius: 5, shadowOffset: { width: 0, height: 0 } },
   damage: { position: "absolute", width: "100%", textAlign: "center", fontFamily: serif, fontSize: 18, fontWeight: "700", color: C.white,
