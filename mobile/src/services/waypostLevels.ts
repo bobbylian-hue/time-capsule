@@ -26,10 +26,13 @@ export type WaypostLevel = {
   me: { spins: number; capsules: number; opened: number };
 };
 
-/** Defaults Roy approved with the demo: level 1 is today's 10 wax balls. */
+/**
+ * Defaults Roy approved with the demo. Level 1 is today's spin exactly (10 wax balls and the existing gold chance,
+ * seeded by the server from the live game config), so nothing changes until a Waypost grows; no level gives less.
+ */
 export const DEFAULT_LEVELS: LevelRow[] = [
-  { level: 1, xp: 0, items: [{ kind: "wax", min: 10, max: 10, chance: 100 }] },
-  { level: 2, xp: 100, items: [{ kind: "wax", min: 12, max: 12, chance: 100 }] },
+  { level: 1, xp: 0, items: [{ kind: "wax", min: 10, max: 10, chance: 100 }, { kind: "gold", min: 1, max: 1, chance: 5 }] },
+  { level: 2, xp: 100, items: [{ kind: "wax", min: 12, max: 12, chance: 100 }, { kind: "gold", min: 1, max: 1, chance: 5 }] },
   { level: 3, xp: 300, items: [{ kind: "wax", min: 12, max: 12, chance: 100 }, { kind: "gold", min: 1, max: 1, chance: 10 }] },
   { level: 4, xp: 700, items: [{ kind: "wax", min: 14, max: 14, chance: 100 }, { kind: "gold", min: 1, max: 1, chance: 20 }] },
   { level: 5, xp: 1500, items: [{ kind: "wax", min: 15, max: 15, chance: 100 }, { kind: "gold", min: 1, max: 1, chance: 20 }, { kind: "vessel", vessel: null, min: 1, max: 1, chance: 5 }] },

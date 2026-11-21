@@ -38,12 +38,12 @@ Roy approved this on 2026-11-21 after playing the demo (a scratch HTML demo that
   | Leave a capsule on its rack | +15 | 1 |
   | Open a capsule from its rack | +25 | 3 |
 
-- There are 5 levels. Each has an XP threshold and its own **drop list**: what one spin gives. Level 1 is today's spin reward (10 wax balls), so nothing changes for anyone until a Waypost grows. These are the default levels:
+- There are 5 levels. Each has an XP threshold and its own **drop list**: what one spin gives. Level 1 is today's spin reward exactly (10 wax balls plus the existing gold-ball chance, seeded from the live game config), so nothing changes for anyone until a Waypost grows, and no level gives less than the one below. These are the default levels:
 
   | Level | From XP | Each spin |
   |---|---|---|
-  | 1 | 0 | 10 wax |
-  | 2 | 100 | 12 wax |
+  | 1 | 0 | 10 wax, today's gold chance (5%) |
+  | 2 | 100 | 12 wax, 5% chance of 1 gold |
   | 3 | 300 | 12 wax, 10% chance of 1 gold |
   | 4 | 700 | 14 wax, 20% chance of 1 gold |
   | 5 | 1500 | 15 wax, 20% chance of 1 gold, 5% chance of the city's rare vessel |

@@ -629,7 +629,8 @@ export default function JourneyScreen() {
     {exploring && playingCity && playingPuzzle && <PriceGuessScreen city={playingCity} puzzle={playingPuzzle} streak={puzzleDay?.streak ?? 0} language={language}
       onResult={onGuess} onClose={() => setPlaying(null)} />}
     {waypostOpen && <WaypostScreen key={waypostOpen.waypost.id} waypost={waypostOpen.waypost} meters={waypostOpen.meters} at={at} language={language}
-      onState={setGameState} onSpun={() => void loadGame()}
+      onState={setGameState}
+      onSpun={() => void loadGame().then(() => setWaypostOpen((o) => o && { ...o, waypost: nearbyRef.current.wayposts.find((w) => w.id === o.waypost.id) ?? o.waypost }))}
       onSampleLetter={RACK_SAMPLE ? (publicCapsule, message) => setDevLetter({ publicCapsule, message }) : undefined}
       onClose={() => { setWaypostOpen(null); void loadGame(); }} />}
     {throwing && gameState && <DodgeFightScreen key={throwing.id} capsule={throwing} landmark={dodgeLandmark} avatar={profile?.avatar}

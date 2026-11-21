@@ -33,7 +33,7 @@ const STAGGER = .09;
 export function WaypostScreen({ waypost, meters, at, language, onState, onSpun, onSampleLetter, onClose }: {
   waypost: Waypost; meters: number; at: () => RackAt; language: "zh" | "en";
   onState: (s: GameState) => void;
-  /** After a spin: reload the game, so the Waypost's cooldown and the ball count are fresh. */
+  /** After a spin: reload the game and pass back the fresh Waypost, so the rack's next-spin countdown shows at once. */
   onSpun: () => void; onClose: () => void;
   /** The development sample has no real capsule pages, so an opened sample capsule shows as a letter card instead. */
   onSampleLetter?: (capsule: Extract<Item, { kind: "publicCapsule" }>["publicCapsule"], message: string) => void;
@@ -135,6 +135,8 @@ export function WaypostScreen({ waypost, meters, at, language, onState, onSpun, 
         Animated.timing(rise, { toValue: 1, duration: 1500, easing: Easing.out(Easing.quad), useNativeDriver: NATIVE }).start();
         Animated.timing(tally, { toValue: 1, duration: 2600, easing: Easing.linear, useNativeDriver: NATIVE }).start();
         setTimeout(openDoors, reduced ? 900 : 1700);
+        // The spin added XP: refresh the level once the doors have opened, so a level-up shows over the rack.
+        setTimeout(() => void refreshLevel(true), reduced ? 1000 : 3200);
       }, 700);
       onSpun();
     } catch (e) {
