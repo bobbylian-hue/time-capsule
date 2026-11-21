@@ -14,7 +14,7 @@ Roy approved this on 2026-11-21 after playing the demo (a scratch HTML demo that
 ## 2. Common Waypost: spin first, then its rack
 
 - If you tap a common Waypost within reach, its own screen opens on the **spin**. There is no way to skip it, because spins are what level a Waypost up. The rewards rise from the disc as before.
-- After the spin, two wooden **doors** carrying the Waypost gem as a crest close and swing open onto the **capsule rack**.
+- After the spin, two plain wooden **doors** with brass knobs close and swing open onto the **capsule rack**.
 - The rack is a wooden wine rack: one cabinet with a crown, rows of four deep round cubbies, shelf boards and a base. Each cubby holds the public capsule bottle lying on its side, with:
   - the sender's profile picture;
   - a plum padlock for a question lock;

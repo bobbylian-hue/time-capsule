@@ -5,7 +5,7 @@
 import React, { useId, useRef } from "react";
 import { Animated, Easing, Image, Platform, Pressable, Text, View } from "react-native";
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Rect, Stop } from "react-native-svg";
-import { gameArt, vesselParts } from "../../art/manifest";
+import { vesselParts } from "../../art/manifest";
 import { ArtIcon } from "../../components/ArtIcon";
 import { Avatar } from "../../components/Avatar";
 import { isReady, type RackItem } from "../../services/racks";
@@ -135,7 +135,7 @@ function Cubby({ item, size, fresh, onPress }: { item: RackItem; size: number; f
   </Pressable>;
 }
 
-/** Two wooden doors with the Waypost gem as a crest close over the spin, then swing open onto the rack. */
+/** Two plain wooden doors with brass knobs close over the spin, then swing open onto the rack. */
 export function RackDoors({ fade, open, top }: { fade: Animated.Value; open: Animated.Value; top: number }) {
   const door = (side: -1 | 1) => (
     <Animated.View style={{ flex: 1, opacity: Animated.multiply(fade, open.interpolate({ inputRange: [0, .85, 1], outputRange: [1, 1, 0] })),
@@ -145,7 +145,6 @@ export function RackDoors({ fade, open, top }: { fade: Animated.Value; open: Ani
       <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderWidth: 3, borderColor: WOOD_DARK, [side < 0 ? "borderRightWidth" : "borderLeftWidth"]: 1.5 }} />
       <View style={{ position: "absolute", top: 3, left: 3, right: 3, bottom: 3, borderWidth: 10, borderColor: "rgba(91,58,34,.35)" }} />
       <View style={{ position: "absolute", top: 22, bottom: 22, left: 18, right: 18, borderRadius: 6, borderWidth: 2, borderColor: "rgba(91,58,34,.5)" }} />
-      {side < 0 && <Image source={gameArt.waypostGemBlue} resizeMode="contain" style={{ position: "absolute", top: "40%", left: "50%", marginLeft: -23, width: 46, height: 46, opacity: .85 }} />}
       <View style={{ position: "absolute", top: "50%", [side < 0 ? "right" : "left"]: 14, width: 14, height: 14, borderRadius: 7, backgroundColor: C.brass, borderWidth: 3, borderColor: "#A9843F" }} />
     </Animated.View>
   );
