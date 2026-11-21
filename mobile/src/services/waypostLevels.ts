@@ -4,7 +4,7 @@
 import { supabase } from "./supabase";
 
 /** Switch on when `waypost_level`, `admin_waypost_levels` and `admin_waypost_level_set` are applied. */
-export const WAYPOST_LEVELS_BACKEND = false;
+export const WAYPOST_LEVELS_BACKEND = true;
 export const WAYPOST_LEVELS_SAMPLE = !WAYPOST_LEVELS_BACKEND && typeof __DEV__ !== "undefined" && __DEV__;
 export const WAYPOST_LEVELS = WAYPOST_LEVELS_BACKEND || WAYPOST_LEVELS_SAMPLE;
 
