@@ -1561,6 +1561,11 @@ export type Database = {
         Args: { p_id?: string; p_lat: number; p_lng: number; p_region: string }
         Returns: Json
       }
+      admin_waypost_level_set: {
+        Args: { p_items: Json; p_level: number; p_note?: string; p_xp: number }
+        Returns: undefined
+      }
+      admin_waypost_levels: { Args: never; Returns: Json }
       admin_waypost_rack: {
         Args: { cursor?: Json; waypost_id: string }
         Returns: Json
@@ -2103,6 +2108,7 @@ export type Database = {
           vessel: string
         }[]
       }
+      waypost_level: { Args: { p_waypost: string }; Returns: Json }
       waypost_rack: {
         Args: { cursor?: Json; filter?: string; waypost_id: string }
         Returns: Json
@@ -2113,6 +2119,7 @@ export type Database = {
           cooldown_end: string
           gold_awarded: number
           gold_balls: number
+          vessel_awarded: string
           wax_awarded: number
           wax_balls: number
           xp_gained: number
