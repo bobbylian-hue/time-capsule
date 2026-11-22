@@ -10,7 +10,9 @@ import { builder, insideBorder, photoUrl, sceneFor, uploadWaypostPhoto, type Bui
 import { C, radii, sans, serif, spacing } from "../../theme";
 import { useAdminText, type AdminText } from "./strings";
 import { useMapBuilderText, type MapBuilderText } from "./mapBuilderStrings";
-import { AButton, Card, Field, Notice, Pill, Stat, timeAgo } from "./ui";
+import { AButton, Card, Check, Field, Notice, Pill, Stat, timeAgo } from "./ui";
+import { useSheetActions } from "./EditSheet";
+import { MAP_BUILDER_R15 } from "../../services/mapBuilder";
 import { ScenePicker } from "./WaypostEditor";
 import { numberedNames } from "../../services/waypostNames";
 
@@ -59,8 +61,11 @@ function PlaceNotes({ region, at, wayposts, check, names }: { region: Region; at
     const w = wayposts.find((x) => x.id === s.id);
     return w ? [{ id: w.id, name_zh: w.name_zh, name_en: w.name_en, meters: s.meters }] : [];
   });
+  // R1.5: one Waypost per cell, so the server's cell_taken is a stop; before R1.5 a shared cell is only a note.
+  const taken = check?.cell_taken;
   return <View style={{ gap: spacing.sm }}>
-    {same.slice(0, 1).map((s) => <Notice key={s.id} text={mb.softCell(zh ? s.name_zh : s.name_en, s.meters)} />)}
+    {same.slice(0, 1).map((s) => <Notice key={s.id} tone={taken ? "stop" : "info"} text={taken ? mb.cellTaken(zh ? s.name_zh : s.name_en) : mb.softCell(zh ? s.name_zh : s.name_en, s.meters)} />)}
+    {taken && !same.length && <Notice tone="stop" text={mb.cellTakenShort} />}
     {names?.area && <Notice tone="warn" text={mb.softArea(mb.areaKinds[names.area])} />}
     {check?.live_hunts.map((h) => <Notice key={h.id} text={a.ed.huntWarn(zh ? h.name_zh : h.name_en)} />)}
   </View>;
@@ -183,14 +188,19 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
     && (!waypost || nameZh.trim() !== waypost.name_zh || nameEn.trim() !== waypost.name_en);
   const suggestion = dupe ? numberedNames(nameZh.trim(), nameEn.trim(), taken) : null;
   const inside = insideBorder(region.border, at) && check?.inside_border !== false;
-  const ready = !!nameZh.trim() && hasChinese(nameZh) && !!nameEn.trim() && !!scene && inside && !busy;
+  const cellFree = !((adding || moved) && check?.cell_taken);
+  const ready = !!nameZh.trim() && hasChinese(nameZh) && !!nameEn.trim() && !!scene && inside && cellFree && !busy;
+  // R1.5: a new Waypost can be saved as a draft first.
+  const [asDraft, setAsDraft] = useState(false);
+  const dirty = adding || moved || !!note.trim() || nameZh.trim() !== waypost.name_zh || nameEn.trim() !== waypost.name_en
+    || scene !== (waypost.scene ?? null) || photo !== (waypost.photo ?? null) || (photo ? credit.trim() : "") !== (waypost.photo_credit ?? "");
 
   const save = async () => {
-    if (!ready || !scene) return;
+    if (!ready || !scene) return false;
     setBusy(true); setError(null);
     try {
       const base = { lat: at.lat, lng: at.lng, name_zh: nameZh.trim(), name_en: nameEn.trim(), scene };
-      if (adding) onSaved(await builder.addWaypost(region.id, { ...base, photo, photo_credit: photo ? credit.trim() || null : null }, note.trim() || null));
+      if (adding) onSaved(await builder.addWaypost(region.id, { ...base, photo, photo_credit: photo ? credit.trim() || null : null }, note.trim() || null, asDraft ? "draft" : "live"));
       else {
         // null keeps what's there; "" clears it.
         const nextCredit = photo ? credit.trim() : "";
@@ -198,8 +208,12 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
           photo: photo === (waypost.photo ?? null) ? null : photo ?? "",
           photo_credit: nextCredit === (waypost.photo_credit ?? "") ? null : nextCredit }, note.trim() || null));
       }
-    } catch (e) { setError(errorCode(e)); } finally { setBusy(false); }
+      return true;
+    } catch (e) { setError(errorCode(e)); return false; } finally { setBusy(false); }
   };
+  // Inside the popup, Save and Cancel live in its header.
+  const inSheet = useSheetActions({ dirty, canSave: ready && (adding || dirty), busy, save,
+    saveLabel: adding ? (asDraft ? mb.saveDraft : mb.publish) : undefined });
 
   const Frame = flat ? View : Card;
   return <Frame style={{ gap: spacing.md }}>
@@ -207,6 +221,10 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
       {!flat && <Pill tone="blue" label={adding ? a.ed.newWaypost : a.commonWaypost} />}
       {!adding && <Text style={{ fontFamily: serif, fontSize: 18, color: C.ink }}>{language === "zh" ? waypost.name_zh : waypost.name_en}</Text>}
       <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{at.lat.toFixed(5)}, {at.lng.toFixed(5)}</Text>
+      {inSheet && <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.md }}>
+        <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.dragHint}</Text>
+        <Pressable accessibilityRole="button" onPress={onMoveHere} hitSlop={6}><Text style={{ fontFamily: sans, fontSize: 12, color: C.blue }}>{mb.moveHereLink}</Text></Pressable>
+      </View>}
     </View>
     {(adding || moved) && <PlaceNotes region={region} at={at} wayposts={wayposts} check={check} names={names} />}
     <NameChips names={names} onPick={pick} />
@@ -222,14 +240,15 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
     </View>}
     <PicturePicker region={region.id} scene={scene} onScene={setScene} photo={photo} onPhoto={setPhoto} credit={credit} onCredit={setCredit} />
     <Field label={a.ed.noteOptional} value={note} onChangeText={setNote} maxLength={300} />
+    {adding && MAP_BUILDER_R15 && <Check on={asDraft} onChange={setAsDraft} label={mb.asDraft} />}
     {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" }}>
+    {!inSheet && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" }}>
       {!adding && !moving && <AButton small tone="ghost" title={a.ed.move} onPress={onMove} />}
       {!adding && <AButton small tone="ghost" title={mb.moveHere} onPress={onMoveHere} />}
       <AButton small tone="ghost" title={a.ed.cancel} onPress={onCancel} />
       <AButton small title={busy ? a.ed.saving : a.ed.save} disabled={!ready} onPress={save} />
-    </View>
-    {(adding || moved) && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{a.ed.live}</Text>}
+    </View>}
+    {(adding || moved) && !asDraft && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{a.ed.live}</Text>}
   </Frame>;
 }
 
@@ -256,11 +275,17 @@ export function SpotForm({ flat, region, spot, at, ask, onSaved, onCancel }: { f
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inside = insideBorder(region.border, at);
+  const [asDraft, setAsDraft] = useState(false);
   const save = async () => {
     setBusy(true); setError(null);
-    try { onSaved(spot ? await builder.moveSpot(spot.id, at.lat, at.lng, note.trim() || null) : await builder.addSpot(region.id, at.lat, at.lng, habitat ?? "square", note.trim() || null)); }
-    catch (e) { setError(errorCode(e)); } finally { setBusy(false); }
+    try {
+      onSaved(spot ? await builder.moveSpot(spot.id, at.lat, at.lng, note.trim() || null)
+        : await builder.addSpot(region.id, at.lat, at.lng, habitat ?? "square", note.trim() || null, asDraft ? "draft" : "live"));
+      return true;
+    } catch (e) { setError(errorCode(e)); return false; } finally { setBusy(false); }
   };
+  const inSheet = useSheetActions({ dirty: true, canSave: inside && (!!spot || !!habitat), busy, save,
+    saveLabel: spot ? mb.movedSpotSave : asDraft ? mb.saveDraft : mb.publish });
   const Frame = flat ? View : Card;
   return <Frame style={{ gap: spacing.md }}>
     <View style={{ gap: 4 }}>
@@ -288,11 +313,12 @@ export function SpotForm({ flat, region, spot, at, ask, onSaved, onCancel }: { f
     </View>}
     <Text style={{ fontFamily: sans, fontSize: 13, lineHeight: 19, color: C.ink }}>{mb.spotNext}</Text>
     <Field label={a.ed.noteOptional} value={note} onChangeText={setNote} maxLength={300} />
+    {!spot && MAP_BUILDER_R15 && <Check on={asDraft} onChange={setAsDraft} label={mb.asDraft} />}
     {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" }}>
+    {!inSheet && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" }}>
       <AButton small tone="ghost" title={a.ed.cancel} onPress={onCancel} />
       <AButton small title={busy ? a.ed.saving : spot ? mb.movedSpotSave : a.ed.save} disabled={busy || !inside || (!spot && !habitat)} onPress={save} />
-    </View>
+    </View>}
   </Frame>;
 }
 

@@ -27,6 +27,13 @@ function builderLayers(){
   map.addSource('grid',{type:'geojson',data:fc([])});
   map.addLayer({id:'grid-fill',type:'fill',source:'grid',filter:['==',['get','used'],1],paint:{'fill-color':'${C.blue}','fill-opacity':.1}},before);
   map.addLayer({id:'grid',type:'line',source:'grid',paint:{'line-color':'${C.blue}','line-opacity':.45,'line-width':1}},before);
+  // R1.5: the cell under a Waypost being placed or dragged (green free, red taken), and the Fill an area box.
+  map.addSource('hint',{type:'geojson',data:fc([])});
+  map.addLayer({id:'hint-fill',type:'fill',source:'hint',paint:{'fill-color':['case',['get','taken'],'${C.wax}','#3E8E5A'],'fill-opacity':.28}});
+  map.addLayer({id:'hint-line',type:'line',source:'hint',paint:{'line-color':['case',['get','taken'],'${C.wax}','#3E8E5A'],'line-width':2}});
+  map.addSource('box',{type:'geojson',data:fc([])});
+  map.addLayer({id:'box-fill',type:'fill',source:'box',paint:{'fill-color':'${C.blue}','fill-opacity':.08}});
+  map.addLayer({id:'box-line',type:'line',source:'box',paint:{'line-color':'${C.blue}','line-width':2,'line-dasharray':[3,2]}});
   map.addSource('border',{type:'geojson',data:fc([])});
   map.addLayer({id:'border',type:'line',source:'border',paint:{'line-color':'${C.blue}','line-width':2.5,'line-dasharray':[2,1.5]}});
 }
@@ -82,8 +89,39 @@ function habitatAt(ll){
   return 'square';
 }
 function sameCell(ll,skip){const k=cellKey(ll);if(!k)return[];return B.posts.filter(p=>p.id!==skip&&cellKey(p)===k).map(p=>({id:p.id,meters:Math.round(dist(ll,p))}))}
+// R1.5: one Waypost per level-17 cell. A Waypost being moved may stay in its own cell.
+function cellTaken(ll,skip){const k=cellKey(ll);if(!k)return false;const own=skip&&B.posts.find(p=>p.id===skip);if(own&&cellKey(own)===k)return false;return B.posts.some(p=>p.id!==skip&&cellKey(p)===k)}
+function showCell(ll,skip){if(!window.S2||!map.getSource('hint'))return;const cell=S2.S2Cell.FromLatLng({lat:ll.lat,lng:ll.lng},17);const ring=cell.getCornerLatLngs().map(p=>[p.lng,p.lat]);ring.push(ring[0]);
+  map.getSource('hint').setData(fc([{type:'Feature',properties:{taken:cellTaken(ll,skip)},geometry:{type:'Polygon',coordinates:[ring]}}]))}
+const clearCell=()=>{map.getSource('hint')&&map.getSource('hint').setData(fc([]))};
+// Dragging a pin: only Wayposts (the pin ids the admin screen uses start with w: or are the new draft) show their cell.
+window.__tcDragMove=(id,ll)=>{if(B.dragKind==='waypost')showCell(ll,B.dragSkip)};
+window.__tcDragEnd=()=>{clearCell()};
+// Placing: a see-through Waypost or spot follows the pointer instead of the hand cursor.
+const ghost=document.createElement('div');ghost.style.cssText='position:absolute;left:0;top:0;pointer-events:none;z-index:40;display:none;opacity:.55';
+map.getContainer().appendChild(ghost);
+map.on('mousemove',e=>{if(!B.placing){return}ghost.style.display='block';ghost.style.transform='translate('+e.point.x+'px,'+e.point.y+'px)';if(B.placing.kind==='waypost')showCell(e.lngLat,null)});
+map.getCanvas().addEventListener('mouseleave',()=>{ghost.style.display='none';if(B.placing)clearCell()});
+function setPlacing(m){B.placing=m.kind?m:null;window.__tcPlacing=!!m.kind;map.getCanvas().style.cursor=m.kind?'none':'';ghost.style.display='none';clearCell();
+  ghost.innerHTML=m.kind==='waypost'?'<div style="position:absolute;left:-13px;top:-41px;width:26px;height:41px;background:url('+m.img+') center/122px no-repeat"></div>'
+    :m.kind==='spot'?'<div style="position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;background:${C.plum};box-shadow:0 0 0 2px #fff"></div>':''}
+// Fill an area: drag a box (mouse or finger) while the map stays still.
+let boxOn=false,boxFrom=null;
+const boxData=(a,b)=>fc([{type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[[[a.lng,a.lat],[b.lng,a.lat],[b.lng,b.lat],[a.lng,b.lat],[a.lng,a.lat]]]}}]);
+function boxStart(e){if(!boxOn)return;e.preventDefault&&e.preventDefault();boxFrom=e.lngLat}
+function boxMove(e){if(!boxOn||!boxFrom)return;map.getSource('box').setData(boxData(boxFrom,e.lngLat))}
+function boxEnd(e){if(!boxOn||!boxFrom)return;const a=boxFrom,b=e.lngLat||a;boxFrom=null;if(Math.abs(a.lat-b.lat)<1e-5||Math.abs(a.lng-b.lng)<1e-5)return;
+  map.getSource('box').setData(boxData(a,b));send({type:'box',south:Math.min(a.lat,b.lat),north:Math.max(a.lat,b.lat),west:Math.min(a.lng,b.lng),east:Math.max(a.lng,b.lng)})}
+map.on('mousedown',boxStart);map.on('mousemove',boxMove);map.on('mouseup',boxEnd);
+map.on('touchstart',e=>{if(boxOn&&e.points&&e.points.length===1)boxStart(e)});map.on('touchmove',boxMove);map.on('touchend',boxEnd);
+function setBox(on){boxOn=on;boxFrom=null;if(on){map.dragPan.disable();map.touchZoomRotate.disable();map.getCanvas().style.cursor='crosshair'}else{map.dragPan.enable();map.touchZoomRotate.enable();map.getCanvas().style.cursor=B.placing?'none':''}}
 function builderRecv(m){
-  if(m.type==='builder'){B.border=m.border||null;B.grid=!!m.grid;B.posts=m.posts||[];drawBorder();drawGrid();if(m.grid&&map.getZoom()<15.5)map.easeTo({zoom:16.2,duration:500})}
+  if(m.type==='placing')setPlacing(m);
+  if(m.type==='boxMode')setBox(m.on);
+  if(m.type==='boxClear')map.getSource('box')&&map.getSource('box').setData(fc([]));
+  if(m.type==='namesMany'){const answer=()=>send({type:'namesMany',seq:m.seq,items:m.points.map(ll=>({names:namesNear(ll,150),habitat:habitatAt(ll)}))});
+    if(map.areTilesLoaded())answer();else map.once('idle',answer)}
+  if(m.type==='builder'){B.border=m.border||null;B.grid=!!m.grid;B.posts=m.posts||[];B.dragKind=m.dragKind||null;B.dragSkip=m.dragSkip||null;drawBorder();drawGrid();if(m.grid&&map.getZoom()<15.5)map.easeTo({zoom:16.2,duration:500})}
   // Names come from tiles near the spot, so look there first and wait for them to load.
   if(m.type==='names'){const ll={lat:m.lat,lng:m.lng};const answer=()=>send({type:'names',seq:m.seq,names:namesNear(ll,150),area:areaAt(ll),habitat:habitatAt(ll),same:sameCell(ll,m.skip)});
     if(map.areTilesLoaded())answer();else map.once('idle',answer)}

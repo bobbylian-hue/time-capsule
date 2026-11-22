@@ -453,7 +453,11 @@ function render(){
       :p.kind==='waypost'?'<div class="pin-body"><div class="disc"></div>'+'<div class="post" style="background-image:url('+p.vessel+')"></div>'+(p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>':'<div class="pin-body"><div class="disc"></div><img class="v" src="'+p.vessel+'">'+(p.kind==='corrupted'&&p.cracks?'<img class="v cracks" src="'+p.cracks+'">':'')+(p.portrait!==undefined&&(p.portrait||p.private)?'<div class="who">'+face(p.portrait)+(p.private?'<div class="lock">'+PADLOCK+'</div>':'')+'</div>':'')+(p.timer?'<div class="tag timer">'+HOURGLASS+p.timer+'</div>':p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>';
     const cls='pin '+(p.kind||'')+(p.near?' near':'')+(p.far?' far':'')+(p.selected?' sel':'')+(p.sealed?' sealed':'')+(p.rarity?' '+p.rarity:'')+(p.done?' done':'')+(p.hunt?' hunt':'')+(p.lift?' top':'')+(p.private?' private':'')+(p.opened?' opened':'')+(p.locked?' locked':'')+(p.blue?' blue':'')+(p.draft?' draft':'')+(p.ghost?' ghost':'');
     let m=marks.get(p.id);
-    if(!m){const el=document.createElement('div');el.addEventListener('click',ev=>{ev.stopPropagation();tapPin(p.id)});
+    if(!m){const el=document.createElement('div');el.addEventListener('click',ev=>{ev.stopPropagation();
+        // Just dropped after a drag: not a tap. Placing a new place (admin map builder): a tap on a pin places it there.
+        if(el.dataset.dragged){delete el.dataset.dragged;return}
+        if(window.__tcPlacing){const r=map.getContainer().getBoundingClientRect(),ll=map.unproject([ev.clientX-r.left,ev.clientY-r.top]);send({type:'tap',lat:ll.lat,lng:ll.lng});return}
+        tapPin(p.id)});
       if(p.drop!=null&&!still){el.classList.add('dropin');el.style.setProperty('--dd',Math.round(p.drop/speed)+'ms');setTimeout(()=>el.classList.remove('dropin'),(p.drop+800)/speed)}m={marker:new maplibregl.Marker({element:el,anchor:'bottom',rotationAlignment:'viewport',pitchAlignment:'viewport'}).setLngLat([p.lng,p.lat]).addTo(map),html:'',cls:''};marks.set(p.id,m)}
     const el=m.marker.getElement();
     if(p.label){
@@ -469,7 +473,14 @@ function render(){
     if(m.html!==html){el.innerHTML=html;m.html=html}
     if(m.cls!==cls){if(m.cls)el.classList.remove(...m.cls.split(' '));el.classList.add(...cls.split(' '));m.cls=cls}
     el.style.zIndex=p.selected?20:p.kind==="keeper"?8:p.near?5:1;
-    m.marker.setLngLat([p.lng,p.lat]);
+    if(window.__tcDragging!==p.id)m.marker.setLngLat([p.lng,p.lat]);
+    // Admin map builder: the selected place can be dragged to move it; the page reports where it was dropped.
+    if(m.drag!==!!p.drag){m.drag=!!p.drag;m.marker.setDraggable(m.drag);
+      if(m.drag&&!m.wired){m.wired=true;const mk=m.marker,pid=p.id;
+        mk.on('dragstart',()=>{fold();window.__tcDragging=pid});
+        mk.on('drag',()=>{window.__tcDragMove&&window.__tcDragMove(pid,mk.getLngLat())});
+        mk.on('dragend',()=>{const ll=mk.getLngLat();mk.getElement().dataset.dragged='1';setTimeout(()=>{delete mk.getElement().dataset.dragged},400);
+          window.__tcDragging=null;window.__tcDragEnd&&window.__tcDragEnd(pid);send({type:'drag',id:pid,lat:ll.lat,lng:ll.lng})})}}
     if(m.lift!==(p.lift||0)){m.lift=p.lift||0;m.marker.setOffset(m.lift?liftOffset(m.marker.getLngLat(),m.lift):[0,0])}
   }
 }

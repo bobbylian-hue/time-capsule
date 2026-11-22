@@ -52,6 +52,8 @@ export type Region = {
   border?: import("./border").Border | null;
   cells_used?: number;
   idle_14d?: number;
+  /** R1.5: Wayposts saved as drafts, not yet published. */
+  drafts?: number;
 };
 
 export type SpawnRule = {
@@ -87,11 +89,17 @@ export type Spawning = {
   stats: Record<string, { out_now: number; caught_today: number; caught_week: number }>;
 };
 
+/** Map builder R1.5: a place is a draft (admin only), live, hidden (can come back) or deleted (gone; Undo brings it back). */
+export type PlaceStatus = "draft" | "live" | "hidden" | "deleted";
 export type MapWaypost = { id: string; name_zh: string; name_en: string; lat: number; lng: number; kind: "common" | "landmark"; game_enabled: boolean; source_ref?: string | null;
   scene?: Scene | null; hidden_at?: string | null;
   /** Map builder R1: an uploaded photo shown instead of the scene, and who took it. */
-  photo?: string | null; photo_credit?: string | null };
-export type MapSpot = { id: string; lat: number; lng: number; habitat: Habitat | null; hidden_at?: string | null };
+  photo?: string | null; photo_credit?: string | null;
+  /** R1.5; before it, live when game_enabled and hidden otherwise. */
+  status?: PlaceStatus };
+export type MapSpot = { id: string; lat: number; lng: number; habitat: Habitat | null; hidden_at?: string | null; status?: PlaceStatus };
+/** A Waypost's or spot's state, also for rows from before R1.5. */
+export const statusOf = (p: MapWaypost | MapSpot): PlaceStatus => p.status ?? ("game_enabled" in p ? (p.game_enabled ? "live" : "hidden") : p.hidden_at ? "hidden" : "live");
 export type WaveCapsule = { spot: string; vessel: string; rarity: Rarity; lat: number; lng: number; expires_at: string; caught: boolean };
 export type CityMap = {
   region: Region;
@@ -224,7 +232,7 @@ export const adminEdit = {
 };
 
 /** Kinds of change Undo can put back. */
-export const undoable = (action: string) => /^(waypost|spawn|config|question_pool|todays_hunt|vessel)\./.test(action) || ["rack.remove", "spot.add", "spot.move"].includes(action);
+export const undoable = (action: string) => /^(waypost|spawn|config|question_pool|todays_hunt|vessel)\./.test(action) || ["rack.remove", "spot.add", "spot.move", "spot.status", "spot.add_batch"].includes(action);
 
 /** When a new wave length would start: the next moment that ends a wave under both lengths (the server decides; this is for showing it). */
 export function nextLengthStart(from: number, to: number, now = Date.now()) {

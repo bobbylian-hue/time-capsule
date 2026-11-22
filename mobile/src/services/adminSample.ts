@@ -2,7 +2,7 @@
 // Counts and vessel sets follow what is live; pin positions are scattered around each city and are not
 // real Wayposts. Changes made here last until the page reloads.
 import type {
-  ActivityRow, AdminRole, CityMap, Habitat, MapSpot, MapWaypost, Member, Person, QueueItem, QueueKind, Rarity, Region, Scene, SpawnChange, SpawnPlace,
+  ActivityRow, AdminRole, CityMap, Habitat, MapSpot, MapWaypost, PlaceStatus, Member, Person, QueueItem, QueueKind, Rarity, Region, Scene, SpawnChange, SpawnPlace,
   SpawnPreview, SpawnRule, Spawning, WaveCapsule, WaveConfig, WaypostCheck,
 } from "./admin";
 import { STARTER_VESSELS } from "./vesselAccess";
@@ -173,12 +173,14 @@ function huntsAround(region: Region, at: { lat: number; lng: number }, skip?: st
     wayposts_left: postsFor(region).filter((w) => w.game_enabled && w.kind === "common" && w.id !== skip && distance(k, w) <= 800).length,
   }));
 }
-function checkSpot(region: Region, at: { lat: number; lng: number }, skip?: string): WaypostCheck & { inside_border: boolean; same_cell: { id: string; name_zh: string; name_en: string; meters: number }[] } {
+function checkSpot(region: Region, at: { lat: number; lng: number }, skip?: string): WaypostCheck & { inside_border: boolean; cell_taken: boolean; same_cell: { id: string; name_zh: string; name_en: string; meters: number }[] } {
   const near = nearestPost(region, at, skip);
   const cell = cellOf(at);
+  const own = skip ? postsFor(region).find((w) => w.id === skip) : undefined;
   return {
+    cell_taken: !(own && cellOf(own) === cell) && postsFor(region).some((w) => w.id !== skip && w.status !== "deleted" && cellOf(w) === cell),
     inside_border: insideBorder(BORDERS[region.id], at),
-    same_cell: postsFor(region).filter((w) => w.game_enabled && w.id !== skip && cellOf(w) === cell)
+    same_cell: postsFor(region).filter((w) => w.status !== "deleted" && (w.game_enabled || w.status) && w.id !== skip && cellOf(w) === cell)
       .map((w) => ({ id: w.id, name_zh: w.name_zh, name_en: w.name_en, meters: Math.round(distance(at, w)) })),
     inside_coverage: distance(region.center, at) <= 5000,
     nearest: near ? { id: near.w.id, name_zh: near.w.name_zh, name_en: near.w.name_en, meters: Math.round(near.m) } : null,
@@ -190,7 +192,16 @@ function guardPlace(region: Region, at: { lat: number; lng: number }) {
   if (!insideBorder(BORDERS[region.id], at)) fail("outside_border");
   if (!BORDERS[region.id] && distance(region.center, at) > 5000) fail("outside_coverage");
 }
-const guardWaypost = (region: Region, at: { lat: number; lng: number }, _note: string | null, _skip?: string) => guardPlace(region, at);
+/** R1.5: one Waypost or Landmark per level-17 cell. Drafts and hidden ones hold their cell; deleted ones free it.
+ * Moving within its own cell is always fine. Before R1.5's backend only the border refuses. */
+const R15 = () => true;
+function guardWaypost(region: Region, at: { lat: number; lng: number }, _note: string | null, skip?: string) {
+  guardPlace(region, at);
+  if (!R15()) return;
+  const own = skip ? postsFor(region).find((w) => w.id === skip) : undefined;
+  if (own && cellOf(own) === cellOf(at)) return;
+  if (postsFor(region).some((w) => w.id !== skip && w.status !== "deleted" && cellOf(w) === cellOf(at))) fail("cell_taken");
+}
 const clean = (x: string | null | undefined) => x ? x : null;
 const hasChinese = (x: string) => /[\u3400-\u9fff]/.test(x);
 /** Every place with spots keeps a vessel that can appear at any hour on any date, or its spots sit empty part of the day. */
@@ -262,7 +273,10 @@ const log = (row: Omit<ActivityRow, "id" | "actor" | "at">) => {
 };
 const canEdit = () => viewAs === "owner" || viewAs === "admin" ? true : fail("forbidden");
 const label = (w: MapWaypost) => w.name_zh;
-const snapshot = (w: MapWaypost) => ({ name_zh: w.name_zh, name_en: w.name_en, lat: w.lat, lng: w.lng, scene: w.scene ?? null, game_enabled: w.game_enabled, hidden_at: w.hidden_at ?? null });
+const snapshot = (w: MapWaypost) => ({ name_zh: w.name_zh, name_en: w.name_en, lat: w.lat, lng: w.lng, scene: w.scene ?? null, game_enabled: w.game_enabled, hidden_at: w.hidden_at ?? null, status: w.status ?? (w.game_enabled ? "live" : "hidden") });
+const spotSnapshot = (x: MapSpot) => ({ lat: x.lat, lng: x.lng, hidden_at: x.hidden_at ?? null, status: x.status ?? (x.hidden_at ? "hidden" : "live") });
+/** What each state means for the game: only live places are in it. */
+const asStatus = (status: PlaceStatus) => ({ status, game_enabled: status === "live", hidden_at: status === "live" || status === "draft" ? null : new Date().toISOString() });
 const ruleSnapshot = (r: SpawnRule) => ({ rarity: r.rarity, habitat: r.habitat, hours: r.hours, dates: r.dates, places: r.places ?? [] });
 const waveSnapshot = (c: WaveConfig) => ({ spawn_chance: c.spawn_chance, weights: c.weights, nearby_max: c.nearby_max });
 const pause = <T,>(value: T) => new Promise<T>((done) => setTimeout(() => done(value), 120));
@@ -283,9 +297,10 @@ let ruleState: SpawnRule[] = rules();
 /** A region with what is live in the sample right now: its vessel pool, counts and wave. */
 function regionNow(r: Region): Region {
   const posts = postsFor(r).filter((w) => w.game_enabled);
+  const held = postsFor(r).filter((w) => w.status !== "deleted");
   return { ...r, vessels: poolFor(r.id, ruleState).map((x) => x.vessel), wayposts: { common: posts.filter((w) => w.kind === "common").length, landmark: posts.filter((w) => w.kind === "landmark").length },
-    corrupted_spots: spotsFor(r).filter((x) => !x.hidden_at).length, out_now: wave(r).filter((w) => !w.caught).length,
-    border: BORDERS[r.id] ?? null, cells_used: new Set(posts.map(cellOf)).size, idle_14d: Math.floor(posts.length / 5) };
+    corrupted_spots: spotsFor(r).filter((x) => !x.hidden_at && (x.status ?? "live") === "live").length, out_now: wave(r).filter((w) => !w.caught).length,
+    border: BORDERS[r.id] ?? null, cells_used: new Set(held.map(cellOf)).size, drafts: held.filter((w) => w.status === "draft").length, idle_14d: Math.floor(posts.length / 5) };
 }
 
 export const sample = {
@@ -301,7 +316,8 @@ export const sample = {
     const quests = region.id === "macau"
       ? scatter("ybawml", 6, { lat: 22.1545, lng: 113.556 }, 0.25).map((s, i) => ({ id: `q${i}`, hunt: "YBAWML", hunt_name: "氹仔中央公園定向日", ...s }))
       : [];
-    return pause({ region: regionNow(region), wayposts: posts.map((w) => ({ ...w })), spots: spots.map((x) => ({ ...x })), wave: wave(region), keepers: KEEPERS[region.id] ?? [], private_quests: quests });
+    return pause({ region: regionNow(region), wayposts: posts.filter((w) => w.status !== "deleted").map((w) => ({ ...w, status: w.status ?? (w.game_enabled ? "live" : "hidden") })),
+      spots: spots.filter((x) => x.status !== "deleted").map((x) => ({ ...x, status: x.status ?? (x.hidden_at ? "hidden" : "live") })), wave: wave(region), keepers: KEEPERS[region.id] ?? [], private_quests: quests });
   },
   spawning: (): Promise<Spawning> => pause({
     config: { ...config },
@@ -351,14 +367,14 @@ export const sample = {
     const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
     return pause(checkSpot(region, { lat, lng }, id));
   },
-  addWaypost: async (regionId: string, w: { lat: number; lng: number; name_zh: string; name_en: string; scene: Scene; photo?: string | null; photo_credit?: string | null }, checked: boolean, note: string | null) => {
+  addWaypost: async (regionId: string, w: { lat: number; lng: number; name_zh: string; name_en: string; scene: Scene; photo?: string | null; photo_credit?: string | null }, checked: boolean, note: string | null, status: "draft" | "live" = "live") => {
     canEdit();
     const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
     if (!w.name_zh.trim() || !w.name_en.trim() || !hasChinese(w.name_zh)) fail("bad_name");
     guardWaypost(region, w, note);
     const id = `admin-${Date.now().toString(36)}`;
     const post: MapWaypost = { id, ...w, name_zh: w.name_zh.trim(), name_en: w.name_en.trim(), photo: clean(w.photo), photo_credit: clean(w.photo_credit),
-      kind: "common", game_enabled: true, hidden_at: null, source_ref: `admin:${id}` };
+      kind: "common", source_ref: `admin:${id}`, ...asStatus(status) };
     postState.set(region.id, [...postsFor(region), post]);
     log({ action: "waypost.add", target_type: "waypost", target_id: id, target_label: label(post), before: null, after: snapshot(post), note });
     return pause({ ...post });
@@ -399,11 +415,11 @@ export const sample = {
     return pause({ ...next });
   },
   // Map builder R1.
-  addSpot: async (regionId: string, lat: number, lng: number, habitat: Habitat, note: string | null) => {
+  addSpot: async (regionId: string, lat: number, lng: number, habitat: Habitat, note: string | null, status: "draft" | "live" = "live") => {
     canEdit();
     const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
     guardPlace(region, { lat, lng });
-    const spot: MapSpot = { id: `admin-spot-${Date.now().toString(36)}`, lat, lng, habitat, hidden_at: null };
+    const spot: MapSpot = { id: `admin-spot-${Date.now().toString(36)}`, lat, lng, habitat, hidden_at: null, status };
     spotState.set(region.id, [...spotsFor(region), spot]);
     log({ action: "spot.add", target_type: "spot", target_id: spot.id, target_label: `${region.name_zh} · ${lat.toFixed(4)}, ${lng.toFixed(4)}`, before: null, after: { lat, lng, habitat }, note });
     return pause({ ...spot });
@@ -471,13 +487,103 @@ export const sample = {
       before: { wave_minutes: config.wave_minutes, next: before }, after: { wave_minutes: config.wave_minutes, next: config.next_length }, note });
     return pause(starts_at);
   },
+  // Map builder R1.5: publish, hide, show and delete several places at once, one Activity row.
+  setStatus: async (kind: "waypost" | "spot", ids: string[], status: PlaceStatus, note: string | null) => {
+    canEdit();
+    if (!ids.length) fail("nothing");
+    const region = (kind === "waypost" ? regionOfPost(ids[0]) : regionOfSpot(ids[0])) ?? fail("not_found");
+    const before: Record<string, unknown> = {};
+    if (kind === "waypost") {
+      const list = postsFor(region);
+      for (const id of ids) {
+        const w = list.find((x) => x.id === id) ?? fail("not_found");
+        if (w.kind === "landmark") fail("landmark");
+        if (w.status === "draft" && status === "live") guardWaypost(region, w, note, id);
+        if ((status === "hidden" || status === "deleted") && w.game_enabled && huntsAround(region, w, id).some((h) => h.wayposts_left < h.wayposts_needed)) fail("hunt_needs_wayposts");
+        before[id] = snapshot(w);
+      }
+      postState.set(region.id, list.map((w) => ids.includes(w.id) ? { ...w, ...asStatus(status) } : w));
+    } else {
+      const list = spotsFor(region);
+      for (const id of ids) before[id] = spotSnapshot(list.find((x) => x.id === id) ?? fail("not_found"));
+      spotState.set(region.id, list.map((x) => ids.includes(x.id) ? { ...x, status, hidden_at: status === "live" || status === "draft" ? null : new Date().toISOString() } : x));
+    }
+    const first = kind === "waypost" ? postsFor(region).find((w) => w.id === ids[0])!.name_zh : region.name_zh;
+    log({ action: `${kind}.status`, target_type: `${kind}_batch`, target_id: ids.join(","), target_label: ids.length > 1 ? `${first} +${ids.length - 1}` : first,
+      before, after: { status }, note });
+    return pause({ changed: ids.length });
+  },
+  /** Safe points inside a box, at a spacing, away from existing places; Wayposts one per free cell. */
+  areaSuggest: async (regionId: string, kind: "waypost" | "spot", box: { south: number; west: number; north: number; east: number }, spacing: number) => {
+    canEdit();
+    const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
+    const mid = (box.south + box.north) / 2;
+    const km2 = ((box.north - box.south) * 110.54) * ((box.east - box.west) * 111.32 * Math.cos(mid * Math.PI / 180));
+    if (km2 > 4) fail("area_too_big");
+    const existing: { lat: number; lng: number }[] = kind === "waypost" ? postsFor(region).filter((w) => w.status !== "deleted") : spotsFor(region).filter((x) => x.status !== "deleted");
+    const cells = new Set(kind === "waypost" ? existing.map(cellOf) : []);
+    const out: { lat: number; lng: number }[] = [];
+    const dLat = spacing / 110540, dLng = spacing / (111320 * Math.cos(mid * Math.PI / 180));
+    for (let lat = box.south + dLat / 2; lat < box.north && out.length < 100; lat += dLat) {
+      for (let lng = box.west + dLng / 2; lng < box.east && out.length < 100; lng += dLng) {
+        // A little jitter, like real paths, so suggestions don't look like a grid.
+        const p = { lat: lat + (Math.sin(lat * 9e4 + lng) * dLat) / 5, lng: lng + (Math.cos(lng * 9e4) * dLng) / 5 };
+        if (!insideBorder(BORDERS[region.id], p)) continue;
+        if (existing.some((e) => distance(e, p) < spacing * 0.8)) continue;
+        if (kind === "waypost") { if (cells.has(cellOf(p))) continue; cells.add(cellOf(p)); }
+        out.push(p);
+      }
+    }
+    return pause(out);
+  },
+  addWayposts: async (regionId: string, items: { lat: number; lng: number; name_zh: string; name_en: string; scene: Scene }[], note: string | null) => {
+    canEdit();
+    const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
+    const added: MapWaypost[] = [], skipped: { index: number; reason: string }[] = [];
+    items.forEach((w, index) => {
+      try {
+        if (!w.name_zh.trim() || !w.name_en.trim() || !hasChinese(w.name_zh)) fail("bad_name");
+        guardWaypost(region, w, note);
+        const id = `admin-${Date.now().toString(36)}-${index}`;
+        const post: MapWaypost = { id, ...w, kind: "common", source_ref: `admin:${id}`, photo: null, photo_credit: null, ...asStatus("draft") };
+        postState.set(region.id, [...postsFor(region), post]);
+        added.push(post);
+      } catch (e) { skipped.push({ index, reason: (e as Error).message }); }
+    });
+    if (added.length) log({ action: "waypost.add_batch", target_type: "waypost_batch", target_id: added.map((w) => w.id).join(","), target_label: added.length > 1 ? `${added[0].name_zh} +${added.length - 1}` : added[0].name_zh,
+      before: null, after: { count: added.length }, note });
+    return pause({ added, skipped });
+  },
+  addSpots: async (regionId: string, items: { lat: number; lng: number; habitat: Habitat }[], note: string | null) => {
+    canEdit();
+    const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
+    const added: MapSpot[] = [], skipped: { index: number; reason: string }[] = [];
+    items.forEach((x, index) => {
+      try {
+        guardPlace(region, x);
+        const spot: MapSpot = { id: `admin-spot-${Date.now().toString(36)}-${index}`, ...x, hidden_at: null, status: "draft" };
+        spotState.set(region.id, [...spotsFor(region), spot]);
+        added.push(spot);
+      } catch (e) { skipped.push({ index, reason: (e as Error).message }); }
+    });
+    if (added.length) log({ action: "spot.add_batch", target_type: "spot_batch", target_id: added.map((x) => x.id).join(","), target_label: `${region.name_zh} · ${added.length}`,
+      before: null, after: { count: added.length }, note });
+    return pause({ added, skipped });
+  },
   undo: async (actionId: number, note: string | null) => {
     canEdit();
     const row = activity.find((r) => r.id === actionId) ?? fail("not_found");
     if (!/^(waypost|spot|spawn|config)\./.test(row.action)) fail("not_undoable");
     if (activity.some((r) => r.id > actionId && r.target_id === row.target_id && r.target_type === row.target_type)) fail("stale");
     const before = row.before as any;
-    if (row.target_type === "waypost") {
+    if (row.target_type === "waypost_batch" || row.target_type === "spot_batch") {
+      // A batch add is undone by deleting it; a status change puts every place back as it was.
+      const ids = row.target_id.split(","), spots = row.target_type === "spot_batch";
+      const region = (spots ? regionOfSpot(ids[0]) : regionOfPost(ids[0])) ?? fail("not_found");
+      const put = (id: string) => before == null ? (spots ? { status: "deleted" as const, hidden_at: new Date().toISOString() } : asStatus("deleted")) : before[id];
+      if (spots) spotState.set(region.id, spotsFor(region).map((x) => ids.includes(x.id) ? { ...x, ...put(x.id) } : x));
+      else postState.set(region.id, postsFor(region).map((w) => ids.includes(w.id) ? { ...w, ...put(w.id) } : w));
+    } else if (row.target_type === "waypost") {
       const region = regionOfPost(row.target_id) ?? fail("not_found");
       postState.set(region.id, before == null
         ? postsFor(region).filter((w) => w.id !== row.target_id)
@@ -485,7 +591,7 @@ export const sample = {
     } else if (row.target_type === "spot") {
       const region = regionOfSpot(row.target_id) ?? fail("not_found");
       // Undoing an added spot hides it; undoing a move puts it back.
-      const put = before == null ? { hidden_at: new Date().toISOString() } : "lat" in before ? { lat: before.lat, lng: before.lng } : { hidden_at: before.hidden_at };
+      const put = before == null ? { hidden_at: new Date().toISOString(), status: "deleted" as const } : "lat" in before ? { lat: before.lat, lng: before.lng } : { hidden_at: before.hidden_at };
       spotState.set(region.id, spotsFor(region).map((x) => x.id === row.target_id ? { ...x, ...put } : x));
     } else if (row.target_type === "vessel") {
       const list = ruleState.map((r) => r.vessel === row.target_id ? { ...r, ...before } : r);
