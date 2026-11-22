@@ -8,6 +8,27 @@ PNG masters live in `design/art/`. WebP copies live at matching paths in `public
 
 The original SVG art remains in `src/art.js` and is recoverable from Git tag `art-svg-v1`. These bitmap assets are not wired into app screens yet.
 
+## Default Landmark art (MB-A1)
+
+| PNG master | WebP | Design |
+|---|---|---|
+| `game/wheel/scene-landmark-default.png` | `public/art/game/wheel/scene-landmark-default.webp` | Imaginary civic plaza with a blue stone arch and brass star keystone |
+| `stamps/stamp-landmark-default.png` | `public/art/stamps/stamp-landmark-default.webp` | Four-point Landmark seal star in ink blue, with two rings and transparent negative space |
+| `vessels/vessel-landmark-keepsake.png` | `public/art/vessels/vessel-landmark-keepsake.webp` | Closed brass medal with a blue enamel Landmark star |
+| `vessels/vessel-landmark-keepsake-body.png` | `public/art/vessels/vessel-landmark-keepsake-body.webp` | Stationary brass tray, navy velvet and rolled letter |
+| `vessels/vessel-landmark-keepsake-lid.png` | `public/art/vessels/vessel-landmark-keepsake-lid.webp` | Enamel face of the hinged lid |
+| `vessels/vessel-landmark-keepsake-lid-reverse.png` | `public/art/vessels/vessel-landmark-keepsake-lid-reverse.webp` | Brass underside of the same lid |
+
+Roy approved the picture and stamp at `d35295c`. The wheel scene follows the opaque square framing of the existing Landmark scenes. The stamp uses the in-app Landmark badge as its star reference and the HKUST event stamp as its double-ring reference. The [browser review sheet](_checks/landmark-defaults-review.png) compares the 512 px exports in circular wheel crops and at 40, 64 and 120 px on Passport paper.
+
+### Landmark keepsake
+
+Roy chose the hinged brass medal. It is an original design with the approved Landmark stamp as the enamel star shape reference. The 1024 px masters use the built-in `gpt-image-2` tool and the approved style sheet. The art manifest records the exact prompts, reference order, layer transforms and registration.
+
+Type A opening uses the fixed rear hinge at (519, 326). The enamel face foreshortens, then the brass reverse swings up around the same pivot. The rolled letter rests inside the navy seat at (511, 553), which gives a letter drop of about 210 px. The medal base is at y = 899. Idle is a 3° sway over 4 seconds with one sparkle at (242, 423) on the brass rim. The closed stack matches the assembled image for Reduce Motion.
+
+The standard Crack A generator produced `public/art/game/cracks/landmark-keepsake.webp` from the approved crack master and the assembled medal silhouette. [Motion review](_checks/landmark-keepsake-motion.png) · [40/120 px and Crack A](_checks/landmark-keepsake-sizes.png) · [Closed stack](_checks/landmark-keepsake-stack.png).
+
 ## Corrupted Capsule fight review
 
 Draft PR #189 has four waist-split throw poses for each of the eight approved back-view figures. Figure 01’s approved layers are from `e06042a`. The existing rest pose is the set. The drawn poses are cock (140 ms), release (80 ms), follow-through (150 ms), and recover (130 ms). Each 1024 px master upper stacks over its matching lower or the original jump legs. Figure 01’s WebPs are lossless 1024 px copies of the approved masters. Figures 02–08 have 512 px WebPs on the same proportional canvas. Claude registers the sprites in `fightRigs.ts`. The ball point is measured at the right hand on the 1024 px canvas. The game shows the held ball during cock and starts the flying ball at the release point.
