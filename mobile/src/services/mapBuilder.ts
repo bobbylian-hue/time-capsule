@@ -66,4 +66,5 @@ export function sceneFor(kind: string | null | undefined): Scene {
 export const AREA_KINDS = ["school", "kindergarten", "university", "college", "hospital", "cemetery", "military"] as const;
 export type AreaKind = typeof AREA_KINDS[number];
 /** Names the map tiles give near a spot, the kind of land it's on, and the S2 level-17 neighbours. */
-export type MapNames = { names: { zh: string; en: string; kind: string; meters: number }[]; area: AreaKind | null; same: { id: string; meters: number }[] };
+export type MapNames = { names: { zh: string; en: string; kind: string; meters: number }[]; area: AreaKind | null;
+  /** The spawn-spot habitat the tiles suggest (water, park, else square). */ habitat: Habitat | null; same: { id: string; meters: number }[] };

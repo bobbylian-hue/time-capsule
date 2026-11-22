@@ -12,6 +12,7 @@ import { useAdminText, type AdminText } from "./strings";
 import { useMapBuilderText, type MapBuilderText } from "./mapBuilderStrings";
 import { AButton, Card, Field, Notice, Pill, Stat, timeAgo } from "./ui";
 import { ScenePicker } from "./WaypostEditor";
+import { numberedNames } from "../../services/waypostNames";
 
 const hasChinese = (x: string) => /[㐀-鿿]/.test(x);
 /** Errors are kept as codes and translated when shown, so they follow a language switch. */
@@ -19,6 +20,7 @@ const errorCode = (e: unknown) => (e as Error)?.message || "failed";
 const errorText = (a: AdminText, mb: MapBuilderText, code: string) => mb.error[code] ?? a.error[code] ?? a.error.failed;
 export type Ask = (lat: number, lng: number, skip?: string) => Promise<MapNames>;
 type At = { lat: number; lng: number };
+
 
 /** The server's view of a spot (border, same cell, live hunts), asked again whenever the spot changes. */
 function useCheck(region: string, at: At | null, skip?: string) {
@@ -123,7 +125,9 @@ function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredi
 }
 
 /** Adding a Waypost at `at`, or editing one (moving it to `at` when that differs). */
-export function WaypostBuilderForm({ region, wayposts, waypost, at, moving, ask, onMove, onMoveHere, onSaved, onCancel }: {
+export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving, ask, onMove, onMoveHere, onSaved, onCancel }: {
+  /** Inside the map popup: no card frame, and the popup's title replaces the pill. */
+  flat?: boolean;
   region: Region;
   wayposts: MapWaypost[];
   waypost: MapWaypost | null;
@@ -151,16 +155,33 @@ export function WaypostBuilderForm({ region, wayposts, waypost, at, moving, ask,
   const check = useCheck(region.id, adding || moved ? at : null, waypost?.id);
   const names = useNames(ask, at, waypost?.id);
   const typed = useRef(false);
+  // Every other Waypost's names in this city, hidden ones and Landmarks too (they can come back).
+  const taken = React.useMemo(() => {
+    const others = wayposts.filter((w) => w.id !== waypost?.id);
+    return { zh: new Set(others.map((w) => w.name_zh.trim())), en: new Set(others.map((w) => w.name_en.trim())) };
+  }, [wayposts, waypost?.id]);
+  /** The name that was taken when a number was added, to say why. */
+  const [numbered, setNumbered] = useState<{ name: string; n: number } | null>(null);
+  const fill = (zh: string, en: string) => {
+    const r = numberedNames(zh, en, taken);
+    setNameZh(r.zh); setNameEn(r.en);
+    setNumbered(r.n ? { name: language === "zh" ? zh || en : en || zh, n: r.n } : null);
+  };
 
   // A new Waypost starts with the best name the map has, and the picture that kind of place suggests.
   useEffect(() => {
     if (!adding || typed.current || !names?.names[0]) return;
     const top = names.names[0];
-    setNameZh(top.zh); setNameEn(top.en); setScene(sceneFor(top.kind));
+    fill(top.zh, top.en); setScene(sceneFor(top.kind));
   }, [adding, names]);
   useEffect(() => { if (adding && names && !names.names.length && !scene) setScene("square"); }, [adding, names]);
 
-  const pick = (n: MapNames["names"][number]) => { typed.current = true; setNameZh(n.zh); setNameEn(n.en); setScene(sceneFor(n.kind)); };
+  const pick = (n: MapNames["names"][number]) => { typed.current = true; fill(n.zh, n.en); setScene(sceneFor(n.kind)); };
+  const typeName = (set: (x: string) => void) => (x: string) => { typed.current = true; setNumbered(null); set(x); };
+  // Typed by hand (or kept from before) and already used: a note and a one-tap number, never a block.
+  const dupe = !numbered && ((nameZh.trim() && taken.zh.has(nameZh.trim())) || (nameEn.trim() && taken.en.has(nameEn.trim())))
+    && (!waypost || nameZh.trim() !== waypost.name_zh || nameEn.trim() !== waypost.name_en);
+  const suggestion = dupe ? numberedNames(nameZh.trim(), nameEn.trim(), taken) : null;
   const inside = insideBorder(region.border, at) && check?.inside_border !== false;
   const ready = !!nameZh.trim() && hasChinese(nameZh) && !!nameEn.trim() && !!scene && inside && !busy;
 
@@ -180,16 +201,25 @@ export function WaypostBuilderForm({ region, wayposts, waypost, at, moving, ask,
     } catch (e) { setError(errorCode(e)); } finally { setBusy(false); }
   };
 
-  return <Card style={{ gap: spacing.md }}>
+  const Frame = flat ? View : Card;
+  return <Frame style={{ gap: spacing.md }}>
     <View style={{ gap: 4 }}>
-      <Pill tone="blue" label={adding ? a.ed.newWaypost : a.commonWaypost} />
+      {!flat && <Pill tone="blue" label={adding ? a.ed.newWaypost : a.commonWaypost} />}
       {!adding && <Text style={{ fontFamily: serif, fontSize: 18, color: C.ink }}>{language === "zh" ? waypost.name_zh : waypost.name_en}</Text>}
       <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{at.lat.toFixed(5)}, {at.lng.toFixed(5)}</Text>
     </View>
     {(adding || moved) && <PlaceNotes region={region} at={at} wayposts={wayposts} check={check} names={names} />}
     <NameChips names={names} onPick={pick} />
-    <Field label={a.ed.nameZh} hint={a.ed.nameZhHint} value={nameZh} onChangeText={(x) => { typed.current = true; setNameZh(x); }} maxLength={40} />
-    <Field label={a.ed.nameEn} value={nameEn} onChangeText={(x) => { typed.current = true; setNameEn(x); }} maxLength={60} autoCapitalize="words" />
+    <Field label={a.ed.nameZh} hint={a.ed.nameZhHint} value={nameZh} onChangeText={typeName(setNameZh)} maxLength={40} />
+    <Field label={a.ed.nameEn} value={nameEn} onChangeText={typeName(setNameEn)} maxLength={60} autoCapitalize="words" />
+    {numbered && <Notice text={mb.nameNumbered(numbered.name, numbered.n)} />}
+    {suggestion && <View style={{ gap: 6 }}>
+      <Notice tone="warn" text={mb.nameTaken(language === "zh" ? nameZh.trim() || nameEn.trim() : nameEn.trim() || nameZh.trim())} />
+      <View style={{ alignItems: "flex-start" }}>
+        <AButton small tone="ghost" title={mb.addNumber(language === "zh" ? suggestion.zh || suggestion.en : suggestion.en || suggestion.zh)}
+          onPress={() => { setNameZh(suggestion.zh); setNameEn(suggestion.en); }} />
+      </View>
+    </View>}
     <PicturePicker region={region.id} scene={scene} onScene={setScene} photo={photo} onPhoto={setPhoto} credit={credit} onCredit={setCredit} />
     <Field label={a.ed.noteOptional} value={note} onChangeText={setNote} maxLength={300} />
     {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
@@ -200,52 +230,68 @@ export function WaypostBuilderForm({ region, wayposts, waypost, at, moving, ask,
       <AButton small title={busy ? a.ed.saving : a.ed.save} disabled={!ready} onPress={save} />
     </View>
     {(adding || moved) && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{a.ed.live}</Text>}
-  </Card>;
+  </Frame>;
 }
 
 const HABITATS: Habitat[] = ["park", "water", "square"];
 
 /** A new spawn spot at `at`, or an existing one moving to `at`. */
-export function SpotForm({ region, spot, at, onSaved, onCancel }: { region: Region; spot: MapSpot | null; at: At; onSaved: (s: MapSpot) => void; onCancel: () => void }) {
+export function SpotForm({ flat, region, spot, at, ask, onSaved, onCancel }: { flat?: boolean; region: Region; spot: MapSpot | null; at: At; ask: Ask; onSaved: (s: MapSpot) => void; onCancel: () => void }) {
   const a = useAdminText();
   const mb = useMapBuilderText();
   const { language } = useLanguage();
-  const [habitat, setHabitat] = useState<Habitat>(spot?.habitat ?? "park");
+  // A new spot's habitat comes from the map (water, park, else square); the admin can change it.
+  const [habitat, setHabitat] = useState<Habitat | null>(spot?.habitat ?? null);
+  const [choosing, setChoosing] = useState(false);
+  const [fromMap, setFromMap] = useState(false);
+  useEffect(() => {
+    if (spot) return;
+    let live = true;
+    ask(at.lat, at.lng).then((n) => { if (live) { setFromMap(!!n.habitat); setHabitat((h) => h ?? n.habitat ?? "square"); } });
+    return () => { live = false; };
+  }, [spot, at.lat, at.lng]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inside = insideBorder(region.border, at);
   const save = async () => {
     setBusy(true); setError(null);
-    try { onSaved(spot ? await builder.moveSpot(spot.id, at.lat, at.lng, note.trim() || null) : await builder.addSpot(region.id, at.lat, at.lng, habitat, note.trim() || null)); }
+    try { onSaved(spot ? await builder.moveSpot(spot.id, at.lat, at.lng, note.trim() || null) : await builder.addSpot(region.id, at.lat, at.lng, habitat ?? "square", note.trim() || null)); }
     catch (e) { setError(errorCode(e)); } finally { setBusy(false); }
   };
-  return <Card style={{ gap: spacing.md }}>
+  const Frame = flat ? View : Card;
+  return <Frame style={{ gap: spacing.md }}>
     <View style={{ gap: 4 }}>
-      <Pill tone="plum" label={spot ? a.ed.spotTitle : mb.newSpot} />
+      {!flat && <Pill tone="plum" label={spot ? a.ed.spotTitle : mb.newSpot} />}
       <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{at.lat.toFixed(5)}, {at.lng.toFixed(5)}</Text>
     </View>
     {!inside && <Notice tone="stop" text={mb.outside(language === "zh" ? region.name_zh : region.name_en)} />}
     {!spot && <View style={{ gap: 6 }}>
-      <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{a.ed.habitatLabel}</Text>
-      <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: spacing.sm }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        <Text style={{ flex: 1, fontFamily: sans, fontSize: 13, color: C.ink }}>
+          {!habitat ? mb.habitatChosen("…") : fromMap && !choosing ? mb.habitatFromMap(a.habitat[habitat]) : mb.habitatChosen(a.habitat[habitat])}
+        </Text>
+        {habitat && !choosing && <AButton small tone="ghost" title={mb.change} onPress={() => setChoosing(true)} />}
+      </View>
+      <Text style={{ fontFamily: sans, fontSize: 12, lineHeight: 18, color: C.muted }}>{mb.habitatNote}</Text>
+      {choosing && <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: spacing.sm }}>
         {HABITATS.map((h) => {
           const on = habitat === h;
-          return <Pressable key={h} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => setHabitat(h)}
+          return <Pressable key={h} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => { setHabitat(h); setFromMap(false); }}
             style={{ borderRadius: radii.pill, borderWidth: 1, borderColor: on ? C.blue : C.line, backgroundColor: on ? "#E6EEF7" : C.white, paddingHorizontal: 12, paddingVertical: 6 }}>
             <Text style={{ fontFamily: sans, fontSize: 13, color: on ? C.blue : C.ink }}>{a.habitat[h]}</Text>
           </Pressable>;
         })}
-      </View>
+      </View>}
     </View>}
     <Text style={{ fontFamily: sans, fontSize: 13, lineHeight: 19, color: C.ink }}>{mb.spotNext}</Text>
     <Field label={a.ed.noteOptional} value={note} onChangeText={setNote} maxLength={300} />
     {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" }}>
       <AButton small tone="ghost" title={a.ed.cancel} onPress={onCancel} />
-      <AButton small title={busy ? a.ed.saving : spot ? mb.movedSpotSave : a.ed.save} disabled={busy || !inside} onPress={save} />
+      <AButton small title={busy ? a.ed.saving : spot ? mb.movedSpotSave : a.ed.save} disabled={busy || !inside || (!spot && !habitat)} onPress={save} />
     </View>
-  </Card>;
+  </Frame>;
 }
 
 /** Spins, level, last spin and the rack: how a Waypost is doing. Any role can look. */

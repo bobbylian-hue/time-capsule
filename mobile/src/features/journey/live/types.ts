@@ -9,7 +9,8 @@ export type LivePin = { id: string; lat: number; lng: number; vessel: string; la
   /** Private-hunt quests (kind "quest"): which glyph the brass pin carries, and whether the route still locks it. */
   quest?: PrivateHuntQuestType | QuestKind; locked?: boolean; /** The faceted pin frame (blue, brass or plum); without it the older code-drawn teardrop shows. */ frame?: string | null; /** A quest's picture: shown as a big round photo pin instead of the brass pin. */ photo?: string | null; mark?: string | null; figure?: string | null; lift?: number; rarity?: "common" | "uncommon" | "rare"; done?: boolean;
   /** A quest made by us (Today's Hunt, City Hunt): the blue quest pin instead of brass. */ blue?: boolean;
-  /** Drops from the sky this many ms after it first appears (Today's Hunt). */ drop?: number; near?: boolean; far?: boolean; selected?: boolean; sealed?: boolean; private?: boolean; opened?: boolean; timer?: string };
+  /** Drops from the sky this many ms after it first appears (Today's Hunt). */ drop?: number; near?: boolean; far?: boolean; selected?: boolean; sealed?: boolean; private?: boolean; opened?: boolean; timer?: string;
+  /** Admin map builder: not saved yet (see-through, dashed), and the faint old spot of a place being moved. */ draft?: boolean; ghost?: boolean };
 export type LiveState = { you: { lat: number; lng: number } | null; heading?: number | null; portrait?: string | null; figure?: string | null; youLabel?: string | null; reach: number; pins: LivePin[];
   /** A dotted line through these points, in order (an ordered hunt's route in the quest editor). */
   route?: { lat: number; lng: number }[] };
@@ -44,7 +45,7 @@ export type LiveMapProps = {
   onNames?: (m: Extract<MapMessage, { type: "names" }>) => void;
 };
 export type MapMessage = { type: "ready" } | { type: "select"; id: string } | { type: "tap"; lat: number; lng: number } | { type: "follow"; follow: boolean } | { type: "error"; message: string }
-  | { type: "names"; seq: number; names: { zh: string; en: string; kind: string; meters: number }[]; area: string | null; same: { id: string; meters: number }[] };
+  | { type: "names"; seq: number; names: { zh: string; en: string; kind: string; meters: number }[]; area: string | null; habitat?: string | null; same: { id: string; meters: number }[] };
 
 /** A bundled image as a URL the map page can load (Metro dev server, web path or bundled file). */
 export function assetUri(source: ImageSourcePropType | undefined | null): string | null {

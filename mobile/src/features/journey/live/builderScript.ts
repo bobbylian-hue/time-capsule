@@ -69,11 +69,23 @@ function namesNear(ll,radius){
 }
 const AREAS=['school','kindergarten','university','college','hospital','cemetery','military'];
 function areaAt(ll){for(const f of map.querySourceFeatures('base',{sourceLayer:'landuse'}))if(AREAS.includes(f.properties&&f.properties.kind)&&inPoly(ll.lng,ll.lat,f.geometry))return f.properties.kind;return null}
+// A spawn spot's habitat from the tiles: in or within 40 m of water is waterside, on park-like land is a park,
+// anything else is a square. Vessels with a habitat rule only spawn at matching spots.
+const PARKISH=['park','garden','grass','wood','forest','recreation_ground','nature_reserve','playground','dog_park'];
+const rings=g=>g.type==='Polygon'?g.coordinates:g.type==='MultiPolygon'?g.coordinates.flat():[];
+function nearRing(ll,ring,m){for(let i=1;i<ring.length;i++){const a=ring[i-1],b=ring[i];
+  const kx=111320*Math.cos(ll.lat*Math.PI/180),ky=110540,ax=(a[0]-ll.lng)*kx,ay=(a[1]-ll.lat)*ky,bx=(b[0]-ll.lng)*kx,by=(b[1]-ll.lat)*ky;
+  const dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/((dx*dx+dy*dy)||1))),x=ax+t*dx,y=ay+t*dy;if(x*x+y*y<=m*m)return true}return false}
+function habitatAt(ll){
+  for(const f of map.querySourceFeatures('base',{sourceLayer:'water'})){const g=f.geometry;if(inPoly(ll.lng,ll.lat,g)||rings(g).some(r=>nearRing(ll,r,40)))return 'water'}
+  for(const f of map.querySourceFeatures('base',{sourceLayer:'landuse'}))if(PARKISH.includes(f.properties&&f.properties.kind)&&inPoly(ll.lng,ll.lat,f.geometry))return 'park';
+  return 'square';
+}
 function sameCell(ll,skip){const k=cellKey(ll);if(!k)return[];return B.posts.filter(p=>p.id!==skip&&cellKey(p)===k).map(p=>({id:p.id,meters:Math.round(dist(ll,p))}))}
 function builderRecv(m){
   if(m.type==='builder'){B.border=m.border||null;B.grid=!!m.grid;B.posts=m.posts||[];drawBorder();drawGrid();if(m.grid&&map.getZoom()<15.5)map.easeTo({zoom:16.2,duration:500})}
   // Names come from tiles near the spot, so look there first and wait for them to load.
-  if(m.type==='names'){const ll={lat:m.lat,lng:m.lng};const answer=()=>send({type:'names',seq:m.seq,names:namesNear(ll,150),area:areaAt(ll),same:sameCell(ll,m.skip)});
+  if(m.type==='names'){const ll={lat:m.lat,lng:m.lng};const answer=()=>send({type:'names',seq:m.seq,names:namesNear(ll,150),area:areaAt(ll),habitat:habitatAt(ll),same:sameCell(ll,m.skip)});
     if(map.areTilesLoaded())answer();else map.once('idle',answer)}
 }
 `;
