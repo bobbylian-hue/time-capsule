@@ -2,6 +2,7 @@
 // MapLibre GL + Protomaps vector tiles in the app's palette; falls back to tinted OSM raster tiles
 // when no PMTiles URL is configured (development only).
 import { C } from "../../../theme";
+import { BUILDER_JS, BUILDER_LAYERS, S2_GEOMETRY } from "./builderScript";
 
 export const MAPLIBRE = "https://unpkg.com/maplibre-gl@5.24.0/dist";
 export const PMTILES = "https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js";
@@ -108,7 +109,7 @@ export const mapPalette = {
   building: "#E6E0D3", buildingTop: "#EEE9DE", road: "#FFFFFF", roadCase: "#D5DDE7", major: "#F1E2BF", label: C.blue, halo: "#F6F8FB",
 };
 
-function vectorStyle(pmtiles: string) {
+function vectorStyle(pmtiles: string, builder = false) {
   return {
     version: 8,
     glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
@@ -125,6 +126,7 @@ function vectorStyle(pmtiles: string) {
       { id: "buildings", type: "fill-extrusion", source: "base", "source-layer": "buildings", minzoom: 15, filter: ["!", ["in", ["id"], ["literal", TILE_IDS]]], paint: { "fill-extrusion-color": mapPalette.building, "fill-extrusion-height": ["min", ["*", ["coalesce", ["get", "height"], 9], TOY_SCALE], TOY_MAX_M], "fill-extrusion-opacity": .82 } },
       // Landmark buildings from the tiles, repainted in the monument blue.
       { id: "monument-tiles", type: "fill-extrusion", source: "base", "source-layer": "buildings", minzoom: 15, filter: ["in", ["id"], ["literal", TILE_IDS]], paint: { "fill-extrusion-base": ["*", ["coalesce", ["get", "min_height"], 0], tileScale()], "fill-extrusion-height": ["*", ["coalesce", ["get", "height"], 9], tileScale()], "fill-extrusion-color": C.blue, "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true } },
+      ...(builder ? BUILDER_LAYERS : []),
       { id: "places", type: "symbol", source: "base", "source-layer": "places", filter: ["in", ["get", "kind"], ["literal", ["neighbourhood", "locality", "macrohood"]]], layout: { "text-field": ["coalesce", ["get", "name:zh-Hant"], ["get", "name"]], "text-font": ["Noto Sans Regular"], "text-size": 12, "text-letter-spacing": .08 }, paint: { "text-color": mapPalette.label, "text-halo-color": mapPalette.halo, "text-halo-width": 1.6 } },
     ],
   };
@@ -138,12 +140,13 @@ function rasterStyle() {
   };
 }
 
-/** follow: false keeps the camera where it starts instead of following the player (the quest editor). */
-export function mapHtml({ pmtiles, center, follow = true, cityWave = false }: { pmtiles: string | null; center: { lat: number; lng: number }; follow?: boolean; cityWave?: boolean }) {
-  const style = pmtiles ? vectorStyle(pmtiles) : rasterStyle();
+/** follow: false keeps the camera where it starts instead of following the player (the quest editor).
+ * builder: the admin map builder's border, grid and map names (builderScript.ts). */
+export function mapHtml({ pmtiles, center, follow = true, cityWave = false, builder = false }: { pmtiles: string | null; center: { lat: number; lng: number }; follow?: boolean; cityWave?: boolean; builder?: boolean }) {
+  const style = pmtiles ? vectorStyle(pmtiles, builder) : rasterStyle();
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="stylesheet" href="${MAPLIBRE}/maplibre-gl.css">
-<script src="${MAPLIBRE}/maplibre-gl.js"></script>${pmtiles ? `<script src="${PMTILES}"></script>` : ""}
+<script src="${MAPLIBRE}/maplibre-gl.js"></script>${pmtiles ? `<script src="${PMTILES}"></script>` : ""}${builder ? `<script src="${S2_GEOMETRY}"></script>` : ""}
 <style>
 html,body,#map{margin:0;height:100%;width:100%;background:${C.paper};overflow:hidden;-webkit-tap-highlight-color:transparent;font-family:-apple-system,"Noto Sans TC",sans-serif}
 .maplibregl-ctrl-attrib{font-size:9px;background:rgba(246,248,251,.7)!important}
@@ -291,7 +294,7 @@ ${pmtiles ? "const protocol=new pmtiles.Protocol();maplibregl.addProtocol('pmtil
 const pickupZoom=(lat,r=100)=>Math.log2(40075016.686*Math.cos(lat*Math.PI/180)*Math.min(innerWidth,innerHeight)*.75/(512*2*r));
 const cameraPadding={top:80,bottom:160,left:0,right:0};
 const map=new maplibregl.Map({container:'map',style:${JSON.stringify(style)},center:[${center.lng},${center.lat}],zoom:pickupZoom(${center.lat}),padding:cameraPadding,pitch:40,maxPitch:70,bearing:0,attributionControl:{compact:true},localIdeographFontFamily:'"PingFang TC","Noto Sans TC",sans-serif'});
-window.__tcmapInstance=map;
+window.__tcmapInstance=map;${builder ? BUILDER_JS : ""}
 let follow=${follow},you=null,state={pins:[]},marks=new Map(),youMark=null,heading=0;
 // Wayposts are floating gems, clearly not buildings and clearly not capsules.
 const PADLOCK='<svg viewBox="0 0 10 10"><path d="M3 4.4V3a2 2 0 0 1 4 0v1.4" fill="none" stroke="#fff" stroke-width="1.3"/><rect x="1.8" y="4.3" width="6.4" height="4.9" rx="1" fill="#fff"/></svg>';
@@ -313,7 +316,7 @@ map.on('load',()=>{
   // Today's Hunt: the dotted trail the figure draws as it hops from pin to pin (blue: made by us).
   map.addSource('trail',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
   map.addLayer({id:'trail',type:'line',source:'trail',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'${C.blue}','line-width':3.5,'line-dasharray':[1.2,1.6]}});
-  send({type:'ready'});render();rescale();
+  ${builder ? "builderLayers();" : ""}send({type:'ready'});render();rescale();
 });
 map.on('dragstart',()=>{if(follow){follow=false;send({type:'follow',follow:false})}});
 // Pin size follows the zoom: full size at the pickup zoom (never bigger), half per level out, at least 40%;
@@ -463,6 +466,7 @@ function render(){
   }
 }
 function recv(m){
+  ${builder ? "builderRecv(m);" : ""}
   if(m.type==='state'){if(fan&&m.pins.map(p=>p.id).join()!==state.pins.map(p=>p.id).join())fold();const moved=!you||!m.you||Math.abs(you.lat-m.you.lat)+Math.abs(you.lng-m.you.lng)>1e-6;if(walkFrom&&m.you&&metres(walkFrom,m.you)>10){you=m.you;walkHome()}you=m.you;state=m;heading=m.heading||heading;render();rescale();if(follow&&you&&moved)map.easeTo({center:[you.lng,you.lat],duration:you?900:0,padding:cameraPadding})}
   if(m.type==='recenter'&&you){follow=true;map.easeTo({center:[you.lng,you.lat],zoom:pickupZoom(you.lat,state.reach||100),pitch:40,bearing:0,duration:900,padding:cameraPadding})}
   if(m.type==='walk'&&you)walkTo({lat:m.lat,lng:m.lng});

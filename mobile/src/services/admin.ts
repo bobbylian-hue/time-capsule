@@ -48,6 +48,10 @@ export type Region = {
   city_hunts_live: number;
   private_hunts: number;
   coverage: { covered: boolean; bytes: number | null; built_at: string | null };
+  /** Map builder R1: the city's outline, how many S2 level-17 cells have a Waypost or Landmark, and Wayposts nobody spun in 14 days. */
+  border?: import("./border").Border | null;
+  cells_used?: number;
+  idle_14d?: number;
 };
 
 export type SpawnRule = {
@@ -84,7 +88,9 @@ export type Spawning = {
 };
 
 export type MapWaypost = { id: string; name_zh: string; name_en: string; lat: number; lng: number; kind: "common" | "landmark"; game_enabled: boolean; source_ref?: string | null;
-  scene?: Scene | null; hidden_at?: string | null };
+  scene?: Scene | null; hidden_at?: string | null;
+  /** Map builder R1: an uploaded photo shown instead of the scene, and who took it. */
+  photo?: string | null; photo_credit?: string | null };
 export type MapSpot = { id: string; lat: number; lng: number; habitat: Habitat | null; hidden_at?: string | null };
 export type WaveCapsule = { spot: string; vessel: string; rarity: Rarity; lat: number; lng: number; expires_at: string; caught: boolean };
 export type CityMap = {
@@ -218,7 +224,7 @@ export const adminEdit = {
 };
 
 /** Kinds of change Undo can put back. */
-export const undoable = (action: string) => /^(waypost|spawn|config|question_pool|todays_hunt|vessel)\./.test(action) || action === "rack.remove";
+export const undoable = (action: string) => /^(waypost|spawn|config|question_pool|todays_hunt|vessel)\./.test(action) || ["rack.remove", "spot.add", "spot.move"].includes(action);
 
 /** When a new wave length would start: the next moment that ends a wave under both lengths (the server decides; this is for showing it). */
 export function nextLengthStart(from: number, to: number, now = Date.now()) {

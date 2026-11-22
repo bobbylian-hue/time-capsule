@@ -21,6 +21,7 @@ import { SpinDisc } from "../game/SpinDisc";
 import { ThrowBackground, WaxBall } from "../game/ThrowScreen";
 import { noWebSelect, useNoWebDrag } from "../game/noWebDrag";
 import { sceneKey } from "../game/waypostScene";
+import { photoUrl } from "../../services/waypostPhoto";
 import { Chip } from "../journey/JourneyControls";
 import type { Item } from "../journey/journeyModel";
 import { SelectedCard } from "../journey/SelectedCard";
@@ -45,6 +46,7 @@ export function WaypostScreen({ waypost, meters, at, language, onState, onSpun, 
   const { width } = useWindowDimensions();
   useNoWebDrag();
   const name = language === "zh" ? waypost.name_zh : waypost.name_en;
+  const photo = photoUrl(waypost.photo);
   const cooling = !!waypost.cooldown_until && new Date(waypost.cooldown_until).getTime() > Date.now();
   // Opened while cooling down: straight to the rack. Otherwise the spin comes first.
   const [phase, setPhase] = useState<"spin" | "rack">(cooling ? "rack" : "spin");
@@ -219,7 +221,7 @@ export function WaypostScreen({ waypost, meters, at, language, onState, onSpun, 
           <Vessel kind={reward.vessel as never} size={34} />
         </Animated.View>}
       </View>
-      <SpinDisc key={disc} source={gameArt.wheel[sceneKey(waypost)]} spinnable={!reward && !note} dim={!!note} label={g("spinHint")} onSpin={() => void spin()}>
+      <SpinDisc key={disc} source={photo ? { uri: photo } : gameArt.wheel[sceneKey(waypost)]} spinnable={!reward && !note} dim={!!note} label={g("spinHint")} onSpin={() => void spin()}>
         {balls.map((kind, i) => {
           const start = Math.min(.5, i * STAGGER), end = Math.min(1, start + .55), drift = (i % 2 ? 1 : -1) * (24 + (i % 3) * 22);
           return <Animated.View key={i} pointerEvents="none" style={{

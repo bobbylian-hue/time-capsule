@@ -42,7 +42,7 @@ function CheckNotes({ check, note }: { check: WaypostCheck | null; note: string 
   </View>;
 }
 
-function ScenePicker({ value, onChange }: { value: Scene | null; onChange: (s: Scene) => void }) {
+export function ScenePicker({ value, onChange }: { value: Scene | null; onChange: (s: Scene) => void }) {
   const a = useAdminText();
   return <View style={{ gap: 6 }}>
     <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{a.ed.scene}</Text>
