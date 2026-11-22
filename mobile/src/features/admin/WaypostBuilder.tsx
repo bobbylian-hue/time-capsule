@@ -264,9 +264,9 @@ export function WaypostNumbers({ id }: { id: string }) {
   return <Card style={{ gap: spacing.sm }}>
     <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.numbers}</Text>
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
-      <Stat label={mb.spins} value={stats.spins} tone={C.blue} />
+      <Stat label={mb.spins} value={stats.total_spins} tone={C.blue} />
       <Stat label={mb.level} value={stats.level} />
-      <Stat label={mb.rack} value={stats.rack} tone={C.plum} />
+      <Stat label={mb.rack} value={stats.rack_count} tone={C.plum} />
     </View>
     <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.lastSpin(stats.last_spin_at ? timeAgo(stats.last_spin_at, language) : mb.never)}</Text>
   </Card>;

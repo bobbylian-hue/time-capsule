@@ -10,7 +10,7 @@ export { insideBorder, type Border } from "./border";
 import { WAYPOST_PHOTOS } from "./waypostPhoto";
 export { photoUrl } from "./waypostPhoto";
 
-/** Turn on once Codex's R1 migration is applied (admin_spot_add, admin_waypost_stats, borders, photos). */
+/** Turn on once Codex's R1 migration 20261122203609 is applied (PR #198). */
 export const MAP_BUILDER_R1_BACKEND = false;
 /** Whether the R1 tools show: with the live functions, or on the development sample. */
 export const MAP_BUILDER_R1 = MAP_BUILDER_R1_BACKEND || ADMIN_SAMPLE;
@@ -18,7 +18,7 @@ export const MAP_BUILDER_R1 = MAP_BUILDER_R1_BACKEND || ADMIN_SAMPLE;
 export type CellNeighbour = { id: string; name_zh: string; name_en: string; meters: number };
 /** What the server says about a spot under the R1 rules: only the border refuses; the rest are notes. */
 export type BuilderCheck = WaypostCheck & { inside_border?: boolean; same_cell?: CellNeighbour[] };
-export type WaypostStats = { spins: number; level: number; xp: number; last_spin_at: string | null; rack: number };
+export type WaypostStats = { total_spins: number; level: number; xp: number; last_spin_at: string | null; rack_count: number };
 export type WaypostWrite = { lat: number; lng: number; name_zh: string; name_en: string; scene: Scene;
   /** A path in the waypost-photos bucket; null keeps the current one, "" clears it. */
   photo: string | null; photo_credit: string | null };
@@ -34,7 +34,7 @@ export async function uploadWaypostPhoto(region: string, dataUrl: string): Promi
   return path;
 }
 
-/** R1's writes. Names follow the prompt to Codex; adjust when its report gives the final ones. */
+/** R1's calls, as Codex's migration 20261122203609 defines them. */
 export const builder = {
   check: (region: string, lat: number, lng: number, id?: string): Promise<BuilderCheck> =>
     ADMIN_SAMPLE ? sample.checkWaypost(region, lat, lng, id) : rpc("admin_waypost_check", { p_region: region, p_lat: lat, p_lng: lng, p_id: id ?? null }),

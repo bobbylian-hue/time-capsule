@@ -422,7 +422,7 @@ export const sample = {
   waypostStats: (id: string) => {
     const n = [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 9973, 7);
     const spins = n % 4 === 0 ? 0 : (n % 260) + 3;
-    return pause({ spins, level: spins >= 100 ? 2 : 1, xp: spins, rack: n % 5, last_spin_at: spins ? new Date(Date.now() - (n % 40) * 3600_000).toISOString() : null });
+    return pause({ total_spins: spins, level: spins >= 100 ? 2 : 1, xp: spins, rack_count: n % 5, last_spin_at: spins ? new Date(Date.now() - (n % 40) * 3600_000).toISOString() : null });
   },
   preview: (c: SpawnChange): Promise<SpawnPreview> => {
     const after = applyChange(ruleState, config, c);

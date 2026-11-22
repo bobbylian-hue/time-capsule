@@ -44,6 +44,7 @@ const strings = {
       photo_too_big: "照片太大，最多 2 MB",
       photo_failed: "照片上傳失敗，再試一次",
       bad_photo: "這張照片不能用，請重新上傳",
+      bad_habitat: "請選地點類型",
     } as Record<string, string>,
   },
   en: {
@@ -87,6 +88,7 @@ const strings = {
       photo_too_big: "The photo is too big (2 MB at most)",
       photo_failed: "The photo didn't upload. Try again.",
       bad_photo: "That photo can't be used. Upload it again.",
+      bad_habitat: "Choose a habitat",
     } as Record<string, string>,
   },
 };
