@@ -11,7 +11,7 @@ import { WAYPOST_PHOTOS } from "./waypostPhoto";
 export { photoUrl } from "./waypostPhoto";
 
 /** Turn on once Codex's R1 migration 20261122203609 is applied (PR #198). */
-export const MAP_BUILDER_R1_BACKEND = false;
+export const MAP_BUILDER_R1_BACKEND = true;
 /** Whether the R1 tools show: with the live functions, or on the development sample. */
 export const MAP_BUILDER_R1 = MAP_BUILDER_R1_BACKEND || ADMIN_SAMPLE;
 
