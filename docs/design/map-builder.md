@@ -234,6 +234,32 @@ Every change goes in Activity, and Undo works for the newest change to each thin
 
 Exact RPC names and fields go in the Codex prompts once Roy approves this plan.
 
+## R1.5 Editing that feels like a map editor (Roy approved, 2026-11-23)
+
+Roy tested R1 in production and asked for an editor that works like a map tool, not a form. R1.5 goes out before R2 because R2's Landmarks reuse all of it.
+
+**Four states**, the same for Wayposts and spawn spots (Landmarks join in R2):
+
+| State | Players | Admin map |
+|---|---|---|
+| Draft | never see it | see-through with a 「草稿」/"Draft" tag |
+| Live | see it | normal |
+| Hidden | don't see it; it can come back | faded |
+| Deleted | never | gone. The row stays only so past spins, racks and Activity still make sense, and Activity Undo can bring it back |
+
+Draft → Live is **Publish**. Live ↔ Hidden is Hide and Show. Any state → Deleted is **Delete**, after a confirmation. Scheduling (live only on some dates) is later and would sit on top of these states.
+
+**One Waypost or Landmark per level-17 cell, enforced by the server** (replaces the R1 soft note and "Roy to confirm" item 2). Drafts and hidden Wayposts hold their cell, and deleted ones free it. Adding, moving, publishing or batch adding into a cell another Waypost holds is refused with `cell_taken`. Moving within its own cell is always allowed. Existing doubles stay, but no new ones can be made. Spawn spots have no cell rule.
+
+**Editing**
+- In admin, clicking a Waypost or spot opens its popup ready to edit, with no separate edit mode. Viewers and moderators get the same popup read-only. ＋ Waypost, ＋ spawn spot and Fill an area are always there for editors, and drafts and hidden places always show for them.
+- **Drag to move:** the selected place is dragged on the map. While a Waypost is dragged, the cell under it is green when free and red when taken. After the drop it shows as unsaved, with a ghost at the old spot. The Move button goes away. "Move here" (GPS, for field visits) stays as a small link.
+- **Placing:** after ＋ Waypost, a see-through Waypost follows the mouse with its cell tinted green or red. On phones you tap, then drag.
+- **Cancel and Save** sit at the popup's top right. Cancel or ✕ with unsaved changes asks: Save, Discard, or Keep editing. A new place can be saved as a draft or published straight away.
+- **Delete** sits in the popup, with a confirmation and Activity Undo.
+
+**Fill an area:** drag a box on the map and choose Wayposts or spawn spots and a spacing. The server suggests points inside the box and the city border, from the same safe public points the drop places use, at that spacing and away from existing places, one per free cell for Wayposts. The map fills in names (bracket-numbered where they repeat) and spot habitats. The admin removes any they don't want, then saves the rest as drafts in one Activity row (one Undo removes them all). "Publish all drafts" in the panel makes them live.
+
 ## Release plan (Roy approved the plan and demo, 2026-11-23)
 
 Roy asked for releases small enough to have few bugs but not so small they're slow. The last big combined release took days of stop-and-fix. So the map builder ships as **six releases, one at a time**, each a single slice that can be checked in about an hour:
@@ -241,6 +267,7 @@ Roy asked for releases small enough to have few bugs but not so small they're sl
 | Release | What | Who sees it | Why this size |
 |---|---|---|---|
 | **R1 Wayposts** | City borders, ＋ Waypost with names from the tiles, photos, the grid and soft notes, ＋ / Move capsule spots, Move here, Waypost numbers | Admin; players see uploaded photos on the spin screen | Admin only, one migration, no change to how the game plays |
+| **R1.5 Editing** | Draft / Live / Hidden / Deleted, one Waypost per cell (server rule), click to edit, drag to move, placing cursor, Delete, Fill an area | Admin only | Added after Roy tested R1; R2 reuses it |
 | **R2 Landmarks** | Monuments move from code into data (Journey reads them), the Landmark builder, the default picture, vessel and stamp | Admin; players see new Landmarks | Touches Journey, so it goes alone |
 | **R3 City Hunts** | City Hunt editor, Staff only, the funnel numbers, staff reset of their own run | Admin; staff on Journey | Then we walk a hunt in person |
 | **R4 Cities** | Draft → Staff only → Live, starter pack upload as suggestions, settings, the go-live checklist with Today's Hunt, tiles split per city | Admin; players see a new city when it goes live | |
@@ -261,7 +288,7 @@ Roy asked for releases small enough to have few bugs but not so small they're sl
 Defaults apply unless Roy changes them.
 
 1. Names come from our own map tiles, with nearby names to pick from and typing as a fallback. No paid place service.
-2. The level-17 grid is a soft note only; saving into a shared cell needs no reason.
+2. ~~The level-17 grid is a soft note only.~~ Changed in R1.5: one Waypost or Landmark per level-17 cell, enforced by the server.
 3. Automatic area notes (school, hospital, place of worship, cemetery, military) replace the required safety tick.
 4. The eight ready-made Landmark models are drawn from map shapes, not 3D model files, so the map stays light on phones.
 5. Building colours: Landmark blue gradient by default, plus ink blue, light blue, glass, wax red and brass.
