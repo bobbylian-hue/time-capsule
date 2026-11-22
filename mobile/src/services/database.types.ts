@@ -556,6 +556,7 @@ export type Database = {
       corrupted_spots: {
         Row: {
           city: string
+          first_spawn_wave: number | null
           habitat: string
           hidden_at: string | null
           id: string
@@ -566,6 +567,7 @@ export type Database = {
         }
         Insert: {
           city: string
+          first_spawn_wave?: number | null
           habitat: string
           hidden_at?: string | null
           id?: string
@@ -576,6 +578,7 @@ export type Database = {
         }
         Update: {
           city?: string
+          first_spawn_wave?: number | null
           habitat?: string
           hidden_at?: string | null
           id?: string
@@ -1248,8 +1251,11 @@ export type Database = {
           lng: number
           name_en: string
           name_zh: string
+          photo: string | null
+          photo_credit: string | null
           place: string | null
           public_drop: boolean
+          s2_cell17: string | null
           scene: string | null
           source_ref: string | null
         }
@@ -1264,8 +1270,11 @@ export type Database = {
           lng: number
           name_en: string
           name_zh: string
+          photo?: string | null
+          photo_credit?: string | null
           place?: string | null
           public_drop?: boolean
+          s2_cell17?: string | null
           scene?: string | null
           source_ref?: string | null
         }
@@ -1280,8 +1289,11 @@ export type Database = {
           lng?: number
           name_en?: string
           name_zh?: string
+          photo?: string | null
+          photo_credit?: string | null
           place?: string | null
           public_drop?: boolean
+          s2_cell17?: string | null
           scene?: string | null
           source_ref?: string | null
         }
@@ -1490,6 +1502,20 @@ export type Database = {
         Returns: Json
       }
       admin_spawning: { Args: never; Returns: Json }
+      admin_spot_add: {
+        Args: {
+          p_habitat: string
+          p_lat: number
+          p_lng: number
+          p_note?: string
+          p_region: string
+        }
+        Returns: Json
+      }
+      admin_spot_move: {
+        Args: { p_id: string; p_lat: number; p_lng: number; p_note?: string }
+        Returns: Json
+      }
       admin_spot_set_visible: {
         Args: { p_id: string; p_note?: string; p_visible: boolean }
         Returns: Json
@@ -1546,12 +1572,14 @@ export type Database = {
       }
       admin_waypost_add: {
         Args: {
-          p_checked: boolean
+          p_checked?: boolean
           p_lat: number
           p_lng: number
           p_name_en: string
           p_name_zh: string
           p_note?: string
+          p_photo?: string
+          p_photo_credit?: string
           p_region: string
           p_scene: string
         }
@@ -1574,6 +1602,7 @@ export type Database = {
         Args: { p_id: string; p_note?: string; p_visible: boolean }
         Returns: Json
       }
+      admin_waypost_stats: { Args: { p_id: string }; Returns: Json }
       admin_waypost_update: {
         Args: {
           p_id: string
@@ -1582,6 +1611,8 @@ export type Database = {
           p_name_en?: string
           p_name_zh?: string
           p_note?: string
+          p_photo?: string
+          p_photo_credit?: string
           p_scene?: string
         }
         Returns: Json
