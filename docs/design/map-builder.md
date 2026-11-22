@@ -38,6 +38,16 @@ Niantic splits the world into S2 cells and allows one stop per level-17 cell (ab
 - We don't copy the gym thresholds: our Landmarks are chosen by hand, not promoted by counts.
 - The existing 250 m spacing stays only for the automatic seed script.
 
+## Part 0: City borders on the map
+
+Roy (2026-11-23): Taipei sits inside a bigger area, so without a visible border it is easy to add things outside the city.
+
+- **Every city has a border:** its real outline from OpenStreetMap (Taipei City, the whole of Hong Kong, Macau and Singapore), cut to where our map tiles reach. Codex stores it with the city.
+- **On the admin map** the border is a dashed ink-blue line. Outside it the map is covered by a light grey veil, and the city's name sits on the line.
+- **Outside the border** the ＋ tools don't place anything: tapping there shows "Outside Taipei. Wayposts, Landmarks and quests go inside the dashed line." Moving something across the line is refused the same way.
+- **Two cities side by side** (later, such as Taipei and New Taipei) each have their own border, and the map shows both. A tap goes to the city it falls in.
+- A border can be widened later in the city's settings (Part 6), as long as the tiles reach.
+
 ## Part 1: Wayposts
 
 On the city map, **Edit** opens the builder toolbar: **＋ Waypost**, **＋ Landmark**, **＋ Question**, **Grid** on/off.
@@ -54,7 +64,7 @@ On the city map, **Edit** opens the builder toolbar: **＋ Waypost**, **＋ Land
 - Inside an area the tiles mark as a school, hospital, place of worship, cemetery or military land. This replaces the required tick.
 - Inside a live City Hunt area (its name), when hiding.
 
-**The one hard rule:** outside the city's map tiles, adding is refused, because the map is blank there and nobody can see what they're placing.
+**The one hard rule:** outside the city's border (Part 0), adding is refused.
 
 Hide, Show and Activity Undo stay as they are.
 
@@ -118,11 +128,88 @@ Today the Hunts page is mostly the question pool. It becomes its own page, **Que
 
 Admin menu after this: Overview · Questions · Hunts · Corrupted Capsules · Levels · Review · Members · Activity (city maps stay under Overview).
 
+## Part 6: Cities, from new to live
+
+"Add a city" means taking it all the way to a **live** city that players can play, Today's Hunt included (Roy, 2026-11-23).
+
+**Which cities can be added.** Our map tiles already cover ten areas: Taipei, Hong Kong, Macau, Singapore (live now) and Tokyo, Kyoto, Seoul, Bangkok, Beijing and Kuala Lumpur (tiles only). **New city** in Overview lists the six with tiles. Anywhere else needs Codex to extend the tiles first; the list shows those as "Needs map tiles" with a ready-to-copy prompt.
+
+**A city has three states**, like a City Hunt:
+
+| State | Who sees it |
+|---|---|
+| Draft | Admin only |
+| Staff only | Admin members on Journey, for walking it in person |
+| Live | Everyone |
+
+**Bootstrapping.** A new city starts empty. Its page has **Starter pack**: a ready-to-copy prompt for Codex, filled in with the city's name and border. Codex runs the existing seed script (OSM safety filter, park paths, squares, waterfronts) and makes one file with:
+
+- suggested Wayposts with names and scenes,
+- Corrupted Capsule spots,
+- 30 or more located questions and prices near the planned Landmark, with sources,
+- a suggested Landmark and a list of vessel ideas for the city (Part 7).
+
+You **upload the file** on the city page. Everything in it lands on the map as **suggestions** (dashed outlines), never straight into the game. Accept them one by one, **Accept all in view**, or remove the ones you don't like. Then add your own on top with the builder.
+
+**Settings:** names (zh/en), time zone, local currency and its US dollar rate (for price questions), the map's starting view, and the border.
+
+**Go live checklist.** **Make Staff only** and **Go live** are enabled once every line is ticked. Each line links to where you fix it:
+
+- [ ] Border set and inside the map tiles.
+- [ ] At least 20 Wayposts.
+- [ ] At least one Landmark with a look, vessel and stamp.
+- [ ] Corrupted Capsule spots, and at least three vessels that can appear (one each of common, uncommon and rare).
+- [ ] **Today's Hunt ready:** enough published located questions within 1.5 km of the Landmark for the next 14 days, and the calendar filled.
+- [ ] A City Hunt (optional; can come after going live).
+
+Going live is one tap and shows in Activity. Taking a city back to Staff only hides it from players again, and nothing is deleted.
+
+## Part 7: Vessels from a prompt
+
+Roy's idea (2026-11-23): pick an item from a list of popular things, copy a ready prompt to Codex, Codex makes the files, upload them, and the vessel is ready.
+
+**The list.** Each city's page has **Vessel ideas**: a list Codex writes for the starter pack, by kind, each with its Chinese and English name, a one-line description, a suggested tier and a reference link. Ideas we've already drawn are marked done. Kinds, with examples for the new cities:
+
+| Kind | Tokyo | Seoul | Bangkok | Kuala Lumpur |
+|---|---|---|---|---|
+| Food | taiyaki | hotteok | mango sticky rice | nasi lemak in banana leaf |
+| Everyday object | ekiben lunch box | onggi jar | pinto food carrier | wau kite |
+| Craft or keepsake | furin wind chime | bojagi wrapped bundle | paper umbrella | batik roll |
+| Nature | cherry blossom branch | magpie | lotus bud | hornbill |
+| Festival (date window) | moon-viewing dango | Chuseok songpyeon | Loy Krathong float | Mid-Autumn lantern |
+| Landmark (earned) | Tokyo Station | Gwanghwamun gate | Rama VIII Bridge | Sultan Abdul Samad Building |
+
+The rules from [regional vessels](regional-vessels.md) still apply: draw the signature thing itself, not its box; no brands, sacred objects, official emblems or text. For the four live cities, the list starts with the 12 wave 2 ideas already planned there.
+
+**Make one.** Tap an idea, tap **Copy prompt**. The prompt is filled in from `design/art/STYLE.md` and the vessel SOP (style block, the item, its reference, tier, how it opens, idle motion) and asks Codex for one **vessel pack**: the layer images, a small motion file, the crack overlay, and 40 px and 120 px previews.
+
+**Upload and check.** Upload the pack on the vessel's page. Admin shows it like the app will: closed, idle, opening, as a Corrupted Capsule, and at 40 and 120 px. **Approve** (owner) or **Send back** with a note.
+
+**Put it in the game.** Choose what it is: a Corrupted Capsule vessel for the city (tier, which cities, hours or dates), a Landmark's earned vessel, or a Shop vessel. It works in the app straight away, with no app release.
+
+- **This needs one app change:** today every vessel's pictures are built into the app, so a new vessel needs a release. The app will also load vessels from our server. Vessels already in the app stay as they are.
+
+**Art styles later.** Each vessel's pictures are stored under a style, `classic` for everything today. A pixel style is the same kind of pack drawn differently, so it can be added vessel by vessel. A 3D style needs a 3D viewer and comes much later. Whether players choose a style or collect styles as rewards is a later decision.
+
+## Part 8: Also in this phase
+
+Things Roy didn't ask for that the in-person tests will need:
+
+1. **Field tools on the phone.** Admin works at 375 px, so staff can fix things while walking: **Move here** puts a Waypost, Landmark seal, Keeper or quest at your current GPS spot; **Report a problem here** (photo and note) goes to the Review queue; staff can reset their own City Hunt progress to walk it again; and a small GPS line shows accuracy and distance to the nearest pin.
+2. **Corrupted Capsule spots in the builder.** ＋ Spot, Move and Hide, so a new city or a newly built area gets capsules without a seed run.
+3. **Numbers to learn from tests.** A Waypost's card shows spins, level, last spin and capsules on its rack. A City Hunt shows its funnel: joined → checked in → each quest → finished, the median time, and where people stop. Overview lists Wayposts nobody spun in 14 days.
+4. **Select an area.** Draw a box to hide, show or accept many things at once (for a park closed for works, or a starter pack).
+5. **Map tiles per city.** Today all ten areas are one 99 MB file, so adding a city means rebuilding and uploading everything. Codex splits it into one file per city, and moves the tiles from the rate-limited `r2.dev` address to our own domain before many players use them.
+
+**Later, not now:** players suggesting Wayposts (like Niantic's Wayfarer), opening hours for parks that close at night, and names in more languages.
+
 ## Roles
 
 | | Owner, Admin | Moderator | Viewer |
 |---|---|---|---|
 | Build Wayposts, Landmarks, City Hunts, questions | ✓ | | |
+| Add cities, upload starter packs and vessel packs | ✓ | | |
+| Approve a vessel pack, take a city live | Owner | | |
 | Private hunts: see answers | ✓ | | |
 | Private hunts: Hide / Show | ✓ | ✓ | |
 | See everything else | ✓ | ✓ | ✓ |
@@ -131,7 +218,7 @@ Every change goes in Activity, and Undo works for the newest change to each thin
 
 ## Who builds what
 
-**Claude (UI):** the builder toolbar and cards, reading names and buildings from the tiles, the grid overlay, building selection and recolouring, the eight models, the City Hunt map editor, the private hunt detail, the Questions page. Built against the development sample first, behind a switch, like admin phase 2. Journey reads monuments from the server instead of the code list.
+**Claude (UI):** city borders on the map, the builder toolbar and cards, reading names and buildings from the tiles, the grid overlay, building selection and recolouring, the eight models, the City Hunt map editor, the private hunt detail, the Questions page, the city pages and go-live checklist, the vessel ideas, prompt and pack preview, and the field tools. The app learns to show vessels loaded from the server. Built against the development sample first, behind a switch, like admin phase 2. Journey reads monuments from the server instead of the code list.
 
 **Codex (backend and art):**
 
@@ -141,14 +228,19 @@ Every change goes in Activity, and Undo works for the newest change to each thin
 - Private hunts: admin list and detail reads; Hide/Show for moderators; answer reads logged.
 - Questions: the pool list across cities with Used in.
 - Art: the default Landmark picture, vessel and stamp, reviewed with Roy.
+- Cities: borders from OSM, the three states, settings, starter pack files (seed script output) and upload as suggestions, the go-live checklist, tiles split per city on our own domain.
+- Vessels: vessel packs stored on our server under a style, upload checks, approval, and catalogue settings without an app release.
+- Field tools, spots in the builder and the test numbers.
 
 Exact RPC names and fields go in the Codex prompts once Roy approves this plan.
 
 ## Order (fastest path to an in-person test)
 
-1. **MB1 Wayposts and Landmarks** on the map, plus the default art in parallel.
-2. **MB2 City Hunts** on the map with Staff only, then walk one.
-3. **MB3 Private hunts** monitoring and the **Questions** page.
+1. **MB1** City borders, Wayposts, Landmarks and spots on the map, field tools, plus the default art in parallel.
+2. **MB2** City Hunts on the map with Staff only, and the funnel numbers. Then walk one.
+3. **MB3** Cities from new to live: states, starter pack upload, settings, the go-live checklist with Today's Hunt. Tiles split per city.
+4. **MB4** Vessels from a prompt: vessel ideas, vessel packs, upload and approve, and the app loading vessels from the server.
+5. **MB5** Private hunt monitoring and the **Questions** page.
 
 Claude builds a clickable demo of MB1 and MB2 for Roy to try before any of it is built for real.
 
@@ -165,3 +257,8 @@ Defaults apply unless Roy changes them.
 7. New City Hunts start Staff only, visible to admin members on Journey until published.
 8. Moderators can hide private hunts but can't see their answers.
 9. Organizer questions stay in their own hunts and don't join the bank.
+10. City borders are the real OSM outline, cut to the tiles; nothing can be added outside.
+11. A city goes Draft → Staff only → Live, and Live needs the checklist, including Today's Hunt for the next 14 days.
+12. Starter pack items arrive as suggestions to accept, never straight into the game.
+13. A new vessel needs Roy's approval in admin before it can be put in the game.
+14. Vessel pictures are stored under a style (`classic` now), so pixel and 3D styles can be added later.
