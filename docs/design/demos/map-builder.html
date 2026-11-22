@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>地圖編輯 · Map builder demo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/s2-geometry@1.2.10/src/s2geometry.js"></script>
+<style>
+:root { --ink:#2F5D8A; --navy:#16263F; --plum:#6E2B3F; --brass:#C9A15A; --wax:#A3364F; --paper:#F6F8FB; --line:#DCE3EC; --muted:#6B7A8F; --light:#5A8FD0; --glass:#DCE8F2; --card:#fff; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--paper); color: var(--navy); font: 14px/1.5 "Noto Sans TC", system-ui, sans-serif; }
+button { font: inherit; color: inherit; cursor: pointer; }
+h1, h2, h3, .serif { font-family: "Noto Serif TC", serif; font-weight: 700; }
+#app { display: grid; grid-template-rows: auto 1fr; height: 100dvh; }
+header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header .brand { font-family: "Noto Serif TC", serif; font-weight: 700; font-size: 16px; }
+header .city { color: var(--muted); }
+header .sp { flex: 1; }
+.seg { display: inline-flex; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+.seg button { border: 0; background: none; padding: 5px 12px; border-radius: 999px; color: var(--muted); }
+.seg button.on { background: var(--ink); color: #fff; }
+.lang { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 10px; }
+main { position: relative; min-height: 0; }
+#map { position: absolute; inset: 0; }
+.maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { display: none; }
+
+/* toolbar */
+.tools { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; gap: 8px; overflow-x: auto; z-index: 3; pointer-events: none; scrollbar-width: none; }
+.tools > * { pointer-events: auto; flex: none; }
+.tool { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.95); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; box-shadow: 0 2px 8px rgba(22,38,63,.08); white-space: nowrap; }
+.tool.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.tool .plus { font-weight: 700; }
+.hint { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); background: var(--navy); color: #fff; padding: 7px 14px; border-radius: 999px; z-index: 3; font-size: 13px; white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; }
+.hint button { background: none; border: 0; color: #fff; text-decoration: underline; margin-left: 8px; padding: 0; }
+.gps { position: absolute; left: 12px; bottom: 12px; z-index: 3; background: rgba(255,255,255,.95); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 12px; color: var(--muted); }
+.toast { position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); background: var(--navy); color: #fff; padding: 9px 16px; border-radius: 12px; z-index: 6; font-size: 13px; max-width: calc(100% - 32px); text-align: center; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+
+/* panel */
+.panel { position: absolute; z-index: 4; background: var(--card); overflow-y: auto; }
+@media (min-width: 900px) {
+  main { display: grid; grid-template-columns: 1fr 400px; }
+  .mapwrap { position: relative; }
+  .panel { position: relative; border-left: 1px solid var(--line); }
+}
+@media (max-width: 899px) {
+  .mapwrap { position: absolute; inset: 0; }
+  .panel { left: 0; right: 0; bottom: 0; max-height: 58dvh; border-radius: 18px 18px 0 0; box-shadow: 0 -6px 24px rgba(22,38,63,.14); }
+  .panel.small { max-height: 30dvh; }
+  .panel .grab { display: block; }
+  .gps { bottom: auto; top: 56px; }
+}
+@media (max-width: 520px) { header { gap: 8px; } header .city { display: none; } header .brand { font-size: 15px; } .seg button { padding: 5px 9px; } }
+.panel .grab { display: none; width: 40px; height: 4px; border-radius: 4px; background: var(--line); margin: 8px auto 0; border: 0; }
+.pi { padding: 14px 16px 24px; }
+.pi h2 { font-size: 18px; margin: 4px 0 2px; }
+.note { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.sec { border-top: 1px solid var(--line); padding: 12px 0; }
+.sec:first-of-type { border-top: 0; }
+.sec h3 { font-size: 14px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+.num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: #fff; font: 700 12px "Noto Serif TC", serif; }
+label.f { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+input[type=text], input[type=number], input[type=date] { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: #fff; color: var(--navy); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+.chip.on { border-color: var(--ink); background: #EAF1F8; color: var(--ink); }
+.chip small { color: var(--muted); margin-left: 4px; }
+.scenes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.scene { border: 2px solid transparent; border-radius: 10px; padding: 0; background: none; overflow: hidden; position: relative; aspect-ratio: 1.4; }
+.scene img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scene span { position: absolute; left: 0; right: 0; bottom: 0; font-size: 11px; background: rgba(255,255,255,.88); padding: 1px 4px; }
+.scene.on { border-color: var(--ink); }
+.scene.up { border: 1px dashed var(--muted); display: grid; place-items: center; color: var(--muted); font-size: 12px; background: var(--paper); }
+.notes { display: grid; gap: 6px; margin-top: 8px; }
+.soft { display: flex; gap: 8px; align-items: flex-start; background: #FBF6EA; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+.soft i { font-style: normal; color: var(--brass); font-weight: 700; }
+.soft.ok { background: #EEF4EA; }
+.soft.ok i { color: #4E7D4A; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 14px; }
+.btn.pri { background: var(--ink); color: #fff; border-color: var(--ink); }
+.btn.red { color: var(--wax); border-color: #E7C8D0; }
+.btn:disabled { opacity: .45; cursor: default; }
+.actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.actions .btn.pri { flex: 1; }
+.tabs { display: flex; gap: 6px; margin: 4px 0 10px; flex-wrap: wrap; }
+.swatches { display: flex; gap: 8px; margin-top: 6px; }
+.sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); padding: 0; }
+.sw.on { box-shadow: 0 0 0 2px var(--ink); }
+.sw.grad { background: linear-gradient(0deg, #16263F, #2F5D8A 40%, #5A8FD0 75%, #DCE8F2); }
+.models { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.model { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 6px 2px 4px; font-size: 11px; display: grid; justify-items: center; gap: 2px; }
+.model.on { border-color: var(--ink); background: #EAF1F8; color: var(--ink); }
+.model svg { width: 34px; height: 34px; }
+input[type=range] { width: 100%; accent-color: var(--ink); }
+.vessels { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.vessel { flex: none; width: 74px; border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 6px 4px; font-size: 11px; text-align: center; }
+.vessel img { width: 52px; height: 52px; object-fit: contain; }
+.vessel.on { border-color: var(--ink); background: #EAF1F8; }
+.vessel .ph { width: 52px; height: 52px; margin: 0 auto; border-radius: 50%; border: 1.5px dashed var(--muted); display: grid; place-items: center; color: var(--muted); font-size: 18px; }
+.step { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; }
+.stepper button { border: 0; background: none; width: 30px; height: 30px; font-size: 16px; }
+.stepper b { min-width: 46px; text-align: center; font-family: "Noto Serif TC", serif; }
+.list { display: grid; gap: 6px; }
+.item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; text-align: left; width: 100%; }
+.item .grow { flex: 1; min-width: 0; }
+.item .sub { color: var(--muted); font-size: 12px; }
+.item img.qt { width: 26px; height: 26px; }
+.pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.pill.live { background: #EAF1F8; color: var(--ink); border-color: #C8D9EA; }
+.pill.staff { background: #FBF6EA; color: #8A6A2B; border-color: #EBDDBC; }
+.pill.lm { background: #EAF1F8; color: var(--ink); border-color: #C8D9EA; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
+.stats div { background: var(--paper); border-radius: 10px; padding: 6px 2px; }
+.stats b { display: block; font: 700 16px "Noto Serif TC", serif; }
+.stats span { font-size: 11px; color: var(--muted); }
+.funnel { display: grid; gap: 5px; }
+.funnel .bar { display: grid; grid-template-columns: 90px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; }
+.funnel .track { height: 10px; background: var(--paper); border-radius: 6px; overflow: hidden; }
+.funnel .track i { display: block; height: 100%; background: var(--ink); border-radius: 6px; }
+.funnel .bar.drop .track i { background: var(--wax); }
+.wizard { display: flex; gap: 4px; margin: 6px 0 12px; }
+.wizard button { flex: 1; border: 0; background: var(--paper); border-radius: 8px; padding: 6px 0; font-size: 12px; color: var(--muted); }
+.wizard button.on { background: var(--ink); color: #fff; }
+.wizard button.done { color: var(--ink); }
+.status { display: flex; align-items: center; gap: 8px; background: var(--paper); border-radius: 12px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }
+.empty { color: var(--muted); font-size: 13px; text-align: center; padding: 10px; }
+
+/* markers */
+.mk { cursor: pointer; }
+.gem { width: 64px; height: 64px; margin-bottom: -10px; object-fit: contain; display: block; filter: drop-shadow(0 2px 2px rgba(22,38,63,.25)); }
+.gem.hid { opacity: .35; filter: grayscale(1); }
+.mk.sel .gem, .mk.sel .seal { outline: 3px solid rgba(47,93,138,.35); outline-offset: 3px; border-radius: 50%; }
+.draft .gem { animation: bob 1s ease-in-out infinite alternate; }
+@keyframes bob { to { transform: translateY(-4px); } }
+.seal { width: 30px; height: 30px; border-radius: 50%; background: var(--ink); display: grid; place-items: center; box-shadow: 0 0 0 3px #fff, 0 3px 6px rgba(22,38,63,.3); }
+.seal svg { width: 16px; height: 16px; }
+.spot { width: 14px; height: 14px; border-radius: 50%; border: 2px dashed var(--plum); background: rgba(110,43,63,.12); }
+.qpin { position: relative; width: 34px; height: 42px; }
+.qpin img.p { width: 34px; height: 42px; display: block; }
+.qpin img.t { position: absolute; left: 6px; top: 5px; width: 22px; height: 22px; border-radius: 50%; }
+.qpin b { position: absolute; right: -6px; top: -4px; background: var(--navy); color: #fff; font: 700 11px "Noto Serif TC", serif; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; }
+.bank { opacity: .55; }
+.bank .qpin { transform: scale(.8); }
+.keeper { width: 40px; height: 52px; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(22,38,63,.25)); }
+.maplibregl-marker:has(.handle) { z-index: 5; }
+.handle { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 3px solid var(--ink); box-shadow: 0 2px 4px rgba(22,38,63,.3); cursor: grab; }
+.citylabel { font: 700 12px "Noto Serif TC", serif; color: var(--ink); background: rgba(246,248,251,.9); padding: 2px 8px; border-radius: 999px; border: 1px dashed var(--ink); pointer-events: none; }
+.demo { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="brand" id="brand"></span>
+    <span class="city" id="city"></span>
+    <span class="sp"></span>
+    <div class="seg" id="modes"></div>
+    <button class="lang" id="lang">EN</button>
+  </header>
+  <main>
+    <div class="mapwrap">
+      <div id="map"></div>
+      <div class="tools" id="tools"></div>
+      <div class="hint" id="hint" hidden></div>
+      <div class="gps" id="gps"></div>
+      <div class="toast" id="toast"></div>
+    </div>
+    <aside class="panel" id="panel"><button class="grab" id="grab" aria-label="Resize"></button><div class="pi" id="pi"></div></aside>
+  </main>
+</div>
+<script>
+/* ===================== Data ===================== */
+const ART = "../../../public/art/";
+const TILES = "https://pub-be241edeef89474b860a7180130c5daa.r2.dev/sea-cities.pmtiles";
+const C = { navy: "#16263F", ink: "#2F5D8A", light: "#5A8FD0", glass: "#DCE8F2", wax: "#A3364F", brass: "#C9A15A", plum: "#6E2B3F" };
+// Taipei City (OSM relation 1293250), cut to where our map tiles reach.
+const BORDER = [[121.50994,25.08448],[121.50994,25.02162],[121.51055,25.02181],[121.51908,25.01978],[121.5258,25.01168],[121.53237,25.00782],[121.53422,25.00314],[121.53137,25.00101],[121.53056,24.99791],[121.5317,24.9905],[121.53517,24.99514],[121.53687,24.99277],[121.53704,24.98849],[121.60182,24.98849],[121.60195,24.99037],[121.59907,24.99167],[121.59814,24.99454],[121.60055,24.99843],[121.60041,25.00119],[121.5977,25.00428],[121.5959,25.00451],[121.59737,25.01466],[121.6027,25.01516],[121.60416,25.01911],[121.60819,25.01943],[121.60925,25.02096],[121.61581,25.01923],[121.61581,25.08448],[121.50994,25.08448]];
+const SCENES = { park: "scene-park", garden: "scene-garden", waterfront: "scene-waterfront", square: "scene-square", publicArt: "scene-public-art" };
+let uid = 1; const nid = (p) => p + (uid++);
+const S = {
+  lang: "zh", mode: "build", tool: null, sel: null, draft: null, grid: false, sheetBig: true,
+  wayposts: [
+    { zh: "台北市民廣場", en: "Taipei Civic Square", lng: 121.56275, lat: 25.03755, scene: "square" },
+    { zh: "中山公園", en: "Zhongshan Park", lng: 121.55961, lat: 25.03948, scene: "park" },
+    { zh: "巴洛克花園", en: "Baroque Garden", lng: 121.56064, lat: 25.04365, scene: "garden" },
+    { zh: "松壽廣場", en: "Songshou Square", lng: 121.56614, lat: 25.03746, scene: "square" },
+    { zh: "忠信廣場", en: "Zhongxin Plaza", lng: 121.5679, lat: 25.04049, scene: "square" },
+    { zh: "革新公園", en: "Gexin Park", lng: 121.56731, lat: 25.04377, scene: "park" },
+    { zh: "眷村文化公園", en: "Military Families Community Park", lng: 121.56175, lat: 25.03144, scene: "park" },
+    { zh: "光信公園", en: "Guangxin Park", lng: 121.55582, lat: 25.03559, scene: "park" },
+    { zh: "中興公園", en: "Zhongxing Park", lng: 121.55925, lat: 25.03423, scene: "park" },
+  ].map((w, i) => ({ id: nid("w"), photo: null, hidden: false, spins: [212, 340, 96, 58, 41, 77, 130, 18, 0][i], ...w })),
+  spots: [[121.5612, 25.0380], [121.5640, 25.0398], [121.5585, 25.0362], [121.5660, 25.0420], [121.5598, 25.0335], [121.5630, 25.0350]].map(([lng, lat]) => ({ id: nid("s"), lng, lat })),
+  landmarks: [{ id: "lm101", zh: "台北101", en: "Taipei 101", lng: 121.56481, lat: 25.033667, custom: "taipei101", tiles: [], tileColor: "grad", tileTop: 14, realTop: 0, model: null, size: "M", rot: 0, color: "grad", vessel: "bamboo-tower", stamp: "taipei101", hp: 40, time: 150, photo: null }],
+  bank: [
+    { type: "question", zh: "國父紀念館", en: "Sun Yat-sen Memorial Hall", lng: 121.56029, lat: 25.03999, q: { zh: "大廳銅像旁的衛兵多久換一次班？", en: "How often do the guards by the statue change?" } },
+    { type: "price", zh: "松山文創園區", en: "Songshan Culture Park", lng: 121.5608, lat: 25.0437, q: { zh: "園區咖啡店的拿鐵多少錢？", en: "How much is a latte at the park café?" } },
+    { type: "question", zh: "四四南村", en: "Forty-four South Village", lng: 121.56196, lat: 25.03147, q: { zh: "這裡原本是哪一種眷村？", en: "What kind of village was this first?" } },
+    { type: "price", zh: "光復市場", en: "Guangfu Market", lng: 121.5605, lat: 25.03628, q: { zh: "一碗魯肉飯多少錢？", en: "How much is a bowl of braised pork rice?" } },
+    { type: "question", zh: "富邦美術館", en: "Fubon Art Museum", lng: 121.57123, lat: 25.03928, q: { zh: "美術館外牆是什麼材質？", en: "What is the museum's outer wall made of?" } },
+    { type: "price", zh: "臨江街觀光夜市", en: "Linjiang Street Night Market", lng: 121.55567, lat: 25.02984, q: { zh: "胡椒餅一個多少錢？", en: "How much is one pepper bun?" } },
+  ].map((b) => ({ id: nid("b"), ...b })),
+  hunts: [{ id: "xinyi", zh: "信義城市定向", en: "Xinyi City Hunt", status: "live", landmark: "lm101", center: [121.5651, 25.0360], radius: 1000, keeper: { lng: 121.56275, lat: 25.03755, zh: "市府廣場", en: "Civic Square" }, quests: [], limit: 60, xp: 300, gold: 5, repeat: 50, open: "2026-11-10",
+    funnel: [["joined", 42], ["checkedIn", 37], ["q1", 35], ["q2", 33], ["q3", 31], ["q4", 22], ["q5", 21], ["finished", 21]] }],
+  hunt: null, step: 1,
+};
+S.hunts[0].quests = [
+  { id: nid("q"), type: "arrive", zh: "巴洛克花園", en: "Baroque Garden", lng: 121.56064, lat: 25.04365 },
+  { id: nid("q"), type: "question", bank: S.bank[0].id, zh: S.bank[0].zh, en: S.bank[0].en, lng: S.bank[0].lng, lat: S.bank[0].lat },
+  { id: nid("q"), type: "price", bank: S.bank[3].id, zh: S.bank[3].zh, en: S.bank[3].en, lng: S.bank[3].lng, lat: S.bank[3].lat },
+  { id: nid("q"), type: "catch", count: 3, zh: "松壽廣場", en: "Songshou Square", lng: 121.56614, lat: 25.03746 },
+  { id: nid("q"), type: "landmark", zh: "台北101", en: "Taipei 101", lng: 121.56481, lat: 25.033667 },
+];
+
+/* ===================== Words ===================== */
+const W = {
+  zh: {
+    brand: "時光膠囊 · 管理", city: "台北", build: "地圖編輯", hunts: "城市定向", lang: "EN",
+    addWaypost: "驛站", addLandmark: "地標", addSpot: "破損膠囊點", grid: "格子", fieldOn: "我的位置",
+    hintWaypost: "點地圖放下驛站", hintLandmark: "點地圖放下地標，或先選一個驛站", hintSpot: "點地圖放下破損膠囊點", hintMove: "點新的位置", hintBuildings: "點建築物加入或移除", hintSeal: "點地圖放印章", cancel: "取消",
+    outside: (c) => `在${c}以外。驛站、地標和任務要放在虛線裡面。`,
+    gps: (a, n, m) => `GPS ±${a} 米 · 最近：${n} ${m} 米`, gpsDemo: "（示範：用地圖中心當你的位置）",
+    overview: "台北地圖", overviewNote: "點上面的工具開始。點任何驛站或地標可以編輯。",
+    cityStats: ["驛站", "地標", "膠囊點", "格子已用"], cellsNote: "格子：約 70 米一格，像 Niantic 的第 17 級。只是參考，不是規定。",
+    newWaypost: "新驛站", waypost: "驛站", landmark: "地標",
+    nameZh: "中文名", nameEn: "英文名", nearby: "附近的名字（從地圖來）", noNearby: "附近沒有地名，請自己輸入。",
+    picture: "圖片", upload: "上傳照片", credit: "照片來源（選填）",
+    sceneNames: { park: "公園", garden: "花園", waterfront: "水邊", square: "廣場", publicArt: "公共藝術" },
+    softCell: (n, m) => `這一格已經有「${n}」，相距 ${m} 米。可以照樣儲存。`,
+    softArea: (k) => `這裡在地圖標示的${k}範圍內，確定是公共走道嗎？`,
+    areaKinds: { school: "學校", kindergarten: "幼稚園", university: "大學", college: "學院", hospital: "醫院", cemetery: "墓地", military: "軍事用地" },
+    softOk: "沒有問題。", save: "儲存", move: "移動", moveHere: "移到我這裡", hide: "隱藏", show: "顯示", makeLandmark: "變成地標", del: "刪除",
+    spins: "轉動", level: "等級", lastSpin: "上次轉", rack: "架上膠囊", never: "從未", minsAgo: (m) => `${m} 分鐘前`,
+    saved: "已儲存，玩家馬上看得到", hiddenToast: "已隱藏，可在紀錄中復原", movedToast: "已移動",
+    lmSections: ["名字和圖片", "外觀（3D）", "獎勵", "戰鬥"],
+    lookTabs: { buildings: "真實建築", model: "現成模型", seal: "只有印章", custom: "自訂" },
+    buildingsNote: "在地圖上點建築物：選中的會變色。廣場四周的建築多點幾下就好。", selected: (n) => `已選 ${n} 棟`, clear: "清除",
+    height: "高度", colour: "顏色", size: "大小", rotate: "旋轉", moveSeal: "移動印章",
+    models: { tower: "塔", pagoda: "寶塔", gate: "牌樓", fountain: "噴水池", column: "紀念柱", pavilion: "涼亭", dome: "圓頂", statue: "雕像" },
+    customNote: "台北101 的分段是手工調整的，保持不變。可以再加建築或模型。",
+    vessel: "容器", stamp: "護照印章", defaultVessel: "預設地標容器", defaultStamp: "預設地標印章", byCodex: "Codex 繪製", dupStar: "第二次贏到同一個容器會多一顆星。",
+    hp: "生命", time: "時間", sec: "秒",
+    huntsTitle: "台北的城市定向", newHunt: "新的城市定向", live: "開放中", staff: "只限工作人員", draft: "草稿", ended: "已結束",
+    funnelTitle: "玩家走到哪一步", funnel: { joined: "加入", checkedIn: "報到", q1: "任務 1", q2: "任務 2", q3: "任務 3", q4: "任務 4", q5: "任務 5", finished: "完成" },
+    funnelNote: "完成時間中位數 48 分鐘。最多人在任務 4 停下。",
+    steps: ["地標", "範圍", "守信人", "任務", "設定"],
+    stepNote: ["點一個地標（或先到「地圖編輯」做一個）。", "拖邊上的圓點改大小，拖中間的圓點移動。", "點地圖放守信人。他會說出那裡的名字。", "加任務：點地圖放「到達」或「捕捉」；問題和價格從題庫挑（淡色的針）。地標任務會自動加。", "名字、時間和獎勵都已填好，可以改。"],
+    inside: (w, s) => `範圍內：${w} 個驛站、${s} 個膠囊點`, radius: "半徑", m: "米",
+    keeperLine: (s) => `「我在${s}等你」`, qTypes: { arrive: "到達", question: "問題", price: "猜價格", catch: "捕捉", landmark: "地標" },
+    addArrive: "＋ 到達", addCatch: "＋ 捕捉", fromBank: "從題庫挑：點地圖上的淡色針", catchN: (n) => `捕捉 ${n} 個`,
+    huntName: "名字", limit: "時間限制（分鐘）", reward: "獎勵", xp: "經驗", gold: "金蠟球", repeat: "再玩一次的經驗", openDate: "開始日期",
+    makeStaff: "設為只限工作人員", publish: "發布", endAndPublish: "結束「信義城市定向」並發布", oneOpen: "每個城市同時只能開放一個城市定向。",
+    staffNote: "只有管理成員在旅程上看得到，可以實地走一次再修改。", draftNote: "草稿只在管理後台看得到。", liveNote: "所有玩家都看得到。",
+    needKeeper: "還需要：守信人和至少一個任務", next: "下一步", back: "上一步", edit: "編輯",
+    noPlayers: "還沒有玩家。", huntNameDefault: (a) => `${a}城市定向`, demoNote: "示範：資料只存在這個頁面。",
+  },
+  en: {
+    brand: "Time Capsule · Admin", city: "Taipei", build: "Map builder", hunts: "City Hunts", lang: "中文",
+    addWaypost: "Waypost", addLandmark: "Landmark", addSpot: "Capsule spot", grid: "Grid", fieldOn: "My location",
+    hintWaypost: "Tap the map to drop a Waypost", hintLandmark: "Tap the map to drop a Landmark, or select a Waypost first", hintSpot: "Tap the map to drop a Corrupted Capsule spot", hintMove: "Tap the new spot", hintBuildings: "Tap buildings to add or remove them", hintSeal: "Tap the map to place the seal", cancel: "Cancel",
+    outside: (c) => `Outside ${c}. Wayposts, Landmarks and quests go inside the dashed line.`,
+    gps: (a, n, m) => `GPS ±${a} m · nearest: ${n} ${m} m`, gpsDemo: "(demo: the map centre stands in for you)",
+    overview: "Taipei map", overviewNote: "Pick a tool above to start. Tap any Waypost or Landmark to edit it.",
+    cityStats: ["Wayposts", "Landmarks", "Capsule spots", "Cells used"], cellsNote: "Grid: cells of about 70 m, like Niantic's level 17. A guide, not a rule.",
+    newWaypost: "New Waypost", waypost: "Waypost", landmark: "Landmark",
+    nameZh: "Chinese name", nameEn: "English name", nearby: "Names nearby (from the map)", noNearby: "No named places nearby. Type a name.",
+    picture: "Picture", upload: "Upload photo", credit: "Photo credit (optional)",
+    sceneNames: { park: "Park", garden: "Garden", waterfront: "Waterfront", square: "Square", publicArt: "Public art" },
+    softCell: (n, m) => `${n} is already in this cell, ${m} m away. You can still save.`,
+    softArea: (k) => `The map marks this as ${k}. Is it a public walkway?`,
+    areaKinds: { school: "a school", kindergarten: "a kindergarten", university: "a university", college: "a college", hospital: "a hospital", cemetery: "a cemetery", military: "military land" },
+    softOk: "Nothing to check.", save: "Save", move: "Move", moveHere: "Move here", hide: "Hide", show: "Show", makeLandmark: "Make Landmark", del: "Delete",
+    spins: "Spins", level: "Level", lastSpin: "Last spin", rack: "On rack", never: "never", minsAgo: (m) => `${m} min ago`,
+    saved: "Saved. Players see it now.", hiddenToast: "Hidden. Undo from Activity.", movedToast: "Moved",
+    lmSections: ["Name and picture", "Look (3D)", "Reward", "Fight"],
+    lookTabs: { buildings: "Real buildings", model: "Ready-made model", seal: "Seal only", custom: "Custom" },
+    buildingsNote: "Tap buildings on the map: selected ones change colour. A square framed by buildings is a few taps.", selected: (n) => `${n} selected`, clear: "Clear",
+    height: "Height", colour: "Colour", size: "Size", rotate: "Rotate", moveSeal: "Move seal",
+    models: { tower: "Tower", pagoda: "Pagoda", gate: "Gate", fountain: "Fountain", column: "Column", pavilion: "Pavilion", dome: "Dome", statue: "Statue" },
+    customNote: "Taipei 101's sections are hand-tuned and stay as they are. You can still add buildings or a model.",
+    vessel: "Vessel", stamp: "Passport stamp", defaultVessel: "Default Landmark vessel", defaultStamp: "Default Landmark stamp", byCodex: "Codex draws it", dupStar: "Winning the same vessel again adds a star.",
+    hp: "Health", time: "Time", sec: "s",
+    huntsTitle: "City Hunts in Taipei", newHunt: "New City Hunt", live: "Live", staff: "Staff only", draft: "Draft", ended: "Ended",
+    funnelTitle: "How far players get", funnel: { joined: "Joined", checkedIn: "Checked in", q1: "Quest 1", q2: "Quest 2", q3: "Quest 3", q4: "Quest 4", q5: "Quest 5", finished: "Finished" },
+    funnelNote: "Median time 48 minutes. Most players stop at quest 4.",
+    steps: ["Landmark", "Area", "Keeper", "Quests", "Settings"],
+    stepNote: ["Tap a Landmark (or make one first in Map builder).", "Drag the dot on the edge to resize, the middle dot to move.", "Tap the map to place the Letter Keeper. He names the spot.", "Add quests: tap the map for Arrive or Catch; pick questions and prices from the bank (the faint pins). The Landmark quest is added for you.", "Name, time and reward are filled in. Change anything."],
+    inside: (w, s) => `Inside: ${w} Wayposts, ${s} capsule spots`, radius: "Radius", m: "m",
+    keeperLine: (s) => `"I'm waiting at ${s}"`, qTypes: { arrive: "Arrive", question: "Question", price: "Guess the price", catch: "Catch", landmark: "Landmark" },
+    addArrive: "＋ Arrive", addCatch: "＋ Catch", fromBank: "From the bank: tap a faint pin on the map", catchN: (n) => `Catch ${n}`,
+    huntName: "Name", limit: "Time limit (minutes)", reward: "Reward", xp: "XP", gold: "Gold Wax Balls", repeat: "Repeat XP", openDate: "Opens on",
+    makeStaff: "Make Staff only", publish: "Publish", endAndPublish: "End Xinyi City Hunt and publish", oneOpen: "Only one City Hunt can be open per city.",
+    staffNote: "Only admin members see it on Journey, so you can walk it and fix it first.", draftNote: "A draft is only visible in admin.", liveNote: "Every player sees it.",
+    needKeeper: "Still needed: the Keeper and at least one quest", next: "Next", back: "Back", edit: "Edit",
+    noPlayers: "No players yet.", huntNameDefault: (a) => `${a} City Hunt`, demoNote: "Demo: nothing leaves this page.",
+  },
+};
+const t = (k, ...a) => { const v = W[S.lang][k]; return typeof v === "function" ? v(...a) : v; };
+const nm = (o) => S.lang === "zh" ? o.zh || o.en : o.en || o.zh;
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ===================== Geometry ===================== */
+const dist = (a, b) => { const R = 6371000, r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r; const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+const inRing = (pt, ring) => { let inside = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j]; if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) inside = !inside; } return inside; };
+const inPoly = (pt, g) => g.type === "Polygon" ? inRing(pt, g.coordinates[0]) && !g.coordinates.slice(1).some((h) => inRing(pt, h)) : g.type === "MultiPolygon" ? g.coordinates.some((p) => inPoly(pt, { type: "Polygon", coordinates: p })) : false;
+const inside = (ll) => inRing([ll.lng, ll.lat], BORDER);
+const cellKey = (ll) => S2.S2Cell.FromLatLng({ lat: ll.lat, lng: ll.lng }, 17).toHilbertQuadkey();
+const circle = (c, r, n = 64) => { const mLat = 110540, mLng = 111320 * Math.cos(c[1] * Math.PI / 180); return Array.from({ length: n + 1 }, (_, k) => { const a = k / n * Math.PI * 2; return [c[0] + r * Math.cos(a) / mLng, c[1] + r * Math.sin(a) / mLat]; }); };
+const offset = (c, dx, dy) => { const mLat = 110540, mLng = 111320 * Math.cos(c[1] * Math.PI / 180); return [c[0] + dx / mLng, c[1] + dy / mLat]; };
+
+/* Monument pieces: [half, base, top, {round, dx, dy, w, d}] in metres (same as mapHtml.ts, plus w/d for long boxes). */
+const flare = (from, h, n, w) => [[n, from, from + h * .35], [(n + w) / 2, from + h * .35, from + h * .7], [w, from + h * .7, from + h]];
+const CUSTOM = { taipei101: [[62, 0, 18], [36, 18, 24], [24, 24, 30], [21, 30, 36], ...Array.from({ length: 8 }, (_, i) => flare(36 + i * 8, 8, 14, 18.5)).flat(), [12, 100, 106], [8, 106, 112], [4, 112, 116], [1.6, 116, 142]] };
+const R = { round: true };
+const MODELS = {
+  tower: [[9, 0, 4], [7, 4, 22], [6, 22, 40], [5, 40, 56], [3.5, 56, 62], [1.6, 62, 80, R]],
+  pagoda: (() => { const p = [[11, 0, 2]]; let b = 2; for (let i = 0; i < 5; i++) { p.push([6 - i * .8, b, b + 4.5], [10 - i * 1.3, b + 4.5, b + 5.7]); b += 5.7; } p.push([1, b, b + 5, R]); return p; })(),
+  gate: [[0, 0, 14, { w: 1.8, d: 1.8, dx: -7 }], [0, 0, 14, { w: 1.8, d: 1.8, dx: 7 }], [0, 0, 9, { w: 1.2, d: 1.2, dx: -12 }], [0, 0, 9, { w: 1.2, d: 1.2, dx: 12 }], [0, 14, 16.5, { w: 11, d: 2.4 }], [0, 16.5, 18, { w: 12.5, d: 3.4 }], [0, 18, 19.5, { w: 8, d: 2 }], [0, 9, 10.2, { w: 14, d: 1.8 }]],
+  fountain: [[14, 0, 1.2, R], [2, 1.2, 6, R], [6, 6, 7, R], [1.2, 7, 10, R], [3, 10, 10.8, R], [.8, 10.8, 13, R]],
+  column: [[6, 0, 3], [4.5, 3, 5], [2.2, 5, 30, R], [3.2, 30, 32], [2, 32, 34, R], [1.4, 34, 38, R]],
+  pavilion: [[10, 0, 1.5], [.9, 1.5, 7, { round: true, dx: 6, dy: 6 }], [.9, 1.5, 7, { round: true, dx: -6, dy: 6 }], [.9, 1.5, 7, { round: true, dx: 6, dy: -6 }], [.9, 1.5, 7, { round: true, dx: -6, dy: -6 }], [10, 7, 8.2], [8, 8.2, 9.4], [5.5, 9.4, 10.6], [3, 10.6, 11.6], [1, 11.6, 13.5, R]],
+  dome: [[13, 0, 8, R], [12.5, 8, 10, R], [11.8, 10, 12, R], [10.5, 12, 14, R], [8.8, 14, 16, R], [6.5, 16, 18, R], [3.8, 18, 19.6, R], [1.2, 19.6, 23, R]],
+  statue: [[5, 0, 1], [4, 1, 6], [4.6, 6, 7], [1.8, 7, 13, R], [2.3, 13, 14, R], [1.1, 14, 16, R], [.6, 12, 17.5, { round: true, dx: 2 }]],
+};
+const SIZE = { S: .6, M: 1, L: 1.6 };
+function piecesToFeatures(id, at, pieces, scale = 1, rot = 0, color = "grad") {
+  const top = Math.max(...pieces.map((p) => p[2])) * scale, a = rot * Math.PI / 180;
+  const rp = (x, y) => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+  return pieces.map(([half, base, tp, o = {}]) => {
+    const s = scale, cx = (o.dx || 0) * s, cy = (o.dy || 0) * s;
+    let ring;
+    if (o.round) ring = Array.from({ length: 25 }, (_, k) => { const q = k / 24 * Math.PI * 2; const [x, y] = rp(cx + half * s * Math.cos(q), cy + half * s * Math.sin(q)); return offset(at, x, y); });
+    else { const w = (o.w || half) * s, d = (o.d || half) * s; ring = [[-w, -d], [w, -d], [w, d], [-w, d], [-w, -d]].map(([x, y]) => offset(at, ...rp(cx + x, cy + y))); }
+    const props = { id, base: base * s, top: tp * s, t: (base + tp) / 2 * s / top };
+    if (color !== "grad") props.c = color;
+    return { type: "Feature", properties: props, geometry: { type: "Polygon", coordinates: [ring] } };
+  });
+}
+const lmTop = (l) => Math.max(l.custom ? 142 : 0, l.model ? Math.max(...MODELS[l.model].map((p) => p[2])) * SIZE[l.size] : 0, l.tiles.length ? l.tileTop : 0);
+
+/* ===================== Map ===================== */
+const protocol = new pmtiles.Protocol(); maplibregl.addProtocol("pmtiles", protocol.tile);
+const P = { water: "#BCD3E6", waterLine: "#9DBBD6", land: "#F3EFE6", park: "#DCE6CF", sand: "#EFE3C6", building: "#E6E0D3", road: "#FFFFFF", roadCase: "#D5DDE7", major: "#F1E2BF", halo: "#F6F8FB" };
+const RAMP = (v) => ["interpolate", ["linear"], v, 0, C.navy, .35, C.ink, .75, C.light, 1, C.glass];
+const map = new maplibregl.Map({
+  container: "map", attributionControl: false, center: [121.5635, 25.0372], zoom: 15.6, pitch: 50, bearing: -15, maxPitch: 70,
+  style: { version: 8, glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
+    sources: { base: { type: "vector", url: `pmtiles://${TILES}`, attribution: "© OpenStreetMap · Protomaps" } },
+    layers: [
+      { id: "bg", type: "background", paint: { "background-color": P.water } },
+      { id: "earth", type: "fill", source: "base", "source-layer": "earth", paint: { "fill-color": P.land } },
+      { id: "parks", type: "fill", source: "base", "source-layer": "landuse", filter: ["in", ["get", "kind"], ["literal", ["park", "garden", "grass", "wood", "forest", "recreation_ground", "nature_reserve", "playground", "cemetery"]]], paint: { "fill-color": P.park } },
+      { id: "water", type: "fill", source: "base", "source-layer": "water", paint: { "fill-color": P.water } },
+      { id: "roads", type: "line", source: "base", "source-layer": "roads", filter: ["in", ["get", "kind"], ["literal", ["highway", "major_road", "minor_road", "path"]]], layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": ["match", ["get", "kind"], ["highway", "major_road"], P.major, P.road], "line-width": ["interpolate", ["linear"], ["zoom"], 13, 1, 17, ["match", ["get", "kind"], "path", 2, 9], 19, ["match", ["get", "kind"], "path", 4, 18]] } },
+      { id: "pois", type: "circle", source: "base", "source-layer": "pois", paint: { "circle-radius": 1, "circle-opacity": 0 } },
+      { id: "buildings", type: "fill-extrusion", source: "base", "source-layer": "buildings", minzoom: 14, paint: { "fill-extrusion-color": P.building, "fill-extrusion-height": ["min", ["*", ["coalesce", ["get", "height"], 9], .35], 40], "fill-extrusion-opacity": .82 } },
+      { id: "lm-tiles", type: "fill-extrusion", source: "base", "source-layer": "buildings", minzoom: 14, filter: ["in", ["id"], ["literal", []]], paint: { "fill-extrusion-color": C.ink, "fill-extrusion-height": 10, "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true } },
+      { id: "places", type: "symbol", source: "base", "source-layer": "places", filter: ["in", ["get", "kind"], ["literal", ["neighbourhood", "locality", "macrohood"]]], layout: { "text-field": ["coalesce", ["get", "name:zh-Hant"], ["get", "name"]], "text-font": ["Noto Sans Regular"], "text-size": 12 }, paint: { "text-color": C.ink, "text-halo-color": P.halo, "text-halo-width": 1.6 } },
+    ] },
+});
+const fc = (features) => ({ type: "FeatureCollection", features });
+let ready = false;
+map.on("load", () => {
+  map.addSource("veil", { type: "geojson", data: fc([{ type: "Feature", geometry: { type: "Polygon", coordinates: [[[100, 10], [140, 10], [140, 40], [100, 40], [100, 10]], BORDER.slice().reverse()] } }]) });
+  map.addLayer({ id: "veil", type: "fill", source: "veil", paint: { "fill-color": "#C9CFD8", "fill-opacity": .55 } }, "buildings");
+  map.addSource("border", { type: "geojson", data: fc([{ type: "Feature", geometry: { type: "LineString", coordinates: BORDER } }]) });
+  map.addLayer({ id: "border", type: "line", source: "border", paint: { "line-color": C.ink, "line-width": 2.5, "line-dasharray": [2, 1.5] } });
+  map.addSource("grid", { type: "geojson", data: fc([]) });
+  map.addLayer({ id: "grid-fill", type: "fill", source: "grid", filter: ["==", ["get", "used"], 1], paint: { "fill-color": C.ink, "fill-opacity": .1 } }, "buildings");
+  map.addLayer({ id: "grid", type: "line", source: "grid", paint: { "line-color": C.ink, "line-opacity": .5, "line-width": 1 } }, "buildings");
+  map.addSource("area", { type: "geojson", data: fc([]) });
+  map.addLayer({ id: "area-fill", type: "fill", source: "area", paint: { "fill-color": C.ink, "fill-opacity": .07 } }, "buildings");
+  map.addLayer({ id: "area", type: "line", source: "area", paint: { "line-color": C.ink, "line-width": 2, "line-opacity": .7 } });
+  map.addSource("models", { type: "geojson", data: fc([]) });
+  map.addLayer({ id: "models", type: "fill-extrusion", source: "models", paint: { "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "top"], "fill-extrusion-color": ["case", ["has", "c"], ["get", "c"], RAMP(["get", "t"])], "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true } });
+  cityLabel = new maplibregl.Marker({ element: Object.assign(document.createElement("div"), { className: "citylabel" }), anchor: "center" }).setLngLat([121.536, 25.0005]).addTo(map);
+  ready = true; drawAll(); render();
+});
+let cityLabel;
+map.on("moveend", () => { if (S.grid) drawGrid(); updateGps(); });
+
+/* ===================== Drawing ===================== */
+let markers = [], seals = [];
+const sealPx = (top) => top / (156543.03 * Math.cos(25.04 * Math.PI / 180) / 2 ** map.getZoom()) * Math.sin(map.getPitch() * Math.PI / 180) + 6;
+function placeSeals() { seals.forEach(([m, top]) => m.setOffset([0, -sealPx(top)])); }
+map.on("move", () => placeSeals());
+function addMk(ll, html, cls, onClick, opts = {}) {
+  const el = document.createElement("div"); el.className = "mk " + (cls || ""); el.innerHTML = html;
+  if (onClick) el.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
+  const m = new maplibregl.Marker({ element: el, anchor: opts.anchor || "bottom", draggable: !!opts.drag, offset: opts.offset }).setLngLat([ll.lng, ll.lat]).addTo(map);
+  markers.push(m); return m;
+}
+const sealSvg = `<svg viewBox="0 0 16 16"><path d="M8 0 L9.6 6.4 L16 8 L9.6 9.6 L8 16 L6.4 9.6 L0 8 L6.4 6.4Z" fill="#fff"/></svg>`;
+const qpin = (type, n, color = "blue") => `<div class="qpin"><img class="p" src="${ART}quest-pins/quest-pin-${color}.webp"><img class="t" src="${ART}quest-types/quest-type-${type}.webp">${n ? `<b>${n}</b>` : ""}</div>`;
+function drawAll() {
+  if (!ready) return;
+  markers.forEach((m) => m.remove()); markers = []; seals = [];
+  cityLabel.getElement().textContent = S.lang === "zh" ? "台北市 · 邊界" : "Taipei City · border";
+  const huntMode = S.mode === "hunts";
+  // Wayposts
+  S.wayposts.forEach((w) => { if (huntMode && w.hidden) return;
+    addMk(w, `<img class="gem ${w.hidden ? "hid" : ""}" src="${ART}game/waypost-gem-blue.webp">`, S.sel?.id === w.id ? "sel" : "", huntMode ? null : () => select("waypost", w.id)); });
+  // Spots
+  if (!huntMode) S.spots.forEach((s) => addMk(s, `<div class="spot"></div>`, "", null, { anchor: "center" }));
+  // Landmarks: monuments + seals
+  const feats = [], tileIds = [], colorMatch = [], scaleMatch = [];
+  S.landmarks.forEach((l) => {
+    const at = [l.lng, l.lat];
+    if (l.custom) feats.push(...piecesToFeatures(l.id, at, CUSTOM[l.custom]));
+    if (l.model) feats.push(...piecesToFeatures(l.id, at, MODELS[l.model], SIZE[l.size], l.rot, l.color));
+    if (l.tiles.length) { tileIds.push(...l.tiles); colorMatch.push(l.tiles, l.tileColor === "grad" ? C.ink : l.tileColor); scaleMatch.push(l.tiles, l.tileTop / Math.max(l.realTop, 1)); }
+    const top = lmTop(l);
+    const pickable = huntMode ? S.hunt && S.step === 1 && S.hunt.status !== "live" : true;
+    seals.push([addMk(l, `<div class="seal">${sealSvg}</div>`, (S.sel?.id === l.id || (huntMode && S.hunt?.landmark === l.id)) ? "sel" : "", pickable ? () => huntMode ? pickHuntLandmark(l) : select("landmark", l.id) : null, { anchor: "center" }), top]);
+  });
+  if (S.draft) {
+    const d = S.draft;
+    if (d.kind === "landmark" && d.model) feats.push(...piecesToFeatures("draft", [d.lng, d.lat], MODELS[d.model], SIZE[d.size], d.rot, d.color));
+    if (d.kind === "landmark" && d.tiles.length) { tileIds.push(...d.tiles); colorMatch.push(d.tiles, d.tileColor === "grad" ? C.ink : d.tileColor); scaleMatch.push(d.tiles, d.tileTop / Math.max(d.realTop, 1)); }
+    const dm = addMk(d, d.kind === "landmark" ? `<div class="seal">${sealSvg}</div>` : `<img class="gem" src="${ART}game/waypost-gem-blue.webp">`, "draft sel", null, d.kind === "landmark" ? { anchor: "center" } : {});
+    if (d.kind === "landmark") seals.push([dm, lmTop(d)]);
+  }
+  map.getSource("models").setData(fc(feats));
+  map.setFilter("lm-tiles", ["in", ["id"], ["literal", tileIds]]);
+  map.setFilter("buildings", ["!", ["in", ["id"], ["literal", tileIds]]]);
+  map.setPaintProperty("lm-tiles", "fill-extrusion-color", colorMatch.length ? ["match", ["id"], ...colorMatch, C.ink] : C.ink);
+  map.setPaintProperty("lm-tiles", "fill-extrusion-height", scaleMatch.length ? ["*", ["coalesce", ["get", "height"], 9], ["match", ["id"], ...scaleMatch, 1]] : 10);
+  map.setPaintProperty("lm-tiles", "fill-extrusion-base", scaleMatch.length ? ["*", ["coalesce", ["get", "min_height"], 0], ["match", ["id"], ...scaleMatch, 1]] : 0);
+  // Hunt
+  const h = huntMode && S.hunt;
+  map.getSource("area").setData(fc(h && S.step >= 2 || (h && h.status === "live") ? [{ type: "Feature", geometry: { type: "Polygon", coordinates: [circle(h.center, h.radius)] } }] : []));
+  if (h) {
+    const editing = h.status !== "live";
+    if (h.keeper) addMk(h.keeper, `<img class="keeper" src="${ART}characters/keeper.webp">`);
+    h.quests.forEach((q, i) => addMk(q, qpin(q.type, i + 1), ""));
+    if (editing && S.step === 2) {
+      addMk({ lng: h.center[0], lat: h.center[1] }, `<div class="handle"></div>`, "", null, { anchor: "center", drag: true }).on("drag", (e) => { const p = e.target.getLngLat(); h.center = [p.lng, p.lat]; edgeM.setLngLat(offset(h.center, h.radius, 0)); map.getSource("area").setData(fc([{ type: "Feature", geometry: { type: "Polygon", coordinates: [circle(h.center, h.radius)] } }])); render(); });
+      const edgeM = addMk({ lng: offset(h.center, h.radius, 0)[0], lat: h.center[1] }, `<div class="handle"></div>`, "", null, { anchor: "center", drag: true });
+      edgeM.on("drag", (e) => { const p = e.target.getLngLat(); h.radius = Math.max(200, Math.round(dist({ lng: h.center[0], lat: h.center[1] }, p) / 10) * 10); map.getSource("area").setData(fc([{ type: "Feature", geometry: { type: "Polygon", coordinates: [circle(h.center, h.radius)] } }])); render(); });
+    }
+    if (editing && S.step === 4) S.bank.filter((b) => !h.quests.some((q) => q.bank === b.id) && dist(b, { lng: h.center[0], lat: h.center[1] }) <= h.radius)
+      .forEach((b) => addMk(b, qpin(b.type, 0), "bank", () => { h.quests.splice(h.quests.findIndex((q) => q.type === "landmark"), 0, { id: nid("q"), type: b.type, bank: b.id, zh: b.zh, en: b.en, lng: b.lng, lat: b.lat }); drawAll(); render(); toast(nm(b)); }));
+  }
+  placeSeals();
+  if (S.grid) drawGrid();
+}
+function drawGrid() {
+  if (map.getZoom() < 15) { map.getSource("grid").setData(fc([])); return; }
+  const c0 = map.getCenter(), sw = offset([c0.lng, c0.lat], -500, -500), ne = offset([c0.lng, c0.lat], 500, 500), seen = new Map();
+  const b = { getSouth: () => sw[1], getNorth: () => ne[1], getWest: () => sw[0], getEast: () => ne[0], getCenter: () => c0 };
+  const used = new Set([...S.wayposts.filter((w) => !w.hidden), ...S.landmarks].map(cellKey));
+  const stepLat = 30 / 110540, stepLng = 30 / (111320 * Math.cos(b.getCenter().lat * Math.PI / 180));
+  let n = 0;
+  for (let lat = b.getSouth(); lat <= b.getNorth() && n < 3000; lat += stepLat) for (let lng = b.getWest(); lng <= b.getEast() && n < 3000; lng += stepLng) {
+    n++; const cell = S2.S2Cell.FromLatLng({ lat, lng }, 17), key = cell.toHilbertQuadkey();
+    if (seen.has(key)) continue;
+    const ring = cell.getCornerLatLngs().map((p) => [p.lng, p.lat]); ring.push(ring[0]);
+    seen.set(key, { type: "Feature", properties: { used: used.has(key) ? 1 : 0 }, geometry: { type: "Polygon", coordinates: [ring] } });
+  }
+  map.getSource("grid").setData(fc([...seen.values()]));
+}
+
+/* ===================== Names from the tiles ===================== */
+const SKIP = new Set(["administrative", "bus_stop", "parking", "atm", "toilets", "station", "bicycle_rental", "taxi", "car"]);
+const isCJK = (s) => /[㐀-鿿]/.test(s || "");
+function namesNear(ll, radius = 150) {
+  const seen = new Map();
+  for (const f of map.querySourceFeatures("base", { sourceLayer: "pois" })) {
+    const p = f.properties; if (!p.name || SKIP.has(p.kind) || String(p.kind).startsWith("parking") || f.geometry.type !== "Point") continue;
+    const [lng, lat] = f.geometry.coordinates, d = dist(ll, { lng, lat }); if (d > radius) continue;
+    const zh = p["name:zh-Hant"] || (isCJK(p.name) ? p.name : ""), en = p["name:en"] || (!isCJK(p.name) ? p.name : "");
+    const key = zh + "|" + en; if (!seen.has(key) || seen.get(key).d > d) seen.set(key, { zh, en, kind: p.kind, d: Math.round(d) });
+  }
+  const PREFER = new Set(["park", "garden", "plaza", "attraction", "artwork", "monument", "arts_centre", "museum", "fountain", "pier", "memorial"]);
+  const list = [...seen.values()].sort((a, b) => (a.d - (PREFER.has(a.kind) ? 60 : 0)) - (b.d - (PREFER.has(b.kind) ? 60 : 0))).slice(0, 6);
+  if (!list.length) { // fall back to the neighbourhood
+    const pl = (map.getLayer("places") ? map.queryRenderedFeatures({ layers: ["places"] }) : []).map((f) => ({ zh: f.properties["name:zh-Hant"] || f.properties.name, en: f.properties["name:en"] || "", kind: "neighbourhood", d: 999 }));
+    if (pl[0]) list.push(pl[0]);
+  }
+  return list;
+}
+const sceneFor = (kind) => ({ park: "park", garden: "garden", grass: "park", playground: "park", pier: "waterfront", beach: "waterfront", water: "waterfront", artwork: "publicArt", monument: "publicArt", attraction: "publicArt", museum: "publicArt", arts_centre: "publicArt", fountain: "publicArt", memorial: "publicArt" })[kind] || "square";
+function areaNote(ll) {
+  const kinds = Object.keys(W.en.areaKinds);
+  for (const f of map.querySourceFeatures("base", { sourceLayer: "landuse" })) if (kinds.includes(f.properties.kind) && inPoly([ll.lng, ll.lat], f.geometry)) return f.properties.kind;
+  return null;
+}
+function cellNote(ll, selfId) {
+  const k = cellKey(ll);
+  const other = [...S.wayposts.filter((w) => !w.hidden), ...S.landmarks].find((o) => o.id !== selfId && cellKey(o) === k);
+  return other ? { name: nm(other), m: Math.round(dist(ll, other)) } : null;
+}
+
+/* ===================== Actions ===================== */
+let toastTimer;
+function toast(msg) { const el = document.getElementById("toast"); el.textContent = msg; el.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2600); }
+function focus(ll, zoom) { requestAnimationFrame(() => { const narrow = innerWidth < 900; map.easeTo({ center: [ll.lng, ll.lat], zoom: zoom ? Math.max(map.getZoom(), zoom) : map.getZoom(), padding: { top: 60, bottom: narrow ? panel.offsetHeight : 0, left: 0, right: 0 }, duration: 400 }); }); }
+function setTool(tool) { S.tool = S.tool === tool ? null : tool; render(); }
+function select(kind, id) { if (S.tool && S.tool !== "move") return; S.draft = null; S.tool = null; S.sel = { kind, id }; S.sheetBig = true; drawAll(); render(); focus(find()); }
+const find = () => S.sel && (S.sel.kind === "waypost" ? S.wayposts : S.landmarks).find((o) => o.id === S.sel.id);
+function newDraft(kind, ll) {
+  const names = namesNear(ll), top = names[0] || { zh: "", en: "", kind: "" };
+  const base = { kind, lng: ll.lng, lat: ll.lat, zh: top.zh, en: top.en, names, photo: null, scene: sceneFor(top.kind) };
+  S.draft = kind === "landmark" ? { ...base, look: "model", model: "tower", size: "M", rot: 0, color: "grad", tiles: [], tileColor: "grad", tileTop: 14, realTop: 0, vessel: "default", stamp: "default", hp: 40, time: 150 } : base;
+  S.sel = null; S.tool = null; S.sheetBig = true; drawAll(); render(); focus(ll, kind === "landmark" ? 17.2 : 0);
+}
+map.on("click", (e) => {
+  const ll = e.lngLat;
+  if (S.mode === "build") {
+    const d = S.draft, cur = d || find();
+    if (S.tool === "buildings" && cur) {
+      const f = map.queryRenderedFeatures(e.point, { layers: ["buildings", "lm-tiles"] })[0];
+      if (!f || f.id == null) return;
+      const i = cur.tiles.indexOf(f.id);
+      if (i >= 0) cur.tiles.splice(i, 1); else { cur.tiles.push(f.id); cur.realTop = Math.max(cur.realTop, f.properties.height || 9); }
+      drawAll(); render(); return;
+    }
+    if (!S.tool) return;
+    if (!inside(ll)) { toast(t("outside", t("city"))); return; }
+    if (S.tool === "waypost") return newDraft("waypost", ll);
+    if (S.tool === "landmark") return newDraft("landmark", ll);
+    if (S.tool === "spot") { S.spots.push({ id: nid("s"), lng: ll.lng, lat: ll.lat }); S.tool = null; drawAll(); render(); toast(t("saved")); return; }
+    if (S.tool === "move" && cur) { cur.lng = ll.lng; cur.lat = ll.lat; if (d) d.names = namesNear(ll); S.tool = null; drawAll(); render(); toast(t("movedToast")); return; }
+    if (S.tool === "seal" && cur) { cur.lng = ll.lng; cur.lat = ll.lat; S.tool = null; drawAll(); render(); return; }
+  } else if (S.hunt && S.hunt.status !== "live") {
+    const h = S.hunt;
+    if (!inside(ll) && (S.step === 3 || S.tool)) { toast(t("outside", t("city"))); return; }
+    if (S.step === 3) { const n = namesNear(ll)[0] || { zh: "", en: "" }; h.keeper = { lng: ll.lng, lat: ll.lat, zh: n.zh, en: n.en }; drawAll(); render(); return; }
+    if (S.step === 4 && (S.tool === "arrive" || S.tool === "catch")) {
+      const n = namesNear(ll)[0] || { zh: "", en: "" };
+      h.quests.splice(h.quests.findIndex((q) => q.type === "landmark"), 0, { id: nid("q"), type: S.tool, count: S.tool === "catch" ? 3 : undefined, zh: n.zh, en: n.en, lng: ll.lng, lat: ll.lat });
+      S.tool = null; drawAll(); render();
+    }
+  }
+});
+function saveDraft() {
+  const d = S.draft; if (!d) return;
+  if (d.kind === "waypost") { const w = { id: nid("w"), zh: d.zh, en: d.en, lng: d.lng, lat: d.lat, scene: d.scene, photo: d.photo, hidden: false, spins: 0 }; S.wayposts.push(w); S.sel = { kind: "waypost", id: w.id }; }
+  else {
+    const l = { id: nid("lm"), zh: d.zh, en: d.en, lng: d.lng, lat: d.lat, custom: null, tiles: d.tiles, tileColor: d.tileColor, tileTop: d.tileTop, realTop: d.realTop, model: d.model, size: d.size, rot: d.rot, color: d.color, vessel: d.vessel, stamp: d.stamp, hp: d.hp, time: d.time, photo: d.photo };
+    if (d.fromWaypost) S.wayposts = S.wayposts.filter((w) => w.id !== d.fromWaypost);
+    S.landmarks.push(l); S.sel = { kind: "landmark", id: l.id };
+  }
+  S.draft = null; S.tool = null; drawAll(); render(); toast(t("saved"));
+}
+function pickHuntLandmark(l) { const h = S.hunt; h.landmark = l.id; h.center = [l.lng, l.lat]; const lm = h.quests.find((q) => q.type === "landmark"); const q = { id: nid("q"), type: "landmark", zh: l.zh, en: l.en, lng: l.lng, lat: l.lat }; if (lm) Object.assign(lm, q); else h.quests.push(q); if (!h.nameEdited) { h.zh = W.zh.huntNameDefault(l.zh); h.en = W.en.huntNameDefault(l.en); } S.step = 2; drawAll(); render(); }
+function fieldMove() { const c = map.getCenter(); const cur = S.draft || find(); if (!cur) return; if (!inside(c)) return toast(t("outside", t("city"))); cur.lng = c.lng; cur.lat = c.lat; drawAll(); render(); toast(t("movedToast") + " " + t("gpsDemo")); }
+function updateGps() {
+  const c = map.getCenter(); let best = null;
+  [...S.wayposts, ...S.landmarks].forEach((o) => { const d = dist(c, o); if (!best || d < best.d) best = { d, o }; });
+  document.getElementById("gps").textContent = best ? "📍 " + t("gps", 8, nm(best.o), Math.round(best.d)) : "";
+}
+
+/* ===================== Panel ===================== */
+const pi = document.getElementById("pi"), panel = document.getElementById("panel");
+function sceneGrid(o) {
+  return `<div class="scenes">${Object.entries(SCENES).map(([k, f]) => `<button class="scene ${!o.photo && o.scene === k ? "on" : ""}" data-act="scene" data-v="${k}"><img src="${ART}game/wheel/${f}.webp" alt=""><span>${t("sceneNames")[k]}</span></button>`).join("")}
+    ${o.photo ? `<button class="scene on" data-act="noop"><img src="${o.photo}"><span>${t("upload")}</span></button>` : `<label class="scene up">${t("upload")}<input type="file" accept="image/*" data-act="photo" hidden></label>`}</div>`;
+}
+function namesBlock(o) {
+  const names = o.names || [];
+  return `<label class="f">${t("nameZh")}</label><input type="text" data-bind="zh" value="${esc(o.zh)}">
+    <label class="f">${t("nameEn")}</label><input type="text" data-bind="en" value="${esc(o.en)}">
+    ${o.names ? `<label class="f">${t("nearby")}</label>${names.length ? `<div class="chips">${names.map((n, i) => `<button class="chip ${n.zh === o.zh && n.en === o.en ? "on" : ""}" data-act="pickname" data-i="${i}">${esc(nm(n))}<small>${n.d < 999 ? n.d + " m" : ""}</small></button>`).join("")}</div>` : `<p class="note">${t("noNearby")}</p>`}` : ""}`;
+}
+function softNotes(o, selfId) {
+  const c = cellNote(o, selfId), a = areaNote(o);
+  const notes = [c && `<div class="soft"><i>i</i><span>${esc(t("softCell", c.name, c.m))}</span></div>`, a && `<div class="soft"><i>!</i><span>${esc(t("softArea", t("areaKinds")[a]))}</span></div>`].filter(Boolean);
+  return `<div class="notes">${notes.length ? notes.join("") : `<div class="soft ok"><i>✓</i><span>${t("softOk")}</span></div>`}</div>`;
+}
+const modelIcon = (k) => { const p = MODELS[k], top = Math.max(...p.map((x) => x[2])), wMax = Math.max(...p.map((x) => (x[3]?.w || x[0]) + Math.abs(x[3]?.dx || 0))); const s = 30 / Math.max(top, wMax * 2);
+  return `<svg viewBox="0 0 34 34">${p.map(([h, b, tp, o = {}]) => { const w = (o.w || h) * s, x = 17 + (o.dx || 0) * s - w; return `<rect x="${x.toFixed(1)}" y="${(32 - tp * s).toFixed(1)}" width="${(w * 2).toFixed(1)}" height="${Math.max((tp - b) * s, .6).toFixed(1)}" fill="${C.ink}" rx="${o.round ? 1 : 0}"/>`; }).join("")}</svg>`; };
+const colours = (field, v) => `<div class="swatches">${[["grad", ""], [C.ink], [C.light], [C.glass], [C.wax], [C.brass]].map(([c]) => `<button class="sw ${c === "grad" ? "grad" : ""} ${v === c ? "on" : ""}" style="${c !== "grad" ? `background:${c}` : ""}" data-act="color" data-f="${field}" data-v="${c}" aria-label="${c}"></button>`).join("")}</div>`;
+const stepper = (field, v, step, unit) => `<span class="stepper"><button data-act="step" data-f="${field}" data-d="${-step}">−</button><b>${v}${unit || ""}</b><button data-act="step" data-f="${field}" data-d="${step}">＋</button></span>`;
+const EARNED = [["bamboo-tower", "台北101竹塔", "Bamboo Tower"], ["red-bird", "火鳥日晷盒", "Red Bird"], ["clock-tower", "鐘樓", "Clock Tower"], ["senado-fountain", "議事亭噴泉", "Senado Fountain"], ["lionfish-fountain", "魚尾獅噴泉", "Lionfish Fountain"]];
+function landmarkBody(o, isDraft) {
+  const look = isDraft ? o.look : (o.custom ? "custom" : o.model ? "model" : o.tiles.length ? "buildings" : "seal");
+  const lookTab = S.lookTab || look;
+  return `
+  <div class="sec"><h3><span class="num">1</span>${t("lmSections")[0]}</h3>${namesBlock(o)}
+    <label class="f">${t("picture")}</label>
+    <div class="scenes"><button class="scene ${!o.photo ? "on" : ""}" data-act="noop"><img src="${ART}game/wheel/scene-landmark-taipei.webp"><span>${S.lang === "zh" ? "預設" : "Default"}</span></button>
+    ${o.photo ? `<button class="scene on"><img src="${o.photo}"><span>${t("upload")}</span></button>` : `<label class="scene up">${t("upload")}<input type="file" accept="image/*" data-act="photo" hidden></label>`}</div></div>
+  <div class="sec"><h3><span class="num">2</span>${t("lmSections")[1]}</h3>
+    <div class="tabs">${(o.custom ? ["custom", "buildings", "model"] : ["buildings", "model", "seal"]).map((k) => `<button class="chip ${lookTab === k ? "on" : ""}" data-act="look" data-v="${k}">${t("lookTabs")[k]}</button>`).join("")}</div>
+    ${lookTab === "custom" ? `<p class="note">${t("customNote")}</p>` : ""}
+    ${lookTab === "buildings" ? `<p class="note">${t("buildingsNote")}</p>
+      <div class="row"><button class="btn ${S.tool === "buildings" ? "pri" : ""}" data-act="tool" data-v="buildings">${S.tool === "buildings" ? "✓ " : ""}${t("lookTabs").buildings}</button><span class="pill">${t("selected", o.tiles.length)}</span>${o.tiles.length ? `<button class="btn" data-act="cleartiles">${t("clear")}</button>` : ""}</div>
+      <label class="f">${t("height")} · ${o.tileTop} m</label><input type="range" min="6" max="40" value="${o.tileTop}" data-act="range" data-f="tileTop">
+      <label class="f">${t("colour")}</label>${colours("tileColor", o.tileColor)}` : ""}
+    ${lookTab === "model" ? `<div class="models">${Object.keys(MODELS).map((k) => `<button class="model ${o.model === k ? "on" : ""}" data-act="model" data-v="${k}">${modelIcon(k)}${t("models")[k]}</button>`).join("")}</div>
+      ${o.model ? `<label class="f">${t("size")}</label><div class="chips">${["S", "M", "L"].map((s) => `<button class="chip ${o.size === s ? "on" : ""}" data-act="size" data-v="${s}">${s}</button>`).join("")}</div>
+      <label class="f">${t("rotate")} · ${o.rot}°</label><input type="range" min="0" max="355" step="5" value="${o.rot}" data-act="range" data-f="rot">
+      <label class="f">${t("colour")}</label>${colours("color", o.color)}` : ""}` : ""}
+    ${lookTab === "seal" ? `<p class="note">${S.lang === "zh" ? "地圖上只有浮著的印章，沒有建築。" : "Only the floating seal, nothing built."}</p>` : ""}
+    <div class="actions"><button class="btn ${S.tool === "seal" ? "pri" : ""}" data-act="tool" data-v="seal">${t("moveSeal")}</button></div></div>
+  <div class="sec"><h3><span class="num">3</span>${t("lmSections")[2]}</h3>
+    <label class="f">${t("vessel")}</label>
+    <div class="vessels"><button class="vessel ${o.vessel === "default" ? "on" : ""}" data-act="vessel" data-v="default"><div class="ph">★</div>${t("defaultVessel")}</button>
+    ${EARNED.map(([id, zh, en]) => `<button class="vessel ${o.vessel === id ? "on" : ""}" data-act="vessel" data-v="${id}"><img src="${ART}journey/vessel-${id}.webp" alt="">${S.lang === "zh" ? zh : en}</button>`).join("")}</div>
+    <p class="note">${o.vessel === "default" ? t("byCodex") + " · " : ""}${t("dupStar")}</p>
+    <label class="f">${t("stamp")}</label>
+    <div class="vessels"><button class="vessel ${o.stamp === "default" ? "on" : ""}" data-act="stamp" data-v="default"><div class="ph">✦</div>${t("defaultStamp")}</button>
+    ${o.stamp && o.stamp !== "default" ? `<button class="vessel on"><img src="${ART}stamps/stamp-${o.stamp}.webp">${nm(o)}</button>` : ""}</div></div>
+  <div class="sec"><h3><span class="num">4</span>${t("lmSections")[3]}</h3>
+    <div class="step"><span>${t("hp")}</span>${stepper("hp", o.hp, 5)}</div>
+    <div class="step" style="margin-top:8px"><span>${t("time")}</span>${stepper("time", o.time, 10, " " + t("sec"))}</div></div>`;
+}
+function render() {
+  document.documentElement.lang = S.lang === "zh" ? "zh-Hant" : "en";
+  document.getElementById("brand").textContent = t("brand");
+  document.getElementById("city").textContent = t("city");
+  document.getElementById("lang").textContent = t("lang");
+  document.getElementById("modes").innerHTML = ["build", "hunts"].map((m) => `<button class="${S.mode === m ? "on" : ""}" data-mode="${m}">${t(m)}</button>`).join("");
+  // toolbar
+  const tools = document.getElementById("tools");
+  if (S.mode === "build") tools.innerHTML = [["waypost", "addWaypost"], ["landmark", "addLandmark"], ["spot", "addSpot"]].map(([k, l]) => `<button class="tool ${S.tool === k ? "on" : ""}" data-act="tool" data-v="${k}"><span class="plus">＋</span>${t(l)}</button>`).join("")
+    + `<button class="tool ${S.grid ? "on" : ""}" data-act="grid">▦ ${t("grid")}</button>`;
+  else tools.innerHTML = S.hunt && S.hunt.status !== "live" && S.step === 4 ? [["arrive", "addArrive"], ["catch", "addCatch"]].map(([k, l]) => `<button class="tool ${S.tool === k ? "on" : ""}" data-act="tool" data-v="${k}">${t(l)}</button>`).join("") : "";
+  // hint
+  const hint = document.getElementById("hint");
+  const hints = { waypost: "hintWaypost", landmark: "hintLandmark", spot: "hintSpot", move: "hintMove", buildings: "hintBuildings", seal: "hintSeal", arrive: "hintWaypost", catch: "hintWaypost" };
+  const hk = S.tool && hints[S.tool];
+  hint.hidden = !hk;
+  if (hk) hint.innerHTML = `${S.mode === "hunts" ? (S.lang === "zh" ? "點地圖放任務" : "Tap the map to place the quest") : t(hk)}<button data-act="canceltool">${t("cancel")}</button>`;
+  updateGps();
+  pi.innerHTML = S.mode === "build" ? buildPanel() : huntPanel();
+  panel.classList.toggle("small", !S.sheetBig);
+}
+function buildPanel() {
+  if (S.draft) {
+    const d = S.draft;
+    if (d.kind === "waypost") return `<h2>${t("newWaypost")}</h2><p class="note demo">${t("demoNote")}</p>
+      <div class="sec">${namesBlock(d)}</div>
+      <div class="sec"><h3>${t("picture")}</h3>${sceneGrid(d)}${d.photo ? `<label class="f">${t("credit")}</label><input type="text" placeholder="© …">` : ""}</div>
+      <div class="sec">${softNotes(d)}</div>
+      <div class="actions"><button class="btn pri" data-act="save" ${d.zh || d.en ? "" : "disabled"}>${t("save")}</button><button class="btn" data-act="tool" data-v="move">${t("move")}</button><button class="btn" data-act="fieldmove">${t("moveHere")}</button><button class="btn" data-act="discard">${t("cancel")}</button></div>`;
+    return `<h2>${d.fromWaypost ? t("makeLandmark") : (S.lang === "zh" ? "新地標" : "New Landmark")}</h2><p class="note demo">${t("demoNote")}</p>${landmarkBody(d, true)}
+      <div class="sec">${softNotes(d)}</div>
+      <div class="actions"><button class="btn pri" data-act="save" ${d.zh || d.en ? "" : "disabled"}>${t("save")}</button><button class="btn" data-act="discard">${t("cancel")}</button></div>`;
+  }
+  const o = find();
+  if (o && S.sel.kind === "waypost") {
+    const lvl = o.spins >= 300 ? 3 : o.spins >= 100 ? 2 : 1;
+    return `<h2>${esc(nm(o))} ${o.hidden ? `<span class="pill">${t("hide")}</span>` : ""}</h2><p class="note">${t("waypost")}</p>
+      <div class="stats"><div><b>${o.spins}</b><span>${t("spins")}</span></div><div><b>${lvl}</b><span>${t("level")}</span></div><div><b>${o.spins ? t("minsAgo", 7 + (o.spins % 50)) : t("never")}</b><span>${t("lastSpin")}</span></div><div><b>${o.spins % 5}</b><span>${t("rack")}</span></div></div>
+      <div class="sec">${namesBlock(o)}</div>
+      <div class="sec"><h3>${t("picture")}</h3>${sceneGrid(o)}</div>
+      <div class="sec">${softNotes(o, o.id)}</div>
+      <div class="actions"><button class="btn pri" data-act="savesel">${t("save")}</button><button class="btn" data-act="tool" data-v="move">${t("move")}</button><button class="btn" data-act="fieldmove">${t("moveHere")}</button></div>
+      <div class="actions"><button class="btn" data-act="makelm">${t("makeLandmark")}</button><button class="btn red" data-act="hide">${o.hidden ? t("show") : t("hide")}</button></div>`;
+  }
+  if (o && S.sel.kind === "landmark") return `<h2>${esc(nm(o))} <span class="pill lm">${t("landmark")}</span></h2>${landmarkBody(o, false)}
+      <div class="actions"><button class="btn pri" data-act="savesel">${t("save")}</button><button class="btn" data-act="tool" data-v="move">${t("move")}</button><button class="btn" data-act="fieldmove">${t("moveHere")}</button></div>`;
+  const used = new Set([...S.wayposts.filter((w) => !w.hidden), ...S.landmarks].map(cellKey)).size;
+  return `<h2>${t("overview")}</h2><p class="note">${t("overviewNote")}</p>
+    <div class="stats"><div><b>${S.wayposts.filter((w) => !w.hidden).length}</b><span>${t("cityStats")[0]}</span></div><div><b>${S.landmarks.length}</b><span>${t("cityStats")[1]}</span></div><div><b>${S.spots.length}</b><span>${t("cityStats")[2]}</span></div><div><b>${used}</b><span>${t("cityStats")[3]}</span></div></div>
+    <p class="note" style="margin-top:12px">${t("cellsNote")}</p><p class="note demo">${t("demoNote")}</p>`;
+}
+function huntPanel() {
+  const h = S.hunt;
+  if (!h) return `<h2>${t("huntsTitle")}</h2><div class="list" style="margin-top:10px">
+      ${S.hunts.map((x) => `<button class="item" data-act="openhunt" data-id="${x.id}"><img class="qt" src="${ART}stamps/stamp-hunt-xinyi-2026-11.webp" style="width:36px;height:36px" onerror="this.style.visibility='hidden'"><span class="grow"><b>${esc(nm(x))}</b><div class="sub">${x.quests.length} ${S.lang === "zh" ? "個任務" : "quests"} · ${x.radius} ${t("m")}</div></span><span class="pill ${x.status === "live" ? "live" : x.status === "staff" ? "staff" : ""}">${t(x.status)}</span></button>`).join("")}
+      <button class="item" data-act="newhunt"><span class="num">＋</span><span class="grow"><b>${t("newHunt")}</b></span></button></div><p class="note demo" style="margin-top:12px">${t("demoNote")}</p>`;
+  const back = `<button class="btn" data-act="closehunt">← ${t("huntsTitle")}</button>`;
+  const lm = S.landmarks.find((l) => l.id === h.landmark);
+  const ctr = { lng: h.center[0], lat: h.center[1] };
+  const wIn = S.wayposts.filter((w) => !w.hidden && dist(w, ctr) <= h.radius).length, sIn = S.spots.filter((s) => dist(s, ctr) <= h.radius).length;
+  const qList = `<div class="list">${h.quests.length ? h.quests.map((q, i) => `<div class="item"><img class="qt" src="${ART}quest-types/quest-type-${q.type}.webp"><span class="grow"><b>${i + 1}. ${t("qTypes")[q.type]}${q.type === "catch" ? " · " + t("catchN", q.count) : ""}</b><div class="sub">${esc(nm(q)) || "—"}</div></span>${h.status !== "live" && q.type !== "landmark" ? `${q.type === "catch" ? stepper("count:" + q.id, q.count, 1) : ""}<button class="btn" data-act="rmq" data-id="${q.id}" aria-label="×">×</button>` : ""}</div>`).join("") : `<div class="empty">—</div>`}</div>`;
+  if (h.status === "live") return `${back}<h2 style="margin-top:12px">${esc(nm(h))} <span class="pill live">${t("live")}</span></h2><p class="note">${t("liveNote")}</p>
+    <div class="sec"><h3>${t("funnelTitle")}</h3><div class="funnel">${h.funnel.map(([k, v], i) => `<div class="bar ${i && h.funnel[i - 1][1] - v >= 8 ? "drop" : ""}"><span>${t("funnel")[k]}</span><span class="track"><i style="width:${h.funnel[0][1] ? v / h.funnel[0][1] * 100 : 0}%"></i></span><b>${v}</b></div>`).join("")}</div><p class="note" style="margin-top:8px">${h.funnel[0][1] ? t("funnelNote") : t("noPlayers")}</p></div>
+    <div class="sec"><h3>${t("steps")[2]}</h3><p class="note">${esc(t("keeperLine", nm(h.keeper)))}</p></div>
+    <div class="sec"><h3>${t("steps")[3]}</h3>${qList}</div>
+    <div class="sec"><p class="note">${t("inside", wIn, sIn)} · ${t("limit")} ${h.limit} · +${h.xp} ${t("xp")} · ${h.gold} ${t("gold")}</p></div>`;
+  const live = S.hunts.find((x) => x.status === "live" && x !== h);
+  const ready = h.keeper && h.quests.some((q) => q.type !== "landmark") && h.landmark;
+  const status = `<div class="status"><span class="pill ${h.status === "staff" ? "staff" : ""}">${t(h.status)}</span><span>${t(h.status === "staff" ? "staffNote" : "draftNote")}</span></div>`;
+  let body = "";
+  if (S.step === 1) body = lm ? `<div class="item"><span class="seal" style="width:26px;height:26px">${sealSvg}</span><span class="grow"><b>${esc(nm(lm))}</b></span></div>` : `<div class="empty">${t("stepNote")[0]}</div>`;
+  if (S.step === 2) body = `<div class="step"><span>${t("radius")}</span><b class="serif">${h.radius} ${t("m")}</b></div><p class="note" style="margin-top:8px">${t("inside", wIn, sIn)}</p>`;
+  if (S.step === 3) body = h.keeper ? `<div class="item"><img class="qt" src="${ART}characters/keeper.webp" style="width:30px;height:38px;object-fit:contain"><span class="grow"><b>${esc(t("keeperLine", nm(h.keeper) || "…"))}</b></span></div><label class="f">${t("nameZh")}</label><input type="text" data-bind="keeper.zh" value="${esc(h.keeper.zh)}"><label class="f">${t("nameEn")}</label><input type="text" data-bind="keeper.en" value="${esc(h.keeper.en)}">` : `<div class="empty">${t("stepNote")[2]}</div>`;
+  if (S.step === 4) body = `<div class="row" style="margin-bottom:8px"><button class="btn ${S.tool === "arrive" ? "pri" : ""}" data-act="tool" data-v="arrive">${t("addArrive")}</button><button class="btn ${S.tool === "catch" ? "pri" : ""}" data-act="tool" data-v="catch">${t("addCatch")}</button></div><p class="note">${t("fromBank")}</p>${qList}`;
+  if (S.step === 5) body = `<label class="f">${t("huntName")} (中文)</label><input type="text" data-bind="hunt.zh" value="${esc(h.zh)}"><label class="f">${t("huntName")} (English)</label><input type="text" data-bind="hunt.en" value="${esc(h.en)}">
+      <div class="step" style="margin-top:10px"><span>${t("limit")}</span>${stepper("limit", h.limit, 5)}</div>
+      <div class="step" style="margin-top:8px"><span>${t("xp")}</span>${stepper("xp", h.xp, 50)}</div>
+      <div class="step" style="margin-top:8px"><span>${t("gold")}</span>${stepper("gold", h.gold, 1)}</div>
+      <div class="step" style="margin-top:8px"><span>${t("repeat")}</span>${stepper("repeat", h.repeat, 10)}</div>
+      <label class="f">${t("openDate")}</label><input type="date" value="${h.open}">
+      <label class="f">${t("stamp")}</label><div class="vessels"><button class="vessel on"><div class="ph">✦</div>${t("defaultStamp")}</button></div>`;
+  return `${back}<h2 style="margin-top:12px">${esc(nm(h)) || t("newHunt")}</h2>${status}
+    <div class="wizard">${t("steps").map((s, i) => `<button class="${S.step === i + 1 ? "on" : ""} ${S.step > i + 1 ? "done" : ""}" data-act="gostep" data-v="${i + 1}">${i + 1} ${s}</button>`).join("")}</div>
+    <p class="note">${t("stepNote")[S.step - 1]}</p>${body}
+    <div class="actions">${S.step > 1 ? `<button class="btn" data-act="gostep" data-v="${S.step - 1}">${t("back")}</button>` : ""}${S.step < 5 ? `<button class="btn pri" data-act="gostep" data-v="${S.step + 1}" ${S.step === 1 && !lm ? "disabled" : ""}>${t("next")}</button>` : ""}</div>
+    <div class="sec" style="margin-top:14px">${ready ? "" : `<p class="note">${t("needKeeper")}</p>`}
+      <div class="actions">${h.status === "draft" ? `<button class="btn pri" data-act="staff" ${ready ? "" : "disabled"}>${t("makeStaff")}</button>` : ""}
+      ${h.status === "staff" ? (live ? `<p class="note" style="width:100%;margin:0">${t("oneOpen")}</p><button class="btn pri" data-act="publish">${t("endAndPublish")}</button>` : `<button class="btn pri" data-act="publish">${t("publish")}</button>`) : ""}</div></div>`;
+}
+
+/* ===================== Events ===================== */
+document.getElementById("lang").onclick = () => { S.lang = S.lang === "zh" ? "en" : "zh"; drawAll(); render(); };
+document.getElementById("grab").onclick = () => { S.sheetBig = !S.sheetBig; render(); };
+document.getElementById("modes").onclick = (e) => { const m = e.target.closest("[data-mode]")?.dataset.mode; if (!m) return; S.mode = m; S.tool = null; S.sel = null; S.draft = null; S.hunt = null; if (m === "hunts") map.easeTo({ center: [121.5635, 25.0372], zoom: 14.6 }); drawAll(); render(); };
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-act]"); if (!b || b.tagName === "INPUT") return;
+  const a = b.dataset.act, v = b.dataset.v, cur = S.draft || find(), h = S.hunt;
+  if (a === "tool") { if (["buildings", "move", "seal", "arrive", "catch"].includes(v)) { S.tool = S.tool === v ? null : v; } else { S.sel = null; S.draft = null; setTool(v); drawAll(); return; } render(); return; }
+  if (a === "canceltool") { S.tool = null; render(); return; }
+  if (a === "grid") { S.grid = !S.grid; if (!S.grid) map.getSource("grid").setData(fc([])); else { if (map.getZoom() < 16) map.easeTo({ zoom: 16.4 }); drawGrid(); } render(); return; }
+  if (a === "scene" && cur) { cur.scene = v; cur.photo = null; render(); return; }
+  if (a === "pickname" && cur) { const n = cur.names[+b.dataset.i]; cur.zh = n.zh; cur.en = n.en; if (cur.kind === "waypost") cur.scene = sceneFor(n.kind); render(); return; }
+  if (a === "save") return saveDraft();
+  if (a === "discard") { S.draft = null; S.tool = null; drawAll(); render(); return; }
+  if (a === "savesel") { toast(t("saved")); S.sel = null; S.lookTab = null; S.tool = null; drawAll(); render(); return; }
+  if (a === "fieldmove") return fieldMove();
+  if (a === "hide" && cur) { cur.hidden = !cur.hidden; drawAll(); render(); toast(cur.hidden ? t("hiddenToast") : t("saved")); return; }
+  if (a === "makelm" && cur) { const w = cur; S.sel = null; newDraft("landmark", w); Object.assign(S.draft, { zh: w.zh, en: w.en, fromWaypost: w.id }); render(); return; }
+  if (a === "look" && cur) { S.lookTab = v; if (S.draft) { const d = S.draft; d.look = v; if (v === "model" && !d.model) d.model = "tower"; if (v === "buildings" && !d.modelPicked) d.model = null; if (v === "seal") { d.model = null; d.tiles = []; } } if (v === "buildings") S.tool = "buildings"; else if (S.tool === "buildings") S.tool = null; drawAll(); render(); return; }
+  if (a === "model" && cur) { cur.model = v; cur.modelPicked = true; drawAll(); render(); return; }
+  if (a === "size" && cur) { cur.size = v; drawAll(); render(); return; }
+  if (a === "color" && cur) { cur[b.dataset.f] = v; drawAll(); render(); return; }
+  if (a === "cleartiles" && cur) { cur.tiles = []; cur.realTop = 0; drawAll(); render(); return; }
+  if (a === "vessel" && cur) { cur.vessel = v; render(); return; }
+  if (a === "stamp" && cur) { cur.stamp = v; render(); return; }
+  if (a === "step") { const f = b.dataset.f, d = +b.dataset.d;
+    if (f.startsWith("count:")) { const q = h.quests.find((x) => x.id === f.slice(6)); q.count = Math.min(5, Math.max(1, q.count + d)); }
+    else if (S.mode === "hunts") h[f] = Math.max(0, h[f] + d); else cur[f] = Math.max(f === "hp" ? 5 : 10, cur[f] + d);
+    render(); return; }
+  if (a === "openhunt") { S.hunt = S.hunts.find((x) => x.id === b.dataset.id); S.step = S.hunt.status === "live" ? 0 : 4; map.easeTo({ center: S.hunt.center, zoom: 14.6 }); drawAll(); render(); return; }
+  if (a === "newhunt") { S.hunt = { id: nid("h"), zh: "", en: "", status: "draft", landmark: null, center: [121.5635, 25.0372], radius: 1000, keeper: null, quests: [], limit: 60, xp: 300, gold: 5, repeat: 50, open: "2026-12-01" }; S.hunts.push(S.hunt); S.step = 1; drawAll(); render(); return; }
+  if (a === "closehunt") { S.hunt = null; S.tool = null; drawAll(); render(); return; }
+  if (a === "gostep") { S.step = +v; S.tool = null; if (S.step === 2 && h) map.easeTo({ center: h.center, zoom: 14.4 }); drawAll(); render(); return; }
+  if (a === "rmq") { h.quests = h.quests.filter((q) => q.id !== b.dataset.id); drawAll(); render(); return; }
+  if (a === "staff") { h.status = "staff"; render(); toast(t("staffNote")); return; }
+  if (a === "publish") { S.hunts.forEach((x) => { if (x.status === "live" && x !== h) x.status = "ended"; }); h.status = "live"; h.funnel = [["joined", 0], ["checkedIn", 0], ["finished", 0]]; S.step = 0; drawAll(); render(); toast(t("live") + " ✓"); return; }
+});
+document.addEventListener("input", (e) => {
+  const el = e.target, cur = S.draft || find();
+  if (el.dataset.bind) { const [o, k] = el.dataset.bind.includes(".") ? el.dataset.bind.split(".") : [null, el.dataset.bind];
+    if (o === "keeper") S.hunt.keeper[k] = el.value; else if (o === "hunt") { S.hunt[k] = el.value; S.hunt.nameEdited = true; } else if (cur) cur[k] = el.value;
+    const save = pi.querySelector('[data-act="save"]'); if (save && S.draft) save.disabled = !(S.draft.zh || S.draft.en); return; }
+  if (el.dataset.act === "range" && cur) { cur[el.dataset.f] = +el.value; el.previousElementSibling.textContent = el.previousElementSibling.textContent.replace(/· .*/, "· " + el.value + (el.dataset.f === "rot" ? "°" : " m")); drawAll(); }
+});
+document.addEventListener("change", (e) => {
+  const el = e.target, cur = S.draft || find();
+  if (el.dataset.act === "photo" && el.files[0] && cur) { const r = new FileReader(); r.onload = () => { cur.photo = r.result; render(); }; r.readAsDataURL(el.files[0]); }
+  if (el.type === "date" && S.hunt) S.hunt.open = el.value;
+});
+render();
+</script>
+</body>
+</html>

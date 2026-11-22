@@ -1,6 +1,6 @@
 # Map builder (地圖編輯)
 
-Status: plan for Roy's review (2026-11-23). Nothing is built yet.
+Status: plan for Roy's review (2026-11-23). Nothing is built yet. Clickable demo of MB1 and MB2: [`demos/map-builder.html`](demos/map-builder.html). It needs a local server because it loads our map tiles: from the repository root run `python3 -m http.server 8088` (stop the app first) and open http://localhost:8088/docs/design/demos/map-builder.html.
 
 ## Why
 
@@ -242,7 +242,7 @@ Exact RPC names and fields go in the Codex prompts once Roy approves this plan.
 4. **MB4** Vessels from a prompt: vessel ideas, vessel packs, upload and approve, and the app loading vessels from the server.
 5. **MB5** Private hunt monitoring and the **Questions** page.
 
-Claude builds a clickable demo of MB1 and MB2 for Roy to try before any of it is built for real.
+The clickable demo of MB1 and MB2 (`demos/map-builder.html`) is for Roy to try before any of it is built for real.
 
 ## Roy to confirm
 
