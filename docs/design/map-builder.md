@@ -234,15 +234,27 @@ Every change goes in Activity, and Undo works for the newest change to each thin
 
 Exact RPC names and fields go in the Codex prompts once Roy approves this plan.
 
-## Order (fastest path to an in-person test)
+## Release plan (Roy approved the plan and demo, 2026-11-23)
 
-1. **MB1** City borders, Wayposts, Landmarks and spots on the map, field tools, plus the default art in parallel.
-2. **MB2** City Hunts on the map with Staff only, and the funnel numbers. Then walk one.
-3. **MB3** Cities from new to live: states, starter pack upload, settings, the go-live checklist with Today's Hunt. Tiles split per city.
-4. **MB4** Vessels from a prompt: vessel ideas, vessel packs, upload and approve, and the app loading vessels from the server.
-5. **MB5** Private hunt monitoring and the **Questions** page.
+Roy asked for releases small enough to have few bugs but not so small they're slow. The last big combined release took days of stop-and-fix. So the map builder ships as **six releases, one at a time**, each a single slice that can be checked in about an hour:
 
-The clickable demo of MB1 and MB2 (`demos/map-builder.html`) is for Roy to try before any of it is built for real.
+| Release | What | Who sees it | Why this size |
+|---|---|---|---|
+| **R1 Wayposts** | City borders, ＋ Waypost with names from the tiles, photos, the grid and soft notes, ＋ / Move capsule spots, Move here, Waypost numbers | Admin; players see uploaded photos on the spin screen | Admin only, one migration, no change to how the game plays |
+| **R2 Landmarks** | Monuments move from code into data (Journey reads them), the Landmark builder, the default picture, vessel and stamp | Admin; players see new Landmarks | Touches Journey, so it goes alone |
+| **R3 City Hunts** | City Hunt editor, Staff only, the funnel numbers, staff reset of their own run | Admin; staff on Journey | Then we walk a hunt in person |
+| **R4 Cities** | Draft → Staff only → Live, starter pack upload as suggestions, settings, the go-live checklist with Today's Hunt, tiles split per city | Admin; players see a new city when it goes live | |
+| **R5 Vessel packs** | Vessel ideas, prompt, upload, preview, approve; the app loads vessels from the server | Admin; players see new vessels | Changes how the app loads art, so it goes alone |
+| **R6 Watch and questions** | Private hunt monitoring and the Questions page | Admin only | |
+
+**Rules for every release**
+
+1. **One slice:** one held migration (Codex) and one screen PR (Claude), behind that release's own switch (`MAP_BUILDER_R1`…).
+2. **Built in parallel, released in order.** Codex builds the backend while Claude builds the screens against the development sample. The next release can be built while the current one is checked, but it isn't released until the current one is closed.
+3. **Checked before merge:** Claude reviews the backend PR, Codex reviews the screen PR, and both run the release's checklist on localhost (375 px and desktop, zh and en) against the held migration.
+4. **Release order:** merge the screens with the switch off → apply the one migration → turn the switch on → run the short production checklist with disposable data → remove it.
+5. **A bug found in production is fixed inside that release** with a small follow-up PR. New ideas go to a later release, not this one.
+6. **The default art** (Landmark picture, vessel, stamp) is drawn now in parallel, so it's approved before R2.
 
 ## Roy to confirm
 
