@@ -2,17 +2,17 @@ import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } f
 import { View } from "react-native";
 import type { LiveMapHandle, LiveMapProps, MapMessage } from "./types";
 
-export const LiveMap = forwardRef<LiveMapHandle, LiveMapProps>(function LiveMap({ html, state, onSelect, onTap, onFollowChange }, ref) {
+export const LiveMap = forwardRef<LiveMapHandle, LiveMapProps>(function LiveMap({ html, state, onSelect, onTap, onFollowChange, onNames }, ref) {
   const frame = useRef<HTMLIFrameElement | null>(null);
   const [ready, setReady] = useState(false);
-  const handlers = useRef({ onSelect, onTap, onFollowChange });
-  handlers.current = { onSelect, onTap, onFollowChange };
+  const handlers = useRef({ onSelect, onTap, onFollowChange, onNames });
+  handlers.current = { onSelect, onTap, onFollowChange, onNames };
   // Commands sent before the map has loaded wait for it, so a screen can frame the map as it opens.
   const waiting = useRef<object[]>([]);
   const live = useRef(false);
   const send = (m: object) => frame.current?.contentWindow?.postMessage({ __tcin: JSON.stringify(m) }, "*");
   const post = (m: object) => { if (live.current) send(m); else waiting.current.push(m); };
-  useImperativeHandle(ref, () => ({ recenter: () => post({ type: "recenter" }), focus: (lat, lng) => post({ type: "focus", lat, lng }), walk: (lat, lng) => post({ type: "walk", lat, lng }), city: (lat, lng) => post({ type: "city", lat, lng }), fit: (points, view) => post({ type: "fit", points, ...view }), motion: (m) => post(m) }));
+  useImperativeHandle(ref, () => ({ recenter: () => post({ type: "recenter" }), focus: (lat, lng) => post({ type: "focus", lat, lng }), walk: (lat, lng) => post({ type: "walk", lat, lng }), city: (lat, lng) => post({ type: "city", lat, lng }), fit: (points, view) => post({ type: "fit", points, ...view }), motion: (m) => post(m), command: (m) => post(m) }));
   useEffect(() => {
     const listen = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow || typeof e.data?.__tcmap !== "string") return;
@@ -21,6 +21,7 @@ export const LiveMap = forwardRef<LiveMapHandle, LiveMapProps>(function LiveMap(
       else if (m.type === "select") handlers.current.onSelect(m.id);
       else if (m.type === "tap") handlers.current.onTap?.(m.lat, m.lng);
       else if (m.type === "follow") handlers.current.onFollowChange?.(m.follow);
+      else if (m.type === "names") handlers.current.onNames?.(m);
       else if (m.type === "error" && __DEV__) console.warn("live map:", m.message);
     };
     window.addEventListener("message", listen);

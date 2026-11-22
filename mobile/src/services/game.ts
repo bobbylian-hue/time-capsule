@@ -13,7 +13,9 @@ export type GameState = { xp: number; level: number; xp_to_next: number; wax_bal
 export type CorruptedCapsule = { id: string; vessel: string; rarity: Rarity; lat: number; lng: number; expires_at: string; attempts_left: number };
 /** What one spin dropped. `vessel` is a vessel id when the Waypost's level drop list gave a copy (WL1). */
 export type SpinResult = { wax: number; gold: number; vessel?: string | null; state: GameState };
-export type Waypost = { id: string; kind: "common" | "landmark"; name_zh: string; name_en: string; lat: number; lng: number; cooldown_until: string | null; place?: string | null; scene?: string | null };
+export type Waypost = { id: string; kind: "common" | "landmark"; name_zh: string; name_en: string; lat: number; lng: number; cooldown_until: string | null; place?: string | null; scene?: string | null;
+  /** An uploaded photo (map builder R1), shown instead of the scene picture. */
+  photo?: string | null };
 export type Nearby = { corrupted: CorruptedCapsule[]; wayposts: Waypost[] };
 /** What a won fight gives. Copies are null for an unlimited vessel (a starter or an earned Landmark vessel). */
 export type Restored = { vessel: string; copies: number | null; stars: number; is_new: boolean; xp_gained: number };
@@ -59,7 +61,7 @@ async function liveState(): Promise<GameState> {
 }
 type NearbyPayload = {
   spawns: { spawn_id: string; vessel: string; rarity: Rarity; lat: number; lng: number; expires_at: string; attempts_left: number; already_caught: boolean }[];
-  wayposts: { id: string; kind: "common" | "landmark"; name_zh: string; name_en: string; place: string | null; scene?: string | null; lat: number; lng: number; cooldown_end: string | null }[];
+  wayposts: { id: string; kind: "common" | "landmark"; name_zh: string; name_en: string; place: string | null; scene?: string | null; photo?: string | null; lat: number; lng: number; cooldown_end: string | null }[];
 };
 
 const STAR_COPIES = [1, 3, 6, 10, 15];
@@ -138,7 +140,7 @@ export const game = {
       return {
         corrupted: payload.spawns.filter((c) => !c.already_caught && c.attempts_left > 0)
           .map((c) => ({ id: c.spawn_id, vessel: c.vessel, rarity: c.rarity, lat: c.lat, lng: c.lng, expires_at: c.expires_at, attempts_left: c.attempts_left })),
-        wayposts: payload.wayposts.map((w) => ({ id: w.id, kind: w.kind, name_zh: w.name_zh, name_en: w.name_en, lat: w.lat, lng: w.lng, cooldown_until: w.cooldown_end, place: w.place, scene: w.scene })),
+        wayposts: payload.wayposts.map((w) => ({ id: w.id, kind: w.kind, name_zh: w.name_zh, name_en: w.name_en, lat: w.lat, lng: w.lng, cooldown_until: w.cooldown_end, place: w.place, scene: w.scene, photo: w.photo ?? null })),
       };
     }
     if (!__DEV__) return { corrupted: [], wayposts: [] };

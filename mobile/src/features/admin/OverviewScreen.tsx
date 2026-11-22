@@ -9,6 +9,8 @@ import { admin, megabytes, type Region } from "../../services/admin";
 import { C, sans, serif, spacing } from "../../theme";
 import { useAdmin } from "./AdminShell";
 import { useAdminText } from "./strings";
+import { MAP_BUILDER_R1 } from "../../services/mapBuilder";
+import { useMapBuilderText } from "./mapBuilderStrings";
 import { AButton, Card, Failed, Loading, Page, Pill, Stat, VesselThumb, useColumns, useLoad } from "./ui";
 
 export default function OverviewScreen() {
@@ -37,6 +39,7 @@ export default function OverviewScreen() {
 
 function CityCard({ city }: { city: Region }) {
   const a = useAdminText();
+  const builderText = useMapBuilderText();
   const { language } = useLanguage();
   const zh = language === "zh";
   const mb = megabytes(city.coverage.bytes);
@@ -61,6 +64,8 @@ function CityCard({ city }: { city: Region }) {
       <Stat label={a.outNow} value={city.out_now} tone={C.plum} />
       <Stat label={a.cityHunts} value={city.city_hunts_live} />
       <Stat label={a.privateHunts} value={city.private_hunts} />
+      {MAP_BUILDER_R1 && city.cells_used != null && <Stat label={builderText.cellsUsed} value={city.cells_used} />}
+      {MAP_BUILDER_R1 && city.idle_14d != null && <Stat label={builderText.idle} value={city.idle_14d} tone={city.idle_14d ? C.wax : C.ink} />}
     </View>
     <View style={{ gap: spacing.sm }}>
       <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{a.canAppear}</Text>

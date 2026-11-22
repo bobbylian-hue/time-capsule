@@ -42,16 +42,37 @@ describe("admin numbers", () => {
 describe("admin editing (sample)", () => {
   const spot = { lat: 25.06, lng: 121.59, name_zh: "測試公園", name_en: "Test Park", scene: "park" as const };
 
-  it("adds a Waypost only with the hand check, inside the map and away from others", async () => {
+  it("adds a Waypost anywhere inside the city border, next to others too (R1: warn, don't block)", async () => {
     sample.viewAs("owner");
-    await expect(sample.addWaypost("taipei", spot, false, null)).rejects.toThrow("not_checked");
     await expect(sample.addWaypost("taipei", { ...spot, name_zh: "Park" }, true, null)).rejects.toThrow("bad_name");
-    await expect(sample.addWaypost("taipei", { ...spot, lat: 25.3 }, true, null)).rejects.toThrow("outside_coverage");
-    const added = await sample.addWaypost("taipei", spot, true, null);
+    await expect(sample.addWaypost("taipei", { ...spot, lat: 25.3 }, true, null)).rejects.toThrow("outside_border");
+    // South-west of the cut border, toward Yonghe: inside the map tiles, outside Taipei City.
+    await expect(sample.addWaypost("taipei", { ...spot, lat: 25.0, lng: 121.515 }, false, null)).rejects.toThrow("outside_border");
+    const added = await sample.addWaypost("taipei", { ...spot, photo: "data:image/jpeg;base64,AA", photo_credit: "© Roy" }, false, null);
     expect(added.source_ref).toBe(`admin:${added.id}`);
-    const beside = { ...spot, lat: spot.lat + 0.0005 };
-    await expect(sample.addWaypost("taipei", beside, true, null)).rejects.toThrow("too_close");
-    await expect(sample.addWaypost("taipei", beside, true, "two gates of one park")).resolves.toBeTruthy();
+    expect(added.photo_credit).toBe("© Roy");
+    const beside = { ...spot, lat: spot.lat + 0.00003 };
+    const check = await sample.checkWaypost("taipei", beside.lat, beside.lng);
+    expect(check.inside_border).toBe(true);
+    expect(check.same_cell.map((c) => c.id)).toContain(added.id);
+    await expect(sample.addWaypost("taipei", beside, false, null)).resolves.toBeTruthy();
+    // An empty photo clears it; null keeps it.
+    expect((await sample.updateWaypost(added.id, { photo: null }, null)).photo).toBe("data:image/jpeg;base64,AA");
+    expect((await sample.updateWaypost(added.id, { photo: "", photo_credit: "" }, null)).photo).toBeNull();
+  });
+
+  it("adds and moves spawn spots inside the border, and Undo puts them back", async () => {
+    sample.viewAs("owner");
+    await expect(sample.addSpot("taipei", 25.3, 121.59, "park", null)).rejects.toThrow("outside_border");
+    const spot1 = await sample.addSpot("taipei", 25.05, 121.55, "square", null);
+    const moved = await sample.moveSpot(spot1.id, 25.051, 121.551, null);
+    expect([moved.lat, moved.lng]).toEqual([25.051, 121.551]);
+    await expect(sample.moveSpot(spot1.id, 25.3, 121.551, null)).rejects.toThrow("outside_border");
+    const [move] = await sample.activity();
+    expect(move.action).toBe("spot.move");
+    await sample.undo(move.id, null);
+    const back = (await sample.cityMap("taipei")).spots.find((x) => x.id === spot1.id)!;
+    expect([back.lat, back.lng]).toEqual([25.05, 121.55]);
   });
 
   it("keeps Landmarks out of editing and lets only owners and admins write", async () => {

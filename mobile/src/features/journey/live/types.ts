@@ -20,7 +20,12 @@ export type LiveMapHandle = { recenter: () => void; focus: (lat: number, lng: nu
   /** Frame every point on screen (the quest editor shows the whole hunt). */
   fit: (points: { lat: number; lng: number }[], view?: FitView) => void;
   /** Today's Hunt's motion: the figure hops along a trail, pins bounce or burst, everything runs k times faster. */
-  motion: (m: MapMotion) => void };
+  motion: (m: MapMotion) => void;
+  /** The admin map builder (mapHtml's builder mode): border, grid and asking what the map calls a spot. */
+  command: (m: MapCommand) => void };
+export type MapCommand =
+  | { type: "builder"; border: import("../../../services/border").Border | null; grid: boolean; posts: { id: string; lat: number; lng: number }[] }
+  | { type: "names"; seq: number; lat: number; lng: number; skip?: string };
 /** Optional framing for fit: room kept clear for cards, the camera's tilt and turn, and its duration at normal speed. */
 export type FitView = { padding?: { top: number; bottom: number; left: number; right: number }; pitch?: number; bearing?: number; ms?: number };
 /** ms are at normal speed; the map divides them by the current speed. Reduce Motion makes them instant. */
@@ -35,8 +40,11 @@ export type LiveMapProps = {
   onSelect: (id: string) => void;
   onTap?: (lat: number, lng: number) => void;
   onFollowChange?: (follow: boolean) => void;
+  /** Answers to builder commands. */
+  onNames?: (m: Extract<MapMessage, { type: "names" }>) => void;
 };
-export type MapMessage = { type: "ready" } | { type: "select"; id: string } | { type: "tap"; lat: number; lng: number } | { type: "follow"; follow: boolean } | { type: "error"; message: string };
+export type MapMessage = { type: "ready" } | { type: "select"; id: string } | { type: "tap"; lat: number; lng: number } | { type: "follow"; follow: boolean } | { type: "error"; message: string }
+  | { type: "names"; seq: number; names: { zh: string; en: string; kind: string; meters: number }[]; area: string | null; same: { id: string; meters: number }[] };
 
 /** A bundled image as a URL the map page can load (Metro dev server, web path or bundled file). */
 export function assetUri(source: ImageSourcePropType | undefined | null): string | null {
