@@ -213,6 +213,14 @@ html,body,#map{margin:0;height:100%;width:100%;background:${C.paper};overflow:hi
 .pin.spot .dot{position:absolute;left:3px;top:3px;width:10px;height:10px;border-radius:50%;background:${C.plum};box-shadow:0 0 0 2px #fff,0 1px 3px rgba(22,38,63,.35)}
 .pin.spot.locked .dot{background:#fff;box-shadow:0 0 0 2px ${C.plum}66}
 .pin.spot.sel .dot{box-shadow:0 0 0 3px ${C.brass}}
+/* Admin only: a place being added or moved but not saved yet is see-through with a dashed ring and a tag,
+   and a moving place leaves a faint ghost where it is now. */
+.pin.draft .post{opacity:.55;animation:none}
+.pin.draft .disc{background:none;border:2px dashed ${C.blue};left:0;width:36px;height:12px;bottom:-3px}
+.pin.spot.draft .dot{background:${C.plum}99;box-shadow:none;outline:2px dashed ${C.plum};outline-offset:3px}
+.pin.draft .tag{bottom:-24px;background:#fff;color:${C.plum};border:1px dashed ${C.plum};box-shadow:none}
+.pin.spot.draft .tag{bottom:-26px}
+.pin.ghost .pin-body{opacity:.3}.pin.ghost .pin-body>*{pointer-events:none}
 /* The Letter Keeper: a person, with a brass wax seal over his head (! or ✓). */
 .pin.keeper{width:56px;height:100px;z-index:6}
 .pin.keeper .disc{left:10px;width:36px;height:10px}
@@ -441,9 +449,9 @@ function render(){
     const html=p.kind==='keeper'?'<div class="pin-body"><div class="disc"></div>'+(p.figure?'<div class="fig full" style="background-image:url('+p.figure+')"></div>':'<div class="fig">'+face(p.portrait)+'</div>')+(p.mark?'<div class="seal">'+p.mark+'</div>':'')+'</div>'
       :p.kind==='landmark'?'<div class="pin-body"><div class="badge"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 1.5C12.8 8.2 15.8 11.2 22.5 12 15.8 12.8 12.8 15.8 12 22.5 11.2 15.8 8.2 12.8 1.5 12 8.2 11.2 11.2 8.2 12 1.5Z"/></svg></div></div>'
       :p.kind==='quest'?'<div class="pin-body"><div class="disc"></div><div class="ring"></div><div class="photo">'+(p.frame?'<div class="win" style="background-image:url('+p.photo+')"></div><img class="fr" alt="" src="'+p.frame+'">':'<div class="drop"><div class="ph" style="background-image:url('+p.photo+')"></div></div>')+(p.done?'<div class="badge">'+glyphBadge('done')+'</div>':'')+'</div>'+(p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>'
-      :p.kind==='spot'?'<div class="pin-body"><div class="dot"></div></div>'
-      :p.kind==='waypost'?'<div class="pin-body"><div class="disc"></div>'+'<div class="post" style="background-image:url('+p.vessel+')"></div></div>':'<div class="pin-body"><div class="disc"></div><img class="v" src="'+p.vessel+'">'+(p.kind==='corrupted'&&p.cracks?'<img class="v cracks" src="'+p.cracks+'">':'')+(p.portrait!==undefined&&(p.portrait||p.private)?'<div class="who">'+face(p.portrait)+(p.private?'<div class="lock">'+PADLOCK+'</div>':'')+'</div>':'')+(p.timer?'<div class="tag timer">'+HOURGLASS+p.timer+'</div>':p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>';
-    const cls='pin '+(p.kind||'')+(p.near?' near':'')+(p.far?' far':'')+(p.selected?' sel':'')+(p.sealed?' sealed':'')+(p.rarity?' '+p.rarity:'')+(p.done?' done':'')+(p.hunt?' hunt':'')+(p.lift?' top':'')+(p.private?' private':'')+(p.opened?' opened':'')+(p.locked?' locked':'')+(p.blue?' blue':'');
+      :p.kind==='spot'?'<div class="pin-body"><div class="dot"></div>'+(p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>'
+      :p.kind==='waypost'?'<div class="pin-body"><div class="disc"></div>'+'<div class="post" style="background-image:url('+p.vessel+')"></div>'+(p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>':'<div class="pin-body"><div class="disc"></div><img class="v" src="'+p.vessel+'">'+(p.kind==='corrupted'&&p.cracks?'<img class="v cracks" src="'+p.cracks+'">':'')+(p.portrait!==undefined&&(p.portrait||p.private)?'<div class="who">'+face(p.portrait)+(p.private?'<div class="lock">'+PADLOCK+'</div>':'')+'</div>':'')+(p.timer?'<div class="tag timer">'+HOURGLASS+p.timer+'</div>':p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>';
+    const cls='pin '+(p.kind||'')+(p.near?' near':'')+(p.far?' far':'')+(p.selected?' sel':'')+(p.sealed?' sealed':'')+(p.rarity?' '+p.rarity:'')+(p.done?' done':'')+(p.hunt?' hunt':'')+(p.lift?' top':'')+(p.private?' private':'')+(p.opened?' opened':'')+(p.locked?' locked':'')+(p.blue?' blue':'')+(p.draft?' draft':'')+(p.ghost?' ghost':'');
     let m=marks.get(p.id);
     if(!m){const el=document.createElement('div');el.addEventListener('click',ev=>{ev.stopPropagation();tapPin(p.id)});
       if(p.drop!=null&&!still){el.classList.add('dropin');el.style.setProperty('--dd',Math.round(p.drop/speed)+'ms');setTimeout(()=>el.classList.remove('dropin'),(p.drop+800)/speed)}m={marker:new maplibregl.Marker({element:el,anchor:'bottom',rotationAlignment:'viewport',pitchAlignment:'viewport'}).setLngLat([p.lng,p.lat]).addTo(map),html:'',cls:''};marks.set(p.id,m)}

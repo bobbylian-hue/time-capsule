@@ -85,7 +85,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     const id = ++seq.current;
     const done = (n: MapNames) => { asks.current.delete(id); resolve(n); };
     asks.current.set(id, done);
-    setTimeout(() => asks.current.get(id)?.({ names: [], area: null, same: [] }), 5000);
+    setTimeout(() => asks.current.get(id)?.({ names: [], area: null, habitat: null, same: [] }), 5000);
     ref.current?.command({ type: "names", seq: id, lat, lng, skip });
   }), []);
   const everything = useMemo(() => [...map.wayposts, ...map.wave, ...map.keepers, ...map.private_quests].map((p) => ({ lat: p.lat, lng: p.lng })), [map]);
@@ -100,17 +100,19 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   const pins = useMemo<LivePin[]>(() => [
     // Editing always shows Wayposts, hidden ones too (faded), so they can be brought back.
     ...(layers.wayposts || editing ? map.wayposts.filter((w) => w.game_enabled || editing).map<LivePin>((w) => {
-      const moved = mode === "move" && draft && selected === `w:${w.id}`;
-      return { id: `w:${w.id}`, lat: moved ? draft.lat : w.lat, lng: moved ? draft.lng : w.lng, kind: w.kind === "landmark" ? "landmark" : "waypost",
+      // A Waypost being moved stays where it is as a faint ghost; the unsaved new spot is the draft pin.
+      const moved = mode === "move" && !!draft && selected === `w:${w.id}`;
+      return { id: `w:${w.id}`, lat: w.lat, lng: w.lng, kind: w.kind === "landmark" ? "landmark" : "waypost",
         label: zh ? w.name_zh : w.name_en,
-        vessel: assetUri(w.kind === "landmark" ? gameArt.landmarkGem : gameArt.waypostGemBlue) ?? "", selected: selected === `w:${w.id}`, locked: !w.game_enabled, near: !!moved };
+        vessel: assetUri(w.kind === "landmark" ? gameArt.landmarkGem : gameArt.waypostGemBlue) ?? "", selected: selected === `w:${w.id}` && !moved, locked: !w.game_enabled, ghost: moved };
     }) : []),
-    ...(editing && mode === "add" && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "waypost", vessel: assetUri(gameArt.waypostGemBlue) ?? "", selected: true, near: true } as LivePin] : []),
-    ...(editing && mode === "spot" && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "spot", vessel: "", selected: true } as LivePin] : []),
-    ...(editing && (layers.spots || mode === "spot") ? map.spots.map<LivePin>((x) => {
-      const moved = mode === "moveSpot" && draft && selected === `s:${x.id}`;
-      return { id: `s:${x.id}`, lat: moved ? draft.lat : x.lat, lng: moved ? draft.lng : x.lng, kind: "spot", vessel: "",
-        label: `${a.ed.spotTitle} ${x.lat.toFixed(5)}, ${x.lng.toFixed(5)}`, locked: !!x.hidden_at, selected: selected === `s:${x.id}` };
+    // Not saved yet: see-through with a dashed ring and a "Not saved" tag.
+    ...(editing && (mode === "add" || mode === "move") && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "waypost", vessel: assetUri(gameArt.waypostGemBlue) ?? "", selected: true, draft: true, tag: mb.notSaved } as LivePin] : []),
+    ...(editing && (mode === "spot" || mode === "moveSpot") && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "spot", vessel: "", selected: true, draft: true, tag: mb.notSaved } as LivePin] : []),
+    ...(editing && (layers.spots || mode === "spot" || mode === "moveSpot") ? map.spots.map<LivePin>((x) => {
+      const moved = mode === "moveSpot" && !!draft && selected === `s:${x.id}`;
+      return { id: `s:${x.id}`, lat: x.lat, lng: x.lng, kind: "spot", vessel: "",
+        label: `${a.ed.spotTitle} ${x.lat.toFixed(5)}, ${x.lng.toFixed(5)}`, locked: !!x.hidden_at, selected: selected === `s:${x.id}` && !moved, ghost: moved };
     }) : []),
     ...(layers.wave ? map.wave.map<LivePin>((c) => ({
       id: `c:${c.spot}`, lat: c.lat, lng: c.lng, kind: "corrupted", vessel: vesselUri(c.vessel),
@@ -120,14 +122,16 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
       ...map.keepers.map<LivePin>((k) => ({ id: `k:${k.hunt}`, lat: k.lat, lng: k.lng, kind: "keeper", vessel: "", portrait: assetUri(keeperPortrait), figure: assetUri(characters.keeper) })),
       ...map.private_quests.map<LivePin>((q) => ({ id: `q:${q.id}`, lat: q.lat, lng: q.lng, kind: "quest", vessel: "", quest: "arrive", photo: questImageUri(q.picture) })),
     ] : []),
-  ], [map, layers, selected, editing, mode, draft, zh, a.ed.spotTitle]);
+  ], [map, layers, selected, editing, mode, draft, zh, a.ed.spotTitle, mb.notSaved]);
   const state = useMemo(() => ({ you: null, reach: CITY_REACH, pins }), [pins]);
 
   const focus = (pinId: string, lat: number, lng: number) => { setSelected(pinId); ref.current?.focus(lat, lng); };
   const stopPlacing = () => { setMode(null); setDraft(null); setTapNote(null); };
   // On phones the map sits above the panel: go up to it to tap a spot, then down to the form.
   const page = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  const place = (next: NonNullable<typeof mode>) => { setDraft(null); setTapNote(null); setMode(next); if (!wide) page.current?.scrollTo({ y: 0, animated: true }); };
+  // On phones the popup covers the lower half of the map, so bring the place being edited into the part still showing.
+  const toMap = (at?: { lat: number; lng: number }) => { if (wide) return; page.current?.scrollTo({ y: 0, animated: true }); if (at) ref.current?.focus(at.lat, at.lng); };
+  const place = (next: NonNullable<typeof mode>) => { setDraft(null); setTapNote(null); setMode(next); toMap(); };
   const cityName = zh ? map.region.name_zh : map.region.name_en;
   /** Only the city border refuses (R1); the server checks it again. */
   const allowed = (at: { lat: number; lng: number }) => {
@@ -135,12 +139,14 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     setTapNote({ kind: "outside" });
     return false;
   };
-  const pick = (pinId: string) => { if (pinId === "draft") return; stopPlacing(); setSelected(pinId); };
+  const pick = (pinId: string) => { if (pinId === "draft") return; stopPlacing(); setSelected(pinId);
+    const at = pinId.startsWith("w:") ? map.wayposts.find((w) => `w:${w.id}` === pinId) : pinId.startsWith("s:") ? map.spots.find((x) => `s:${x.id}` === pinId) : undefined;
+    if (editing && at) toMap(at); };
   const tap = (lat: number, lng: number) => {
     if (mode) {
       if (!allowed({ lat, lng })) return;
       setTapNote(null);
-      setDraft({ lat, lng }); if (mode === "add" || mode === "spot") setSelected(null); if (!wide) setTimeout(() => page.current?.scrollTo({ y: 300, animated: true }), 150);
+      setDraft({ lat, lng }); if (mode === "add" || mode === "spot") setSelected(null); toMap({ lat, lng });
     }
     else setSelected(null);
   };
@@ -165,66 +171,105 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   const pickedSpot = selected?.startsWith("s:") ? map.spots.find((x) => x.id === selected.slice(2)) : undefined;
   const name = zh ? map.region.name_zh : map.region.name_en;
 
-  // R1's edit panel: ＋ Waypost and ＋ spawn spot, names from the map, photos, Move here, and the numbers.
+  // R1's editing happens in a popup over the map (Roy, 2026-11-23: it must be obvious you're editing); the side
+  // panel dims behind it. Before the first tap, a hint sits on the map itself.
   const placing = mode === "add" || mode === "spot";
-  const builderPanel = <>
-    {mayEdit && (editing
-      ? <View style={{ gap: spacing.sm }}>
-          <EditBar onDone={leaveEdit} />
-          {placing
-            ? !draft && <View style={{ gap: spacing.sm }}><Notice text={mode === "add" ? a.ed.tapToAdd : mb.tapToAddSpot} /><View style={{ alignItems: "flex-start" }}><AButton small tone="ghost" title={a.ed.cancel} onPress={stopPlacing} /></View></View>
-            : <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
-                <AButton small title={a.ed.addWaypost} onPress={() => { setSelected(null); place("add"); }} />
-                <AButton small tone="ghost" title={mb.addSpot} onPress={() => { setSelected(null); place("spot"); }} />
-              </View>}
-        </View>
-      : <View style={{ alignItems: "flex-start" }}><AButton small tone="ghost" title={a.ed.editWayposts} onPress={() => setEditing(true)} /></View>)}
+  const closeSheet = () => { stopPlacing(); setSelected(null); };
+  const notes = <>
     {tapNote && (tapNote.kind === "outside" ? <Notice tone="stop" text={mb.outside(cityName)} />
       : tapNote.kind === "gpsFailed" ? <Notice tone="stop" text={mb.gpsFailed} />
         : <Notice tone={tapNote.meters > 30 ? "warn" : "info"} text={tapNote.meters > 30 ? mb.gpsWeak(tapNote.meters) : mb.gpsAt(tapNote.meters)} />)}
     {locating && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.locating}</Text>}
-    {editing && mode === "add" && draft
-      ? <WaypostBuilderForm key={`new:${draft.lat}:${draft.lng}`} region={map.region} wayposts={map.wayposts} waypost={null} at={draft} moving={false} ask={ask}
-          onMove={() => {}} onMoveHere={() => {}} onSaved={saved} onCancel={stopPlacing} />
-      : editing && mode === "spot" && draft
-        ? <SpotForm key={`spot:${draft.lat}:${draft.lng}`} region={map.region} spot={null} at={draft} onSaved={saved} onCancel={stopPlacing} />
-        : editing && picked && picked.kind === "common"
-          ? <>
-              {picked.game_enabled
-                ? <>
-                    {mode === "move" && !draft && <Notice text={a.ed.tapToMove} />}
-                    <WaypostBuilderForm key={picked.id} region={map.region} wayposts={map.wayposts} waypost={picked} at={mode === "move" && draft ? draft : picked} moving={mode === "move"} ask={ask}
-                      onMove={() => place("move")} onMoveHere={() => moveHere("move")} onSaved={saved} onCancel={() => { stopPlacing(); setSelected(null); }} />
-                  </>
-                : <Detail map={map} id={selected!} now={now} />}
-              {mode !== "move" && <VisibilityCard key={`v:${picked.id}:${picked.game_enabled}`} region={map.region.id} waypost={picked} onSaved={saved} />}
-            </>
-          : editing && pickedSpot
-            ? mode === "moveSpot"
-              ? draft
-                ? <SpotForm key={`move:${pickedSpot.id}:${draft.lat}:${draft.lng}`} region={map.region} spot={pickedSpot} at={draft} onSaved={saved} onCancel={stopPlacing} />
-                : <View style={{ gap: spacing.sm }}><Notice text={a.ed.tapToMove} /><View style={{ alignItems: "flex-start" }}><AButton small tone="ghost" title={a.ed.cancel} onPress={stopPlacing} /></View></View>
-              : <>
-                  <VisibilityCard key={`s:${pickedSpot.id}:${pickedSpot.hidden_at}`} region={map.region.id} spot={pickedSpot} onSaved={saved} />
-                  {!pickedSpot.hidden_at && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
-                    <AButton small tone="ghost" title={mb.moveSpot} onPress={() => place("moveSpot")} />
-                    <AButton small tone="ghost" title={mb.moveHere} onPress={() => moveHere("moveSpot")} />
-                  </View>}
-                </>
-            : selected
-              ? <>
-                  <Detail map={map} id={selected} now={now} />
-                  {editing && picked?.kind === "landmark" && <Notice text={a.ed.landmarkNote} />}
-                </>
-              : !(editing && mode) && <Text style={{ fontFamily: sans, fontSize: 13, color: C.muted }}>{a.tapAPin}</Text>}
-    {picked?.kind === "common" && mode !== "move" && <WaypostNumbers key={`n:${picked.id}`} id={picked.id} />}
   </>;
-
-  const mapView = <View style={wide ? { flex: 1 } : { height: 420, borderBottomWidth: 1, borderBottomColor: C.line }}>
-    <LiveMap ref={ref} html={html} state={state} onSelect={pick} onTap={tap} onNames={(m) => asks.current.get(m.seq)?.({ names: m.names, area: m.area as MapNames["area"], same: m.same })} />
+  const waitTap = <View style={{ gap: spacing.sm }}><Notice text={a.ed.tapToMove} /><View style={{ alignItems: "flex-start" }}><AButton small tone="ghost" title={a.ed.cancel} onPress={stopPlacing} /></View></View>;
+  // Forms stay mounted while the admin taps a new spot (Move) or taps again elsewhere, so unsaved names, photo,
+  // credit, habitat and note survive: the Waypost form is only hidden behind the Move hint, and the keys never
+  // include the tapped spot.
+  const waitingMove = mode === "move" && !draft;
+  const waitingSpot = mode === "moveSpot" && !draft;
+  const sheet: { title: string; body: React.ReactNode; compact?: boolean } | null = !MAP_BUILDER_R1 || !editing ? null
+    : mode === "add" && draft ? { title: mb.titleAddWaypost, body:
+        <WaypostBuilderForm flat key="new" region={map.region} wayposts={map.wayposts} waypost={null} at={draft} moving={false} ask={ask}
+          onMove={() => {}} onMoveHere={() => {}} onSaved={saved} onCancel={stopPlacing} /> }
+    : mode === "spot" && draft ? { title: mb.titleAddSpot, body:
+        <SpotForm flat key="newSpot" region={map.region} spot={null} at={draft} ask={ask} onSaved={saved} onCancel={stopPlacing} /> }
+    : picked && picked.kind === "common" ? { title: mb.titleEditWaypost, compact: waitingMove, body: <>
+        {waitingMove && waitTap}
+        <View style={waitingMove ? { display: "none" } : undefined}>
+          {picked.game_enabled
+            ? <WaypostBuilderForm flat key={picked.id} region={map.region} wayposts={map.wayposts} waypost={picked} at={mode === "move" && draft ? draft : picked} moving={mode === "move"} ask={ask}
+                onMove={() => place("move")} onMoveHere={() => moveHere("move")} onSaved={saved} onCancel={closeSheet} />
+            : <Detail map={map} id={selected!} now={now} />}
+        </View>
+        {mode !== "move" && <VisibilityCard key={`v:${picked.id}:${picked.game_enabled}`} region={map.region.id} waypost={picked} onSaved={saved} />}
+        {mode !== "move" && <WaypostNumbers key={`n:${picked.id}`} id={picked.id} />}
+      </> }
+    : pickedSpot ? waitingSpot ? { title: mb.titleEditSpot, compact: true, body: waitTap } : { title: mb.titleEditSpot, body:
+        mode === "moveSpot" && draft
+          ? <SpotForm flat key={`move:${pickedSpot.id}`} region={map.region} spot={pickedSpot} at={draft} ask={ask} onSaved={saved} onCancel={stopPlacing} />
+          : <>
+              <VisibilityCard key={`s:${pickedSpot.id}:${pickedSpot.hidden_at}`} region={map.region.id} spot={pickedSpot} onSaved={saved} />
+              {!pickedSpot.hidden_at && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+                <AButton small tone="ghost" title={mb.moveSpot} onPress={() => place("moveSpot")} />
+                <AButton small tone="ghost" title={mb.moveHere} onPress={() => moveHere("moveSpot")} />
+              </View>}
+            </> }
+    : null;
+  const hint = MAP_BUILDER_R1 && editing && placing && !draft;
+  const builderPanel = <>
+    {mayEdit && (editing
+      ? <View style={{ gap: spacing.sm }}>
+          <EditBar onDone={leaveEdit} />
+          {!placing && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+            <AButton small title={a.ed.addWaypost} onPress={() => { setSelected(null); place("add"); }} />
+            <AButton small tone="ghost" title={mb.addSpot} onPress={() => { setSelected(null); place("spot"); }} />
+          </View>}
+        </View>
+      : <View style={{ alignItems: "flex-start" }}><AButton small tone="ghost" title={a.ed.editWayposts} onPress={() => setEditing(true)} /></View>)}
+    {!sheet && !hint && notes}
+    {sheet ? null
+      : selected
+        ? <>
+            <Detail map={map} id={selected} now={now} />
+            {editing && picked?.kind === "landmark" && <Notice text={a.ed.landmarkNote} />}
+          </>
+        : !(editing && mode) && <Text style={{ fontFamily: sans, fontSize: 13, color: C.muted }}>{a.tapAPin}</Text>}
+    {!editing && picked?.kind === "common" && <WaypostNumbers key={`n:${picked.id}`} id={picked.id} />}
+  </>;
+  const popup = sheet && <View style={wide
+      ? { position: "absolute", left: spacing.md, top: spacing.md, width: 400, maxHeight: "92%" }
+      : { position: "absolute", left: 0, right: 0, bottom: 0, maxHeight: sheet.compact ? undefined : "52%" }}>
+    <View accessibilityRole={"dialog" as any} accessibilityLabel={sheet.title}
+      style={{ flexShrink: 1, backgroundColor: C.paper, borderRadius: radii.md, borderBottomLeftRadius: wide ? radii.md : 0, borderBottomRightRadius: wide ? radii.md : 0,
+        borderWidth: 1, borderColor: C.line, shadowColor: C.ink, shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, overflow: "hidden" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.line, backgroundColor: C.white }}>
+        <Text accessibilityRole="header" style={{ flex: 1, fontFamily: serif, fontSize: 18, color: C.ink }}>{sheet.title}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={mb.close} onPress={closeSheet} hitSlop={8}
+          style={({ hovered }: any) => ({ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? "#E6EEF7" : "transparent" })}>
+          <Text style={{ fontFamily: sans, fontSize: 18, color: C.muted }}>✕</Text>
+        </Pressable>
+      </View>
+      <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}>
+        {notes}
+        {sheet.body}
+      </ScrollView>
+    </View>
   </View>;
 
-  const panel = <View style={wide ? { width: 380, borderLeftWidth: 1, borderLeftColor: C.line, backgroundColor: C.paper } : undefined}><ScrollView style={wide ? { flex: 1 } : undefined}
+  const mapView = <View style={wide ? { flex: 1 } : { height: 420, borderBottomWidth: 1, borderBottomColor: C.line }}>
+    <LiveMap ref={ref} html={html} state={state} onSelect={pick} onTap={tap} onNames={(m) => asks.current.get(m.seq)?.({ names: m.names, area: m.area as MapNames["area"], habitat: (m.habitat ?? null) as MapNames["habitat"], same: m.same })} />
+    {hint && <View style={{ position: "absolute", top: spacing.md, left: spacing.md, right: spacing.md, alignItems: "center" }} pointerEvents="box-none">
+      <View style={{ maxWidth: 420, gap: spacing.sm, backgroundColor: C.white, borderRadius: radii.md, padding: 12, borderWidth: 1, borderColor: C.line, shadowColor: C.ink, shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } }}>
+        {notes}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          <Text style={{ flex: 1, fontFamily: sans, fontSize: 14, color: C.ink }}>{mode === "add" ? mb.tapToAdd : mb.tapToAddSpot}</Text>
+          <AButton small tone="ghost" title={a.ed.cancel} onPress={stopPlacing} />
+        </View>
+      </View>
+    </View>}
+  </View>;
+
+  const panel = <View pointerEvents={sheet ? "none" : "auto"} style={[wide ? { width: 380, borderLeftWidth: 1, borderLeftColor: C.line, backgroundColor: C.paper } : null, sheet ? { opacity: 0.4 } : null]}><ScrollView style={wide ? { flex: 1 } : undefined}
     contentContainerStyle={{ padding: spacing.md, gap: spacing.lg }}>
     <View style={{ gap: 4 }}>
       <Pressable accessibilityRole="link" onPress={() => router.push("/admin" as any)}>
@@ -309,8 +354,11 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   </ScrollView></View>;
 
   return wide
-    ? <View style={{ flex: 1, flexDirection: "row" }}>{mapView}{panel}</View>
-    : <ScrollView ref={page} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>{mapView}{panel}</ScrollView>;
+    ? <View style={{ flex: 1, flexDirection: "row" }}>{mapView}{panel}{popup}</View>
+    : <View style={{ flex: 1 }}>
+        <ScrollView ref={page} style={{ flex: 1 }} scrollEnabled={!sheet} contentContainerStyle={{ flexGrow: 1 }}>{mapView}{panel}</ScrollView>
+        {popup}
+      </View>;
 }
 
 function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
