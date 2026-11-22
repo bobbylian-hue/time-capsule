@@ -63,7 +63,8 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   const [mode, setMode] = useState<"add" | "move" | "spot" | "moveSpot" | null>(null);
   const [grid, setGrid] = useState(false);
   /** Why the last tap did nothing (outside the border), or the GPS note for Move here. */
-  const [tapNote, setTapNote] = useState<{ tone: "stop" | "warn" | "info"; text: string } | null>(null);
+  // Kept as a reason, not text, so it follows a language switch.
+  const [tapNote, setTapNote] = useState<{ kind: "outside" } | { kind: "gpsFailed" } | { kind: "gps"; meters: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [draft, setDraft] = useState<{ lat: number; lng: number } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -131,7 +132,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   /** Only the city border refuses (R1); the server checks it again. */
   const allowed = (at: { lat: number; lng: number }) => {
     if (!MAP_BUILDER_R1 || insideBorder(map.region.border, at)) return true;
-    setTapNote({ tone: "stop", text: mb.outside(cityName) });
+    setTapNote({ kind: "outside" });
     return false;
   };
   const pick = (pinId: string) => { if (pinId === "draft") return; stopPlacing(); setSelected(pinId); };
@@ -147,7 +148,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   /** Move here: the selected Waypost or spot moves to where the admin is standing (for field visits). */
   const moveHere = (next: "move" | "moveSpot") => {
     const geo = typeof navigator !== "undefined" ? navigator.geolocation : undefined;
-    if (!geo) { setTapNote({ tone: "stop", text: mb.gpsFailed }); return; }
+    if (!geo) { setTapNote({ kind: "gpsFailed" }); return; }
     setLocating(true); setTapNote(null);
     geo.getCurrentPosition((p) => {
       setLocating(false);
@@ -155,9 +156,9 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
       setMode(next);
       if (!allowed(at)) return;
       setDraft(at);
-      setTapNote({ tone: m > 30 ? "warn" : "info", text: m > 30 ? mb.gpsWeak(m) : mb.gpsAt(m) });
+      setTapNote({ kind: "gps", meters: m });
       ref.current?.focus(at.lat, at.lng);
-    }, () => { setLocating(false); setTapNote({ tone: "stop", text: mb.gpsFailed }); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    }, () => { setLocating(false); setTapNote({ kind: "gpsFailed" }); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
   };
   const leaveEdit = () => { setEditing(false); stopPlacing(); if (selected?.startsWith("s:")) setSelected(null); };
   const picked = selected?.startsWith("w:") ? map.wayposts.find((w) => w.id === selected.slice(2)) : undefined;
@@ -178,7 +179,9 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
               </View>}
         </View>
       : <View style={{ alignItems: "flex-start" }}><AButton small tone="ghost" title={a.ed.editWayposts} onPress={() => setEditing(true)} /></View>)}
-    {tapNote && <Notice tone={tapNote.tone} text={tapNote.text} />}
+    {tapNote && (tapNote.kind === "outside" ? <Notice tone="stop" text={mb.outside(cityName)} />
+      : tapNote.kind === "gpsFailed" ? <Notice tone="stop" text={mb.gpsFailed} />
+        : <Notice tone={tapNote.meters > 30 ? "warn" : "info"} text={tapNote.meters > 30 ? mb.gpsWeak(tapNote.meters) : mb.gpsAt(tapNote.meters)} />)}
     {locating && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.locating}</Text>}
     {editing && mode === "add" && draft
       ? <WaypostBuilderForm key={`new:${draft.lat}:${draft.lng}`} region={map.region} wayposts={map.wayposts} waypost={null} at={draft} moving={false} ask={ask}

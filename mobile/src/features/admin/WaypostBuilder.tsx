@@ -14,10 +14,9 @@ import { AButton, Card, Field, Notice, Pill, Stat, timeAgo } from "./ui";
 import { ScenePicker } from "./WaypostEditor";
 
 const hasChinese = (x: string) => /[㐀-鿿]/.test(x);
-const errorText = (a: AdminText, mb: MapBuilderText, e: unknown) => {
-  const code = (e as Error)?.message;
-  return mb.error[code] ?? a.error[code] ?? a.error.failed;
-};
+/** Errors are kept as codes and translated when shown, so they follow a language switch. */
+const errorCode = (e: unknown) => (e as Error)?.message || "failed";
+const errorText = (a: AdminText, mb: MapBuilderText, code: string) => mb.error[code] ?? a.error[code] ?? a.error.failed;
 export type Ask = (lat: number, lng: number, skip?: string) => Promise<MapNames>;
 type At = { lat: number; lng: number };
 
@@ -101,7 +100,7 @@ function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredi
       if (!picked || picked === "denied") return;
       setBusy(true);
       onPhoto(await uploadWaypostPhoto(region, picked));
-    } catch (e) { setError(errorText(a, mb, e)); } finally { setBusy(false); }
+    } catch (e) { setError(errorCode(e)); } finally { setBusy(false); }
   };
   const url = photoUrl(photo);
   return <View style={{ gap: spacing.sm }}>
@@ -119,7 +118,7 @@ function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredi
     </View>
     <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.photoNote}</Text>
     {url && <Field label={mb.credit} value={credit} onChangeText={onCredit} maxLength={120} placeholder="© …" />}
-    {error && <Notice tone="stop" text={error} />}
+    {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
   </View>;
 }
 
@@ -178,7 +177,7 @@ export function WaypostBuilderForm({ region, wayposts, waypost, at, moving, ask,
           photo: photo === (waypost.photo ?? null) ? null : photo ?? "",
           photo_credit: nextCredit === (waypost.photo_credit ?? "") ? null : nextCredit }, note.trim() || null));
       }
-    } catch (e) { setError(errorText(a, mb, e)); } finally { setBusy(false); }
+    } catch (e) { setError(errorCode(e)); } finally { setBusy(false); }
   };
 
   return <Card style={{ gap: spacing.md }}>
@@ -193,7 +192,7 @@ export function WaypostBuilderForm({ region, wayposts, waypost, at, moving, ask,
     <Field label={a.ed.nameEn} value={nameEn} onChangeText={(x) => { typed.current = true; setNameEn(x); }} maxLength={60} autoCapitalize="words" />
     <PicturePicker region={region.id} scene={scene} onScene={setScene} photo={photo} onPhoto={setPhoto} credit={credit} onCredit={setCredit} />
     <Field label={a.ed.noteOptional} value={note} onChangeText={setNote} maxLength={300} />
-    {error && <Notice tone="stop" text={error} />}
+    {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" }}>
       {!adding && !moving && <AButton small tone="ghost" title={a.ed.move} onPress={onMove} />}
       {!adding && <AButton small tone="ghost" title={mb.moveHere} onPress={onMoveHere} />}
@@ -219,7 +218,7 @@ export function SpotForm({ region, spot, at, onSaved, onCancel }: { region: Regi
   const save = async () => {
     setBusy(true); setError(null);
     try { onSaved(spot ? await builder.moveSpot(spot.id, at.lat, at.lng, note.trim() || null) : await builder.addSpot(region.id, at.lat, at.lng, habitat, note.trim() || null)); }
-    catch (e) { setError(errorText(a, mb, e)); } finally { setBusy(false); }
+    catch (e) { setError(errorCode(e)); } finally { setBusy(false); }
   };
   return <Card style={{ gap: spacing.md }}>
     <View style={{ gap: 4 }}>
@@ -241,7 +240,7 @@ export function SpotForm({ region, spot, at, onSaved, onCancel }: { region: Regi
     </View>}
     <Text style={{ fontFamily: sans, fontSize: 13, lineHeight: 19, color: C.ink }}>{mb.spotNext}</Text>
     <Field label={a.ed.noteOptional} value={note} onChangeText={setNote} maxLength={300} />
-    {error && <Notice tone="stop" text={error} />}
+    {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" }}>
       <AButton small tone="ghost" title={a.ed.cancel} onPress={onCancel} />
       <AButton small title={busy ? a.ed.saving : spot ? mb.movedSpotSave : a.ed.save} disabled={busy || !inside} onPress={save} />
