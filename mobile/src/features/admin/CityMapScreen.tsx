@@ -182,23 +182,31 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     {locating && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.locating}</Text>}
   </>;
   const waitTap = <View style={{ gap: spacing.sm }}><Notice text={a.ed.tapToMove} /><View style={{ alignItems: "flex-start" }}><AButton small tone="ghost" title={a.ed.cancel} onPress={stopPlacing} /></View></View>;
+  // Forms stay mounted while the admin taps a new spot (Move) or taps again elsewhere, so unsaved names, photo,
+  // credit, habitat and note survive: the Waypost form is only hidden behind the Move hint, and the keys never
+  // include the tapped spot.
+  const waitingMove = mode === "move" && !draft;
+  const waitingSpot = mode === "moveSpot" && !draft;
   const sheet: { title: string; body: React.ReactNode; compact?: boolean } | null = !MAP_BUILDER_R1 || !editing ? null
     : mode === "add" && draft ? { title: mb.titleAddWaypost, body:
-        <WaypostBuilderForm flat key={`new:${draft.lat}:${draft.lng}`} region={map.region} wayposts={map.wayposts} waypost={null} at={draft} moving={false} ask={ask}
+        <WaypostBuilderForm flat key="new" region={map.region} wayposts={map.wayposts} waypost={null} at={draft} moving={false} ask={ask}
           onMove={() => {}} onMoveHere={() => {}} onSaved={saved} onCancel={stopPlacing} /> }
     : mode === "spot" && draft ? { title: mb.titleAddSpot, body:
-        <SpotForm flat key={`spot:${draft.lat}:${draft.lng}`} region={map.region} spot={null} at={draft} ask={ask} onSaved={saved} onCancel={stopPlacing} /> }
-    : picked && picked.kind === "common" ? mode === "move" && !draft ? { title: mb.titleEditWaypost, compact: true, body: waitTap } : { title: mb.titleEditWaypost, body: <>
-        {picked.game_enabled
-          ? <WaypostBuilderForm flat key={picked.id} region={map.region} wayposts={map.wayposts} waypost={picked} at={mode === "move" && draft ? draft : picked} moving={mode === "move"} ask={ask}
-              onMove={() => place("move")} onMoveHere={() => moveHere("move")} onSaved={saved} onCancel={closeSheet} />
-          : <Detail map={map} id={selected!} now={now} />}
+        <SpotForm flat key="newSpot" region={map.region} spot={null} at={draft} ask={ask} onSaved={saved} onCancel={stopPlacing} /> }
+    : picked && picked.kind === "common" ? { title: mb.titleEditWaypost, compact: waitingMove, body: <>
+        {waitingMove && waitTap}
+        <View style={waitingMove ? { display: "none" } : undefined}>
+          {picked.game_enabled
+            ? <WaypostBuilderForm flat key={picked.id} region={map.region} wayposts={map.wayposts} waypost={picked} at={mode === "move" && draft ? draft : picked} moving={mode === "move"} ask={ask}
+                onMove={() => place("move")} onMoveHere={() => moveHere("move")} onSaved={saved} onCancel={closeSheet} />
+            : <Detail map={map} id={selected!} now={now} />}
+        </View>
         {mode !== "move" && <VisibilityCard key={`v:${picked.id}:${picked.game_enabled}`} region={map.region.id} waypost={picked} onSaved={saved} />}
         {mode !== "move" && <WaypostNumbers key={`n:${picked.id}`} id={picked.id} />}
       </> }
-    : pickedSpot ? mode === "moveSpot" && !draft ? { title: mb.titleEditSpot, compact: true, body: waitTap } : { title: mb.titleEditSpot, body:
+    : pickedSpot ? waitingSpot ? { title: mb.titleEditSpot, compact: true, body: waitTap } : { title: mb.titleEditSpot, body:
         mode === "moveSpot" && draft
-          ? <SpotForm flat key={`move:${pickedSpot.id}:${draft.lat}:${draft.lng}`} region={map.region} spot={pickedSpot} at={draft} ask={ask} onSaved={saved} onCancel={stopPlacing} />
+          ? <SpotForm flat key={`move:${pickedSpot.id}`} region={map.region} spot={pickedSpot} at={draft} ask={ask} onSaved={saved} onCancel={stopPlacing} />
           : <>
               <VisibilityCard key={`s:${pickedSpot.id}:${pickedSpot.hidden_at}`} region={map.region.id} spot={pickedSpot} onSaved={saved} />
               {!pickedSpot.hidden_at && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>

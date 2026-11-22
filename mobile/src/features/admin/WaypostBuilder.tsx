@@ -244,10 +244,12 @@ export function SpotForm({ flat, region, spot, at, ask, onSaved, onCancel }: { f
   const [habitat, setHabitat] = useState<Habitat | null>(spot?.habitat ?? null);
   const [choosing, setChoosing] = useState(false);
   const [fromMap, setFromMap] = useState(false);
+  // Guessed again when the admin taps somewhere else, until they choose one themselves.
+  const chosen = useRef(false);
   useEffect(() => {
     if (spot) return;
     let live = true;
-    ask(at.lat, at.lng).then((n) => { if (live) { setFromMap(!!n.habitat); setHabitat((h) => h ?? n.habitat ?? "square"); } });
+    ask(at.lat, at.lng).then((n) => { if (live && !chosen.current) { setFromMap(!!n.habitat); setHabitat(n.habitat ?? "square"); } });
     return () => { live = false; };
   }, [spot, at.lat, at.lng]);
   const [note, setNote] = useState("");
@@ -277,7 +279,7 @@ export function SpotForm({ flat, region, spot, at, ask, onSaved, onCancel }: { f
       {choosing && <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: spacing.sm }}>
         {HABITATS.map((h) => {
           const on = habitat === h;
-          return <Pressable key={h} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => { setHabitat(h); setFromMap(false); }}
+          return <Pressable key={h} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => { chosen.current = true; setHabitat(h); setFromMap(false); }}
             style={{ borderRadius: radii.pill, borderWidth: 1, borderColor: on ? C.blue : C.line, backgroundColor: on ? "#E6EEF7" : C.white, paddingHorizontal: 12, paddingVertical: 6 }}>
             <Text style={{ fontFamily: sans, fontSize: 13, color: on ? C.blue : C.ink }}>{a.habitat[h]}</Text>
           </Pressable>;
