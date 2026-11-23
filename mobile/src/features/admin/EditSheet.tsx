@@ -90,7 +90,7 @@ export function EditSheet({ wide, title, status, compact, guard, onClose, childr
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" }}>
           <AButton small tone="ghost" title={mb.keepEditing} onPress={() => { after.current = null; setAsking(false); }} />
           <AButton small tone="wax" title={mb.discard} onPress={() => { const go = after.current ?? onClose; after.current = null; setAsking(false); go(); }} />
-          <AButton small title={mb.save} disabled={!actions?.canSave || actions?.busy} onPress={save} />
+          <AButton small title={actions?.saveLabel ?? mb.save} disabled={!actions?.canSave || actions?.busy} onPress={save} />
         </View>
       </View>}
       <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}>

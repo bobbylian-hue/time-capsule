@@ -17,6 +17,10 @@ export const MAP_BUILDER_R1 = MAP_BUILDER_R1_BACKEND || ADMIN_SAMPLE;
 /** Turn on once Codex's R1.5 migration is applied: drafts, publish, delete, one Waypost per cell, Fill an area. */
 export const MAP_BUILDER_R15_BACKEND = true;
 export const MAP_BUILDER_R15 = MAP_BUILDER_R15_BACKEND || ADMIN_SAMPLE;
+/** Turn on once Codex's Fill an area follow-up is applied: batches saved as Live, their Activity ids back for Undo,
+ * and the city's drafts grouped by the batch they came from (Roy, 2026-11-23). */
+export const FILL_PUBLISH_BACKEND = false;
+const FILL_PUBLISH = FILL_PUBLISH_BACKEND || ADMIN_SAMPLE;
 
 export type CellNeighbour = { id: string; name_zh: string; name_en: string; meters: number };
 /** What the server says about a spot under the R1 rules: only the border refuses; the rest are notes. */
@@ -64,14 +68,34 @@ export const builder = {
   areaSuggest: (region: string, kind: "waypost" | "spot", box: Box, spacing: number): Promise<{ lat: number; lng: number }[]> =>
     ADMIN_SAMPLE ? sample.areaSuggest(region, kind, box, spacing)
       : rpc("admin_area_suggest", { p_region: region, p_kind: kind, p_south: box.south, p_west: box.west, p_north: box.north, p_east: box.east, p_spacing_m: spacing }),
-  /** Saved as drafts, one Activity row; places that fail a rule come back in skipped with the reason. */
-  addWayposts: (region: string, items: { lat: number; lng: number; name_zh: string; name_en: string; scene: Scene }[], note: string | null): Promise<BatchResult<MapWaypost>> =>
-    ADMIN_SAMPLE ? sample.addWayposts(region, items, note) : rpc("admin_waypost_add_batch", { p_region: region, p_items: items, p_note: note }),
-  addSpots: (region: string, items: { lat: number; lng: number; habitat: Habitat }[], note: string | null): Promise<BatchResult<MapSpot>> =>
-    ADMIN_SAMPLE ? sample.addSpots(region, items, note) : rpc("admin_spot_add_batch", { p_region: region, p_items: items, p_note: note }),
+  /** Saved as drafts (or Live), one Activity row; places that fail a rule come back in skipped with the reason.
+   * `batch` ties the Wayposts and spawn spots of one Fill an area save together in the Drafts list. */
+  addWayposts: (region: string, items: { lat: number; lng: number; name_zh: string; name_en: string; scene: Scene }[], note: string | null, opts: BatchOpts = {}): Promise<BatchResult<MapWaypost>> =>
+    ADMIN_SAMPLE ? sample.addWayposts(region, items, note, opts)
+      : rpc("admin_waypost_add_batch", { p_region: region, p_items: items, p_note: note, ...batchArgs(opts) }),
+  addSpots: (region: string, items: { lat: number; lng: number; habitat: Habitat }[], note: string | null, opts: BatchOpts = {}): Promise<BatchResult<MapSpot>> =>
+    ADMIN_SAMPLE ? sample.addSpots(region, items, note, opts)
+      : rpc("admin_spot_add_batch", { p_region: region, p_items: items, p_note: note, ...batchArgs(opts) }),
+  /** Whether a batch can be saved as Live and undone from the panel (the follow-up backend). */
+  canPublishBatch: FILL_PUBLISH,
+  /** The city's drafts, grouped by who saved them and in which batch. Before the backend, one group of everything. */
+  drafts: (region: string, all: { wayposts: MapWaypost[]; spots: MapSpot[] }): Promise<DraftGroup[]> =>
+    ADMIN_SAMPLE ? sample.drafts(region)
+      : FILL_PUBLISH_BACKEND ? rpc("admin_city_drafts", { p_region: region })
+      : Promise.resolve(oneGroup(all)),
+};
+export type BatchOpts = { status?: "draft" | "live"; batch?: string };
+const batchArgs = (o: BatchOpts) => FILL_PUBLISH_BACKEND ? { p_status: o.status ?? "draft", p_batch: o.batch ?? null } : {};
+/** Drafts saved together: one Fill an area save, or (batch null) everything one person added one at a time. */
+export type DraftGroup = { batch: string | null; actor: { id: string; name: string; avatar: unknown } | null; at: string | null;
+  wayposts: string[]; spots: string[] };
+const oneGroup = ({ wayposts, spots }: { wayposts: MapWaypost[]; spots: MapSpot[] }): DraftGroup[] => {
+  const w = wayposts.filter((x) => x.status === "draft").map((x) => x.id), s = spots.filter((x) => x.status === "draft").map((x) => x.id);
+  return w.length || s.length ? [{ batch: null, actor: null, at: null, wayposts: w, spots: s }] : [];
 };
 export type Box = { south: number; west: number; north: number; east: number };
-export type BatchResult<T> = { added: T[]; skipped: { index: number; reason: string }[] };
+export type BatchResult<T> = { added: T[]; skipped: { index: number; reason: string }[];
+  /** The Activity row, so the panel can undo the save (null when nothing was added; absent before the backend). */ action_id?: number | null };
 /** Fill an area: the spacings offered (metres). A level-17 cell is about 70 m across, so 75 m is as close as
  * Wayposts can get (one per cell); spawn spots have no cell rule and can go down to 50 m. */
 export const FILL_SPACING = { waypost: [75, 150, 250, 400], spot: [50, 100, 150, 250] } as const;

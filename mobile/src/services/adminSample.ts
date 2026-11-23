@@ -536,7 +536,7 @@ export const sample = {
     }
     return pause(out);
   },
-  addWayposts: async (regionId: string, items: { lat: number; lng: number; name_zh: string; name_en: string; scene: Scene }[], note: string | null) => {
+  addWayposts: async (regionId: string, items: { lat: number; lng: number; name_zh: string; name_en: string; scene: Scene }[], note: string | null, opts: { status?: "draft" | "live"; batch?: string } = {}) => {
     canEdit();
     const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
     const added: MapWaypost[] = [], skipped: { index: number; reason: string }[] = [];
@@ -545,30 +545,47 @@ export const sample = {
         if (!w.name_zh.trim() || !w.name_en.trim() || !hasChinese(w.name_zh)) fail("bad_name");
         guardWaypost(region, w, note);
         const id = `admin-${Date.now().toString(36)}-${index}`;
-        const post: MapWaypost = { id, ...w, kind: "common", source_ref: `admin:${id}`, photo: null, photo_credit: null, ...asStatus("draft") };
+        const post: MapWaypost = { id, ...w, kind: "common", source_ref: `admin:${id}`, photo: null, photo_credit: null, ...asStatus(opts.status ?? "draft") };
         postState.set(region.id, [...postsFor(region), post]);
         added.push(post);
       } catch (e) { skipped.push({ index, reason: (e as Error).message }); }
     });
     if (added.length) log({ action: "waypost.add_batch", target_type: "waypost_batch", target_id: added.map((w) => w.id).join(","), target_label: added.length > 1 ? `${added[0].name_zh} +${added.length - 1}` : added[0].name_zh,
-      before: null, after: { count: added.length }, note });
-    return pause({ added, skipped });
+      before: null, after: { count: added.length, status: opts.status ?? "draft", batch: opts.batch ?? null }, note });
+    return pause({ added, skipped, action_id: added.length ? activity[0].id : null });
   },
-  addSpots: async (regionId: string, items: { lat: number; lng: number; habitat: Habitat }[], note: string | null) => {
+  addSpots: async (regionId: string, items: { lat: number; lng: number; habitat: Habitat }[], note: string | null, opts: { status?: "draft" | "live"; batch?: string } = {}) => {
     canEdit();
     const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
     const added: MapSpot[] = [], skipped: { index: number; reason: string }[] = [];
     items.forEach((x, index) => {
       try {
         guardPlace(region, x);
-        const spot: MapSpot = { id: `admin-spot-${Date.now().toString(36)}-${index}`, ...x, hidden_at: null, status: "draft" };
+        const spot: MapSpot = { id: `admin-spot-${Date.now().toString(36)}-${index}`, ...x, hidden_at: null, status: opts.status ?? "draft" };
         spotState.set(region.id, [...spotsFor(region), spot]);
         added.push(spot);
       } catch (e) { skipped.push({ index, reason: (e as Error).message }); }
     });
     if (added.length) log({ action: "spot.add_batch", target_type: "spot_batch", target_id: added.map((x) => x.id).join(","), target_label: `${region.name_zh} · ${added.length}`,
-      before: null, after: { count: added.length }, note });
-    return pause({ added, skipped });
+      before: null, after: { count: added.length, status: opts.status ?? "draft", batch: opts.batch ?? null }, note });
+    return pause({ added, skipped, action_id: added.length ? activity[0].id : null });
+  },
+  /** Drafts grouped by the save that made them: one Fill an area batch, or everything one person added singly. */
+  drafts: async (regionId: string) => {
+    canEdit();
+    const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
+    const groups = new Map<string, { batch: string | null; actor: ActivityRow["actor"] | null; at: string | null; wayposts: string[]; spots: string[] }>();
+    const add = (kind: "wayposts" | "spots", id: string) => {
+      const made = activity.find((r) => /\.add(_batch)?$/.test(r.action) && r.target_id.split(",").includes(id));
+      const batch = made?.action.endsWith("_batch") ? ((made.after as any)?.batch ?? `a${made.id}`) : null;
+      const key = batch ?? `one:${made?.actor.id ?? "?"}`;
+      const g = groups.get(key) ?? { batch, actor: made?.actor ?? null, at: made?.at ?? null, wayposts: [] as string[], spots: [] as string[] };
+      if (made && (!g.at || made.at > g.at)) g.at = made.at;
+      g[kind].push(id); groups.set(key, g);
+    };
+    for (const w of postsFor(region)) if (w.status === "draft") add("wayposts", w.id);
+    for (const x of spotsFor(region)) if (x.status === "draft") add("spots", x.id);
+    return pause([...groups.values()].sort((a, b) => (b.at ?? "").localeCompare(a.at ?? "")));
   },
   undo: async (actionId: number, note: string | null) => {
     canEdit();
