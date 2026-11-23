@@ -10,7 +10,7 @@ import { C, radii, sans, serif, spacing } from "../../theme";
 import { VESSELS } from "../shop/strings";
 import { COLOR_HEX, MODEL_KINDS, MONUMENT_COLORS, type ModelKind, type Monument, type MonumentColor } from "../journey/live/monuments";
 import { useLandmarkText } from "./landmarkStrings";
-import { AButton, Choice, Notice, Stepper, VesselThumb } from "./ui";
+import { AButton, Choice, Stepper, VesselThumb } from "./ui";
 
 /** The Landmark reward vessels the catalogue has (earned ones), the default keepsake first. */
 export const LANDMARK_VESSELS = ["landmark-keepsake", "bamboo-tower", "senado-fountain", "red-bird", "lionfish-fountain", "clock-tower",
@@ -45,12 +45,10 @@ export function LandmarkFields({ value, onChange, picking, onPicking, buildingTa
     };
     return () => { buildingTap.current = null; };
   }, [onChange]);
-  const empty = !m.buildings && !m.model && !m.custom;
 
   return <View style={{ gap: spacing.lg }}>
-    <Section title={t.look} note={t.lookNote}>
-      {empty && <Notice text={t.sealOnly} />}
-      <Sub title={t.buildings} note={t.buildingsNote}>
+    <Section title={t.look}>
+      <Sub title={t.buildings}>
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm }}>
           <AButton small tone={picking ? "blue" : "ghost"} title={picking ? t.donePicking : t.pickBuildings} onPress={() => onPicking(!picking)} />
           <Text style={{ fontFamily: sans, fontSize: 12, color: picking ? C.blue : C.muted }}>{picking ? t.picking : t.buildingCount(m.buildings?.ids.length ?? 0)}</Text>
@@ -59,11 +57,10 @@ export function LandmarkFields({ value, onChange, picking, onPicking, buildingTa
         {m.buildings && <>
           <Row label={t.height}><Stepper label={t.height} value={m.buildings.top} min={4} max={60} step={2} format={(v) => `${v} m`}
             onChange={(top) => setLook({ ...m, buildings: { ...m.buildings!, top } })} /></Row>
-          <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{t.heightNote(m.buildings.real_top)}</Text>
           <Colours value={m.buildings.color} onChange={(color) => setLook({ ...m, buildings: { ...m.buildings!, color } })} />
         </>}
       </Sub>
-      <Sub title={t.model} note={t.modelNote}>
+      <Sub title={t.model}>
         <Choice<ModelKind | "none"> value={m.model?.kind ?? "none"}
           options={[{ value: "none", label: t.none }, ...MODEL_KINDS.map((k) => ({ value: k, label: t.models[k] }))]}
           onChange={(k) => setLook({ ...m, model: k === "none" ? null : { kind: k, size: m.model?.size ?? "m", rotate: m.model?.rotate ?? 0, color: m.model?.color ?? "landmark" } })} />
@@ -75,15 +72,14 @@ export function LandmarkFields({ value, onChange, picking, onPicking, buildingTa
           <Colours value={m.model.color} onChange={(color) => setLook({ ...m, model: { ...m.model!, color } })} />
         </>}
       </Sub>
-      {m.custom && <Sub title={t.custom} note={t.customNote}>
+      {m.custom && <Sub title={t.custom}>
         <Colours value={m.custom.color} onChange={(color) => setLook({ ...m, custom: { ...m.custom!, color } })} />
         <View style={{ alignItems: "flex-start" }}><AButton small tone="ghost" title={t.remove} onPress={() => setLook({ ...m, custom: null })} /></View>
       </Sub>}
-      <Text style={{ fontFamily: sans, fontSize: 12, lineHeight: 18, color: C.muted }}>{t.sealNote}</Text>
     </Section>
 
     <Section title={t.reward}>
-      <Sub title={t.vessel} note={t.vesselNote}>
+      <Sub title={t.vessel}>
         <View accessibilityRole="radiogroup" style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
           {LANDMARK_VESSELS.map((v) => <Tile key={v} on={value.vessel === v} label={(VESSELS as any)[v]?.name[language] ?? v} onPress={() => onChange({ ...value, vessel: v })}>
             <VesselThumb kind={v} size={44} />
@@ -91,7 +87,7 @@ export function LandmarkFields({ value, onChange, picking, onPicking, buildingTa
         </View>
         <Text style={{ fontFamily: sans, fontSize: 13, color: C.ink }}>{(VESSELS as any)[value.vessel]?.name[language] ?? value.vessel}</Text>
       </Sub>
-      <Sub title={t.stamp} note={t.stampNote}>
+      <Sub title={t.stamp}>
         <View accessibilityRole="radiogroup" style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
           {LANDMARK_STAMPS.map((s) => <Tile key={s} on={value.stamp === s} label={t.stampNames[s] ?? s} onPress={() => onChange({ ...value, stamp: s })}>
             <Image source={stamps[s]} style={{ width: 44, height: 44 }} resizeMode="contain" accessibilityIgnoresInvertColors />
@@ -101,24 +97,22 @@ export function LandmarkFields({ value, onChange, picking, onPicking, buildingTa
       </Sub>
     </Section>
 
-    <Section title={t.fight} note={t.fightNote}>
+    <Section title={t.fight}>
       <Row label={t.health}><Stepper label={t.health} value={value.fight_health} min={10} max={200} step={5} onChange={(fight_health) => onChange({ ...value, fight_health })} /></Row>
       <Row label={t.seconds}><Stepper label={t.seconds} value={value.fight_seconds} min={60} max={600} step={15} onChange={(fight_seconds) => onChange({ ...value, fight_seconds })} /></Row>
     </Section>
   </View>;
 }
 
-function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return <View style={{ gap: spacing.sm, borderTopWidth: 1, borderTopColor: C.line, paddingTop: spacing.md }}>
     <Text accessibilityRole="header" style={{ fontFamily: serif, fontSize: 17, color: C.ink }}>{title}</Text>
-    {note && <Text style={{ fontFamily: sans, fontSize: 12, lineHeight: 18, color: C.muted }}>{note}</Text>}
     {children}
   </View>;
 }
-function Sub({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+function Sub({ title, children }: { title: string; children: React.ReactNode }) {
   return <View style={{ gap: 8, paddingVertical: 4 }}>
     <Text style={{ fontFamily: sans, fontSize: 14, color: C.ink }}>{title}</Text>
-    {note && <Text style={{ fontFamily: sans, fontSize: 12, lineHeight: 17, color: C.muted }}>{note}</Text>}
     {children}
   </View>;
 }

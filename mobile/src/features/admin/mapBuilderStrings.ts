@@ -22,7 +22,6 @@ const strings = {
     uploading: "上傳中…",
     removePhoto: "移除照片",
     credit: "照片來源（選填）",
-    photoNote: "玩家轉動時會看到這張照片；沒有照片就看到選的圖。",
     softCell: (name: string, m: number) => `這一格已經有「${name}」，相距 ${m} 米。可以照樣儲存。`,
     softArea: (kind: string) => `地圖標示這裡是${kind}，確定是公共走道嗎？`,
     areaKinds: { school: "學校", kindergarten: "幼稚園", university: "大學", college: "學院", hospital: "醫院", cemetery: "墓地", military: "軍事用地" } satisfies Record<AreaKind, string>,
@@ -47,7 +46,6 @@ const strings = {
     habitatFromMap: (h: string) => `地點類型：${h}（從地圖判斷）`,
     habitatChosen: (h: string) => `地點類型：${h}`,
     change: "更改",
-    habitatNote: "有些容器只在某一種地點出現（例如只在水邊）。沒有設定地點類型的容器，在任何點都會出現。",
     // R1.5
     cancel: "取消",
     save: "儲存",
@@ -136,7 +134,6 @@ const strings = {
     uploading: "Uploading…",
     removePhoto: "Remove photo",
     credit: "Photo credit (optional)",
-    photoNote: "Players see this photo when they spin. Without one, they see the chosen picture.",
     softCell: (name: string, m: number) => `This cell already has “${name}”, ${m} m away. You can still save.`,
     softArea: (kind: string) => `The map marks this as ${kind}. Is it a public walkway?`,
     areaKinds: { school: "a school", kindergarten: "a kindergarten", university: "a university", college: "a college", hospital: "a hospital", cemetery: "a cemetery", military: "military land" } satisfies Record<AreaKind, string>,
@@ -161,7 +158,6 @@ const strings = {
     habitatFromMap: (h: string) => `Habitat: ${h} (from the map)`,
     habitatChosen: (h: string) => `Habitat: ${h}`,
     change: "Change",
-    habitatNote: "Some vessels only appear at one kind of spot (say, only by water). Vessels without a habitat appear at any spot.",
     // R1.5
     cancel: "Cancel",
     save: "Save",

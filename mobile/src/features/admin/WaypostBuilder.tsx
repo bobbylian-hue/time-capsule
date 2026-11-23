@@ -115,7 +115,6 @@ function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredi
     } catch (e) { setError(errorCode(e)); } finally { setBusy(false); }
   };
   const url = photoUrl(photo);
-  const lt = useLandmarkText();
   return <View style={{ gap: spacing.sm }}>
     {landmark ? <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.picture}</Text> : <ScenePicker value={scene} onChange={onScene} />}
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
@@ -130,7 +129,6 @@ function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredi
         {url && <AButton small tone="ghost" title={mb.removePhoto} onPress={() => { onPhoto(null); onCredit(""); }} />}
       </View>
     </View>
-    <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{landmark && !url ? lt.pictureDefault : mb.photoNote}</Text>
     {url && <Field label={mb.credit} value={credit} onChangeText={onCredit} maxLength={120} placeholder="© …" />}
     {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
   </View>;
@@ -256,7 +254,6 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
           onPress={() => { setNameZh(suggestion.zh); setNameEn(suggestion.en); }} />
       </View>
     </View>}
-    {making && <Notice text={lt.makeNote} />}
     <PicturePicker region={region.id} scene={scene} onScene={setScene} photo={photo} onPhoto={setPhoto} credit={credit} onCredit={setCredit} landmark={isLandmark} />
     {look && landmark && <LandmarkFields value={look} onChange={setLook} picking={landmark.picking} onPicking={landmark.onPicking} buildingTap={landmark.buildingTap} />}
     <Field label={a.ed.noteOptional} value={note} onChangeText={setNote} maxLength={300} />
@@ -319,7 +316,6 @@ export function SpotForm({ flat, region, spot, at, ask, onSaved, onCancel }: { f
         </Text>
         {habitat && !choosing && <AButton small tone="ghost" title={mb.change} onPress={() => setChoosing(true)} />}
       </View>
-      <Text style={{ fontFamily: sans, fontSize: 12, lineHeight: 18, color: C.muted }}>{mb.habitatNote}</Text>
       {choosing && <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: spacing.sm }}>
         {HABITATS.map((h) => {
           const on = habitat === h;
