@@ -38,7 +38,6 @@ Status: `todo` → `doing` → `review` (report sent to Claude) → `done`. Move
 ## Review
 | ID | Task | Owner | Note |
 |---|---|---|---|
-| PR #209 | Fill an area publish, Undo and city draft groups | Codex | Held migration `20261123070455` passed hosted dry run, rollback and local real-JWT tests. Await Claude's review and Roy's approval before applying, regenerating hosted types, activating the flag and testing production Publish and Undo. |
 | RV-HK | Hong Kong wave 1 regional vessel art | Codex / Roy | Roy approved `bolo-bun` at `b6cdf2a` and the reference-based tram at `743133d`, and approved the full art PR #140. Shared records refreshed from main. Green CI precedes owner-account squash merge. The red-white-blue bag is already in #134. |
 | RV-SG | Singapore wave 1 vessel art | Codex / Roy | Roy approved kamcheng and the revised Miss Joaquim orchid in PR #139 at `36471e1`. Refreshed from main with every approved PNG and WebP byte-identical. Owner-account squash merge follows green CI. Tingkat landed separately in #134. Art only. |
 | RV-L-art | Earned Landmark vessels and Passport stamps | Codex / Roy | Roy approved the North Gate test in #137 and requested its 2.5% idle roof lift. The complete art batch includes Durian, Guia Lighthouse, and ink-blue Beimen, Esplanade and Guia stamps. Roy approved the full set at `543b9cc` in #137. Refreshed from main with the approved art preserved. Green CI precedes owner-account squash merge. |
@@ -112,6 +111,7 @@ Status: `todo` → `doing` → `review` (report sent to Claude) → `done`. Move
 
 ## Done
 
+- PRs #209 and #210 — Fill an area Publish, Undo and grouped drafts are live. The partial-save screen fix merged as `8058b4f`. Backend `0a81228` shipped with migration `20261123070455`, types `7248ed6` and owner activation `3de8720`. Signed-in 1440 px Traditional Chinese and English checks passed for Publish, Undo, Save as drafts, View, Publish and Delete. A 375 px Traditional Chinese pin tap opened details in the bottom popup. All eight test places were removed and zero remain.
 - PR #208 — Fill an area icons, pin details and the single Drafts card shipped as `8cd54fa` with `FILL_PUBLISH_BACKEND` false. Signed-in 1440 px checks passed in Traditional Chinese and English. All disposable suggestions and the test draft were removed.
 - PR #206 — The reviewed Chinese-name backfill merged as `3d41be5`. Migration `20261123064426` is live with 168 audited renames. Both Civic Square names were verified in admin and on Journey in Traditional Chinese and English. See the [review inventory](review/map-builder-waypost-names.md).
 - PR #207 — The Fill an area speed fix merged as `b2a60de` after CI 45118420151 passed. Migration `20261123052650` is live. The authenticated production RPC returned 74 spawn spots for the original 3.35 km² Taipei box at 150 m in 1.73 seconds. The 4 km² limit stays.
