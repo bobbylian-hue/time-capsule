@@ -49,7 +49,9 @@ function Row({ row, first, onUndone }: { row: ActivityRow; first: boolean; onUnd
     setBusy(true); setError(null);
     try { await adminEdit.undo(row.id, null); onUndone?.(); } catch (e) { setError(a.error[(e as Error)?.message] ?? a.error.failed); } finally { setBusy(false); }
   };
-  const say = a.action[row.action];
+  // A status change (R1.5) reads by the status the places moved to.
+  const status = row.action.endsWith(".status") ? (row.after as { status?: string } | null)?.status : null;
+  const say = a.action[status ? `${row.action}.${status}` : row.action];
   const sentence = say ? say(row.actor.name, row.target_label) : a.actionFallback(row.actor.name, row.action, row.target_label);
   const roleWord = (v: unknown) => v && typeof v === "object" && "role" in (v as any) ? a.role[(v as any).role as keyof typeof a.role] : null;
   const change = row.action === "member.role" ? `${roleWord(row.before)} → ${roleWord(row.after)}` : row.action === "member.add" ? roleWord(row.after) : null;

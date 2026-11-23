@@ -4,7 +4,7 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 const Web = WebView as unknown as React.ComponentType<Record<string, unknown> & { ref?: React.Ref<{ injectJavaScript: (js: string) => void }> }>;
 import type { LiveMapHandle, LiveMapProps, MapMessage } from "./types";
 
-export const LiveMap = forwardRef<LiveMapHandle, LiveMapProps>(function LiveMap({ html, state, onSelect, onTap, onFollowChange, onNames }, ref) {
+export const LiveMap = forwardRef<LiveMapHandle, LiveMapProps>(function LiveMap({ html, state, onSelect, onTap, onFollowChange, onNames, onBuilder }, ref) {
   const web = useRef<{ injectJavaScript: (js: string) => void }>(null);
   const [ready, setReady] = useState(false);
   // Commands sent before the map has loaded wait for it, so a screen can frame the map as it opens.
@@ -23,6 +23,7 @@ export const LiveMap = forwardRef<LiveMapHandle, LiveMapProps>(function LiveMap(
       else if (m.type === "tap") onTap?.(m.lat, m.lng);
       else if (m.type === "follow") onFollowChange?.(m.follow);
       else if (m.type === "names") onNames?.(m);
+      else if (m.type === "drag" || m.type === "box" || m.type === "namesMany") onBuilder?.(m);
       else if (m.type === "error" && __DEV__) console.warn("live map:", m.message);
     }} />;
 });

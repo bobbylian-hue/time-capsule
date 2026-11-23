@@ -2,11 +2,11 @@ import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } f
 import { View } from "react-native";
 import type { LiveMapHandle, LiveMapProps, MapMessage } from "./types";
 
-export const LiveMap = forwardRef<LiveMapHandle, LiveMapProps>(function LiveMap({ html, state, onSelect, onTap, onFollowChange, onNames }, ref) {
+export const LiveMap = forwardRef<LiveMapHandle, LiveMapProps>(function LiveMap({ html, state, onSelect, onTap, onFollowChange, onNames, onBuilder }, ref) {
   const frame = useRef<HTMLIFrameElement | null>(null);
   const [ready, setReady] = useState(false);
-  const handlers = useRef({ onSelect, onTap, onFollowChange, onNames });
-  handlers.current = { onSelect, onTap, onFollowChange, onNames };
+  const handlers = useRef({ onSelect, onTap, onFollowChange, onNames, onBuilder });
+  handlers.current = { onSelect, onTap, onFollowChange, onNames, onBuilder };
   // Commands sent before the map has loaded wait for it, so a screen can frame the map as it opens.
   const waiting = useRef<object[]>([]);
   const live = useRef(false);
@@ -22,6 +22,7 @@ export const LiveMap = forwardRef<LiveMapHandle, LiveMapProps>(function LiveMap(
       else if (m.type === "tap") handlers.current.onTap?.(m.lat, m.lng);
       else if (m.type === "follow") handlers.current.onFollowChange?.(m.follow);
       else if (m.type === "names") handlers.current.onNames?.(m);
+      else if (m.type === "drag" || m.type === "box" || m.type === "namesMany") handlers.current.onBuilder?.(m);
       else if (m.type === "error" && __DEV__) console.warn("live map:", m.message);
     };
     window.addEventListener("message", listen);
