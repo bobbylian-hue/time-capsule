@@ -6,6 +6,7 @@ import { supabase } from "./supabase";
 import { ADMIN_SAMPLE, rpc, type Habitat, type MapSpot, type MapWaypost, type PlaceStatus, type Scene, type WaypostCheck } from "./admin";
 import { sample } from "./adminSample";
 import type { Border } from "./border";
+import type { LandmarkSettings } from "./admin";
 export { insideBorder, type Border } from "./border";
 import { WAYPOST_PHOTOS } from "./waypostPhoto";
 export { photoUrl } from "./waypostPhoto";
@@ -21,6 +22,11 @@ export const MAP_BUILDER_R15 = MAP_BUILDER_R15_BACKEND || ADMIN_SAMPLE;
  * and the city's drafts grouped by the batch they came from (Roy, 2026-11-23). */
 export const FILL_PUBLISH_BACKEND = true;
 const FILL_PUBLISH = FILL_PUBLISH_BACKEND || ADMIN_SAMPLE;
+/** Turn on once Codex's R2 migration is applied: Landmarks with a look, a reward and a fight, made in the builder. */
+export const MAP_BUILDER_R2_BACKEND = false;
+export const MAP_BUILDER_R2 = MAP_BUILDER_R2_BACKEND || ADMIN_SAMPLE;
+/** What a new Landmark starts with: the seal alone, the default keepsake and stamp, and today's fight (40 HP, 150 s). */
+export const LANDMARK_DEFAULTS: LandmarkSettings = { monument: null, vessel: "landmark-keepsake", stamp: "landmark-default", fight_health: 40, fight_seconds: 150 };
 
 export type CellNeighbour = { id: string; name_zh: string; name_en: string; meters: number };
 /** What the server says about a spot under the R1 rules: only the border refuses; the rest are notes. */
@@ -59,6 +65,15 @@ export const builder = {
       : rpc("admin_spot_add", { p_region: region, p_lat: lat, p_lng: lng, p_habitat: habitat, p_note: note, ...(MAP_BUILDER_R15_BACKEND ? { p_status: status } : {}) }),
   moveSpot: (id: string, lat: number, lng: number, note: string | null): Promise<MapSpot> =>
     ADMIN_SAMPLE ? sample.moveSpot(id, lat, lng, note) : rpc("admin_spot_move", { p_id: id, p_lat: lat, p_lng: lng, p_note: note }),
+  // R2 (Codex's R2 migration).
+  /** A new Landmark: the Waypost fields plus its look, reward and fight. */
+  addLandmark: (region: string, w: WaypostWrite, landmark: LandmarkSettings, note: string | null, status: "draft" | "live" = "live"): Promise<MapWaypost> =>
+    ADMIN_SAMPLE ? sample.addWaypost(region, w, true, note, status, landmark)
+      : rpc("admin_waypost_add", { p_region: region, p_lat: w.lat, p_lng: w.lng, p_name_zh: w.name_zh, p_name_en: w.name_en, p_scene: w.scene,
+          p_photo: w.photo, p_photo_credit: w.photo_credit, p_checked: true, p_note: note, p_status: status, p_kind: "landmark", p_landmark: landmark }),
+  /** Changes a Landmark's look, reward or fight; on a common Waypost, makes it a Landmark (keeping its id and spins). */
+  setLandmark: (id: string, landmark: LandmarkSettings, note: string | null): Promise<number | null> =>
+    ADMIN_SAMPLE ? sample.setLandmark(id, landmark, note) : rpc("admin_landmark_set", { p_id: id, p_landmark: landmark, p_note: note }),
   stats: (id: string): Promise<WaypostStats> =>
     ADMIN_SAMPLE ? sample.waypostStats(id) : rpc("admin_waypost_stats", { p_id: id }),
   // R1.5 (Codex's R1.5 migration).

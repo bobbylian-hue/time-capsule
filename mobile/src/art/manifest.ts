@@ -2134,6 +2134,20 @@ export const vesselParts: Record<VesselKind, IllustratedParts> = {
       { name: "hinge-pin", role: "hinge", pivot: {"x": 850, "y": 418}, open: [{"at": 0, "x": 0.0, "y": 0.0, "opacity": 1}, {"at": 0.18, "x": 0.0, "y": 0.0, "opacity": 1}, {"at": 0.38, "x": 0.033757, "y": 0.019843, "opacity": 1}, {"at": 0.52, "x": 0.056217, "y": 0.07687, "opacity": 1}, {"at": 0.56, "x": 0.056392, "y": 0.093375, "opacity": 0.86}, {"at": 0.6, "x": 0.054704, "y": 0.109372, "opacity": 0.53}, {"at": 0.64, "x": 0.051228, "y": 0.124683, "opacity": 0.12}, {"at": 0.69, "x": 0.043494, "y": 0.145386, "opacity": 0}, {"at": 0.77, "x": 0.033816, "y": 0.162697, "opacity": 0}, {"at": 1, "x": 0.012888, "y": 0.187191, "opacity": 0}], source: require('../../../public/art/vessels/vessel-pedicab-hinge-pin.webp') },
     ],
   },
+  'landmark-keepsake': {
+    assembled: require('../../../public/art/vessels/vessel-landmark-keepsake.webp'),
+    opening: "A",
+    idleMs: 4000,
+    idle: [{"type": "sway", "deg": 3, "pivot": {"x": 512, "y": 900}}],
+    mouth: {"x": 511, "y": 553},
+    baseY: 899,
+    sparkle: {"x": 242, "y": 423},
+    layers: [
+      { name: "lid-reverse", role: "hinge", pivot: {"x": 519, "y": 326}, open: [{"at": 0, "y": 0.034, "scaleX": 0.2, "scaleY": 0.025, "opacity": 0}, {"at": 0.42, "y": 0, "scaleX": 1, "scaleY": 0.025, "opacity": 0}, {"at": 0.45, "y": 0, "scaleX": 1, "scaleY": 0.15, "opacity": 1}, {"at": 0.5, "y": 0, "scaleX": 1, "scaleY": 0.43, "opacity": 1}, {"at": 0.78, "y": 0, "scaleX": 1, "scaleY": 0.94, "opacity": 1}, {"at": 1, "y": 0, "scaleX": 1, "scaleY": 1, "opacity": 1}], source: require('../../../public/art/vessels/vessel-landmark-keepsake-lid-reverse.webp') },
+      { name: "body", role: "static", source: require('../../../public/art/vessels/vessel-landmark-keepsake-body.webp') },
+      { name: "lid", role: "hinge", pivot: {"x": 519, "y": 326}, open: [{"at": 0, "scaleY": 1, "opacity": 1}, {"at": 0.32, "scaleY": 0.24, "opacity": 1}, {"at": 0.4, "scaleY": 0.03, "opacity": 1}, {"at": 0.43, "scaleY": 0.02, "opacity": 0}, {"at": 1, "scaleY": 0.02, "opacity": 0}], source: require('../../../public/art/vessels/vessel-landmark-keepsake-lid.webp') },
+    ],
+  },
   'north-gate': {
     assembled: require('../../../public/art/vessels/vessel-north-gate.webp'),
     opening: "B",
@@ -2231,6 +2245,8 @@ export const gameArt = {
     taipei101: require('../../../public/art/game/wheel/scene-landmark-taipei.webp'),
     merlion: require('../../../public/art/game/wheel/scene-landmark-singapore.webp'),
     senado: require('../../../public/art/game/wheel/scene-landmark-macau.webp'),
+    /** Map builder R2: the default picture for a Landmark without its own (PR #197). */
+    landmark: require('../../../public/art/game/wheel/scene-landmark-default.webp'),
   },
 };
 /** Private-hunt quest pictures (PR #115, approved by Roy): the organizer's choices, keyed as stored ("tpl:<key>"). */
@@ -2299,4 +2315,11 @@ export const stamps: Record<string, ImageSourcePropType> = {
   'aurele-cotai': require('../../../public/art/stamps/stamp-aurele-cotai.webp'),
   'hunt-xinyi-2026-11': require('../../../public/art/stamps/stamp-hunt-xinyi-2026-11.webp'),
   'hunt-hkust-2026-11': require('../../../public/art/stamps/stamp-hunt-hkust-2026-11.webp'),
+  beimen: require('../../../public/art/stamps/stamp-beimen.webp'),
+  esplanade: require('../../../public/art/stamps/stamp-esplanade.webp'),
+  guia: require('../../../public/art/stamps/stamp-guia.webp'),
+  /** Map builder R2: the stamp a Landmark earns until it has its own (PR #197). */
+  'landmark-default': require('../../../public/art/stamps/stamp-landmark-default.webp'),
 };
+/** The stamps a Landmark can give in the map builder: the default, then each Landmark's own. */
+export const LANDMARK_STAMPS = ["landmark-default", "taipei101", "senado", "hkust", "merlion", "beimen", "esplanade", "guia"] as const;

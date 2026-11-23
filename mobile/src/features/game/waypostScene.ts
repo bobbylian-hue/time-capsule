@@ -1,4 +1,4 @@
-export type WaypostScene = "park" | "garden" | "waterfront" | "square" | "publicArt" | "taipei101" | "merlion" | "senado";
+export type WaypostScene = "park" | "garden" | "waterfront" | "square" | "publicArt" | "taipei101" | "merlion" | "senado" | "landmark";
 
 const SCENES = ["park", "garden", "waterfront", "square", "publicArt"] as const;
 const LANDMARKS: Record<string, WaypostScene> = { taipei101: "taipei101", merlion: "merlion", senado: "senado" };
@@ -10,9 +10,11 @@ const BY_NAME: [RegExp, WaypostScene][] = [
 ];
 
 /** Which picture a Waypost shows: its landmark, else the kind of place its name describes. */
-export function sceneKey(waypost: { place?: string | null; scene?: string | null; name_en: string; name_zh: string }): WaypostScene {
+export function sceneKey(waypost: { place?: string | null; scene?: string | null; name_en: string; name_zh: string; kind?: string }): WaypostScene {
   const landmark = LANDMARKS[waypost.place ?? ""];
   if (landmark) return landmark;
+  // A Landmark without a picture of its own (map builder R2) shows the default Landmark picture.
+  if (waypost.kind === "landmark") return "landmark";
   if (waypost.scene && (SCENES as readonly string[]).includes(waypost.scene)) return waypost.scene as WaypostScene;
   const name = `${waypost.name_en} ${waypost.name_zh}`;
   return BY_NAME.find(([pattern]) => pattern.test(name))?.[1] ?? "park";

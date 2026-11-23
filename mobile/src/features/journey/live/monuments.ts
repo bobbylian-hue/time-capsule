@@ -38,11 +38,11 @@ export const MODELS: Record<ModelKind, Tier[]> = {
   gate: [[1.4, 0, 10, { dx: -6 }], [1.4, 0, 10, { dx: 6 }], [0, 8, 9.6, { rect: [8.5, 1.2] }], [0, 10.4, 11.6, { rect: [10.5, 1.6] }]],
   fountain: [[9, 0, 0.5, { round: true }], [7, 0.5, 2, { arc: { inner: 6, from: 0, to: 180 } }], [7, 0.5, 2, { arc: { inner: 6, from: 180, to: 360 } }],
     [6, 0.5, 1, { round: true }], [1.5, 1, 4, { round: true }], [3, 4, 4.6, { round: true }], [0.8, 4.6, 6.5, { round: true }]],
-  column: [[3, 0, 1, { round: true }], [1.4, 1, 14, { round: true }], [2.2, 14, 15, { round: true }], [1, 15, 17.5, { round: true }]],
+  column: [[3.4, 0, 1.2, { round: true }], [1.6, 1.2, 19, { round: true }], [2.5, 19, 20.2, { round: true }], [1.1, 20.2, 23, { round: true }]],
   pavilion: [[7, 0, 1, { round: true }], [0.5, 1, 5, { dx: 4.5, dy: 4.5 }], [0.5, 1, 5, { dx: -4.5, dy: 4.5 }], [0.5, 1, 5, { dx: 4.5, dy: -4.5 }], [0.5, 1, 5, { dx: -4.5, dy: -4.5 }],
     [7.5, 5, 5.8, { round: true }], [5, 5.8, 6.8, { round: true }], [2.5, 6.8, 7.6, { round: true }], [0.6, 7.6, 9, { round: true }]],
   dome: [[8, 0, 6, { round: true }], [7, 6, 8, { round: true }], [6, 8, 9.5, { round: true }], [4.5, 9.5, 10.6, { round: true }], [2.5, 10.6, 11.3, { round: true }], [0.6, 11.3, 13, { round: true }]],
-  statue: [[3, 0, 3], [2.2, 3, 4], [1, 4, 9, { round: true }], [0.7, 9, 10.2, { round: true }]],
+  statue: [[3.6, 0, 3.5], [2.6, 3.5, 4.6], [1.5, 4.6, 12.5, { round: true }], [1, 12.5, 14.4, { round: true }]],
 };
 
 const flare = (from: number, h: number, narrow: number, wide: number): Tier[] => [[narrow, from, from + h * .35], [(narrow + wide) / 2, from + h * .35, from + h * .7], [wide, from + h * .7, from + h]];
@@ -108,11 +108,12 @@ export function modelTiers(model: NonNullable<Monument["model"]>): Tier[] {
   }] as Tier);
 }
 
-/** Where the seal floats: the top of whatever is built (0 for the seal alone). */
+/** Where the seal floats: on top of the shape at the Landmark's point (a model or custom tiers), else on top of its
+ * buildings; 0 for the seal alone. */
 export function monumentTop(m: Monument | null | undefined): number {
   if (!m) return 0;
   const tiers = [...(m.custom?.tiers ?? []), ...(m.model ? modelTiers(m.model) : [])];
-  return Math.max(m.buildings?.top ?? 0, 0, ...tiers.map((t) => t[2]));
+  return tiers.length ? Math.max(0, ...tiers.map((t) => t[2])) : m.buildings?.top ?? 0;
 }
 
 /** The Landmark blues, bottom to top (the default); the other colours are one paint with the map's soft gradient. */
@@ -177,4 +178,21 @@ function tierRing(lat: number, lng: number, [half, , , o]: Tier, rotate: number)
   if (o?.round) return Array.from({ length: 25 }, (_, k) => at(half, k / 24 * 360));
   const [hx, hy] = o?.rect ?? [half, half];
   return [[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]].map(([x, y]) => to(cx + x * hx, cy + y * hy));
+}
+
+type LandmarkLike = { id: string; kind: string; lat: number; lng: number; place?: string | null; monument?: Monument | null };
+/** A Landmark's monument where it stands: its own from the server (R2; null = seal only), else its place's built-in one. */
+export function placedMonument(w: LandmarkLike): PlacedMonument | null {
+  if (w.kind !== "landmark") return null;
+  if (w.monument !== undefined) return w.monument ? { id: w.id, lat: w.lat, lng: w.lng, monument: w.monument } : null;
+  const seed = MONUMENT_SEED[w.place ?? ""];
+  return seed ? { id: w.id, ...seed } : null;
+}
+/** Every monument to draw: the given Landmarks', plus the built-in ones whose Landmark isn't in the list (too far away
+ * to be sent), so they keep showing as before R2. Taps on those send the place key instead of a Waypost id. */
+export function monumentsFor(list: LandmarkLike[]): PlacedMonument[] {
+  const out = list.map(placedMonument).filter((m): m is PlacedMonument => !!m);
+  const here = new Set(list.filter((w) => w.kind === "landmark").map((w) => w.place));
+  for (const [place, seed] of Object.entries(MONUMENT_SEED)) if (!here.has(place)) out.push({ id: place, ...seed });
+  return out;
 }

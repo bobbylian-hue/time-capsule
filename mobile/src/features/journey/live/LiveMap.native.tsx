@@ -23,7 +23,7 @@ export const LiveMap = forwardRef<LiveMapHandle, LiveMapProps>(function LiveMap(
       else if (m.type === "tap") onTap?.(m.lat, m.lng);
       else if (m.type === "follow") onFollowChange?.(m.follow);
       else if (m.type === "names") onNames?.(m);
-      else if (m.type === "drag" || m.type === "box" || m.type === "namesMany") onBuilder?.(m);
+      else if (m.type === "drag" || m.type === "box" || m.type === "namesMany" || m.type === "building") onBuilder?.(m);
       else if (m.type === "error" && __DEV__) console.warn("live map:", m.message);
     }} />;
 });

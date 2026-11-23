@@ -2,12 +2,16 @@
 // Counts and vessel sets follow what is live; pin positions are scattered around each city and are not
 // real Wayposts. Changes made here last until the page reloads.
 import type {
-  ActivityRow, AdminRole, CityMap, Habitat, MapSpot, MapWaypost, PlaceStatus, Member, Person, QueueItem, QueueKind, Rarity, Region, Scene, SpawnChange, SpawnPlace,
+  ActivityRow, AdminRole, CityMap, Habitat, LandmarkSettings, MapSpot, MapWaypost, PlaceStatus, Member, Person, QueueItem, QueueKind, Rarity, Region, Scene, SpawnChange, SpawnPlace,
   SpawnPreview, SpawnRule, Spawning, WaveCapsule, WaveConfig, WaypostCheck,
 } from "./admin";
 import { STARTER_VESSELS } from "./vesselAccess";
 import { VESSELS } from "../features/shop/strings";
 import { insideBorder, type Border } from "./border";
+import { MONUMENT_SEED } from "../features/journey/live/monuments";
+
+/** R2: the sample's Landmarks with the look, reward and fight the R2 backfill gives them. */
+const lm = (place: string | null, vessel: string): LandmarkSettings => ({ monument: place ? MONUMENT_SEED[place]?.monument ?? null : null, vessel, stamp: place ?? "landmark-default", fight_health: 40, fight_seconds: 150 });
 
 const ROY: Person = { id: "1fd214ef-4de5-4b4f-81bc-77c3328441fe", name: "Roy", avatar: { set: "illus", id: "01" } };
 const MEI: Person = { id: "sample-mei", name: "Mei", avatar: { set: "illus", id: "04" } };
@@ -44,13 +48,13 @@ const REGIONS: Region[] = [
     coverage: { covered: true, bytes: 4_300_000, built_at: "2026-11-07" } },
 ];
 const LANDMARKS: Record<string, MapWaypost[]> = {
-  taipei: [{ id: "lm-101", name_zh: "台北101", name_en: "Taipei 101", lat: 25.033667, lng: 121.56481, kind: "landmark", game_enabled: true }],
+  taipei: [{ id: "lm-101", name_zh: "台北101", name_en: "Taipei 101", lat: 25.033667, lng: 121.56481, kind: "landmark", game_enabled: true, landmark: lm("taipei101", "bamboo-tower") }],
   "hong-kong": [
-    { id: "lm-clock", name_zh: "尖沙咀鐘樓", name_en: "TST Clock Tower", lat: 22.29348, lng: 114.16949, kind: "landmark", game_enabled: true },
-    { id: "lm-hkust", name_zh: "科大日晷", name_en: "HKUST Sundial", lat: 22.3374255, lng: 114.2629606, kind: "landmark", game_enabled: true },
+    { id: "lm-clock", name_zh: "尖沙咀鐘樓", name_en: "TST Clock Tower", lat: 22.29348, lng: 114.16949, kind: "landmark", game_enabled: true, landmark: { ...lm(null, "clock-tower"), stamp: "landmark-default" } },
+    { id: "lm-hkust", name_zh: "科大日晷", name_en: "HKUST Sundial", lat: 22.3374255, lng: 114.2629606, kind: "landmark", game_enabled: true, landmark: lm("hkust", "red-bird") },
   ],
-  singapore: [{ id: "lm-merlion", name_zh: "魚尾獅", name_en: "Merlion", lat: 1.28681, lng: 103.85453, kind: "landmark", game_enabled: true }],
-  macau: [{ id: "lm-senado", name_zh: "議事亭前地噴水池", name_en: "Senado Square fountain", lat: 22.193683, lng: 113.53989, kind: "landmark", game_enabled: true }],
+  singapore: [{ id: "lm-merlion", name_zh: "魚尾獅", name_en: "Merlion", lat: 1.28681, lng: 103.85453, kind: "landmark", game_enabled: true, landmark: { ...lm(null, "lionfish-fountain"), stamp: "merlion" } }],
+  macau: [{ id: "lm-senado", name_zh: "議事亭前地噴水池", name_en: "Senado Square fountain", lat: 22.193683, lng: 113.53989, kind: "landmark", game_enabled: true, landmark: lm("senado", "senado-fountain") }],
 };
 const KEEPERS: Record<string, CityMap["keepers"]> = {
   taipei: [{ hunt: "xinyi-2026-11", name_zh: "市府廣場", name_en: "Civic Square", lat: 25.037546, lng: 121.562754 }],
@@ -273,12 +277,21 @@ const log = (row: Omit<ActivityRow, "id" | "actor" | "at">) => {
 };
 const canEdit = () => viewAs === "owner" || viewAs === "admin" ? true : fail("forbidden");
 const label = (w: MapWaypost) => w.name_zh;
-const snapshot = (w: MapWaypost) => ({ name_zh: w.name_zh, name_en: w.name_en, lat: w.lat, lng: w.lng, scene: w.scene ?? null, game_enabled: w.game_enabled, hidden_at: w.hidden_at ?? null, status: w.status ?? (w.game_enabled ? "live" : "hidden") });
+const snapshot = (w: MapWaypost) => ({ name_zh: w.name_zh, name_en: w.name_en, lat: w.lat, lng: w.lng, scene: w.scene ?? null, game_enabled: w.game_enabled, hidden_at: w.hidden_at ?? null, status: w.status ?? (w.game_enabled ? "live" : "hidden"),
+  kind: w.kind, landmark: w.landmark ?? null });
 const spotSnapshot = (x: MapSpot) => ({ lat: x.lat, lng: x.lng, hidden_at: x.hidden_at ?? null, status: x.status ?? (x.hidden_at ? "hidden" : "live") });
 /** What each state means for the game: only live places are in it. */
 const asStatus = (status: PlaceStatus) => ({ status, game_enabled: status === "live", hidden_at: status === "live" || status === "draft" ? null : new Date().toISOString() });
 const ruleSnapshot = (r: SpawnRule) => ({ rarity: r.rarity, habitat: r.habitat, hours: r.hours, dates: r.dates, places: r.places ?? [] });
 const waveSnapshot = (c: WaveConfig) => ({ spawn_chance: c.spawn_chance, weights: c.weights, nearby_max: c.nearby_max });
+/** The server's checks on a Landmark's settings (the R2 migration validates the same). */
+const checkLandmark = (l: LandmarkSettings): LandmarkSettings => {
+  if (l.fight_health < 10 || l.fight_health > 200 || l.fight_seconds < 60 || l.fight_seconds > 600) fail("bad_fight");
+  const m = l.monument;
+  if (m && ((m.buildings && (!m.buildings.ids.length || m.buildings.ids.length > 300)) || (m.custom && m.custom.tiers.length > 60))) fail("bad_monument");
+  if (l.vessel !== "landmark-keepsake" && !EARNED.includes(l.vessel)) fail("bad_vessel");
+  return l;
+};
 const pause = <T,>(value: T) => new Promise<T>((done) => setTimeout(() => done(value), 120));
 
 function rules(): SpawnRule[] {
@@ -367,23 +380,22 @@ export const sample = {
     const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
     return pause(checkSpot(region, { lat, lng }, id));
   },
-  addWaypost: async (regionId: string, w: { lat: number; lng: number; name_zh: string; name_en: string; scene: Scene; photo?: string | null; photo_credit?: string | null }, checked: boolean, note: string | null, status: "draft" | "live" = "live") => {
+  addWaypost: async (regionId: string, w: { lat: number; lng: number; name_zh: string; name_en: string; scene: Scene; photo?: string | null; photo_credit?: string | null }, checked: boolean, note: string | null, status: "draft" | "live" = "live", landmark?: LandmarkSettings) => {
     canEdit();
     const region = REGIONS.find((r) => r.id === regionId) ?? fail("not_found");
     if (!w.name_zh.trim() || !w.name_en.trim() || !hasChinese(w.name_zh)) fail("bad_name");
     guardWaypost(region, w, note);
     const id = `admin-${Date.now().toString(36)}`;
     const post: MapWaypost = { id, ...w, name_zh: w.name_zh.trim(), name_en: w.name_en.trim(), photo: clean(w.photo), photo_credit: clean(w.photo_credit),
-      kind: "common", source_ref: `admin:${id}`, ...asStatus(status) };
+      kind: landmark ? "landmark" : "common", source_ref: `admin:${id}`, ...asStatus(status), ...(landmark ? { landmark: checkLandmark(landmark) } : {}) };
     postState.set(region.id, [...postsFor(region), post]);
-    log({ action: "waypost.add", target_type: "waypost", target_id: id, target_label: label(post), before: null, after: snapshot(post), note });
+    log({ action: landmark ? "landmark.add" : "waypost.add", target_type: "waypost", target_id: id, target_label: label(post), before: null, after: snapshot(post), note });
     return pause({ ...post });
   },
   updateWaypost: async (id: string, w: Partial<{ lat: number; lng: number; name_zh: string; name_en: string; scene: Scene; photo: string | null; photo_credit: string | null }>, note: string | null) => {
     canEdit();
     const region = regionOfPost(id) ?? fail("not_found");
     const old = postsFor(region).find((x) => x.id === id)!;
-    if (old.kind === "landmark") fail("landmark");
     const next = { ...old, ...Object.fromEntries(Object.entries(w).filter(([, v]) => v != null)) } as MapWaypost;
     next.photo = clean(next.photo); next.photo_credit = clean(next.photo_credit);
     if (!next.name_zh.trim() || !next.name_en.trim() || !hasChinese(next.name_zh)) fail("bad_name");
@@ -497,7 +509,6 @@ export const sample = {
       const list = postsFor(region);
       for (const id of ids) {
         const w = list.find((x) => x.id === id) ?? fail("not_found");
-        if (w.kind === "landmark") fail("landmark");
         if (w.status === "draft" && status === "live") guardWaypost(region, w, note, id);
         if ((status === "hidden" || status === "deleted") && w.game_enabled && huntsAround(region, w, id).some((h) => h.wayposts_left < h.wayposts_needed)) fail("hunt_needs_wayposts");
         before[id] = snapshot(w);
@@ -587,10 +598,22 @@ export const sample = {
     for (const x of spotsFor(region)) if (x.status === "draft") add("spots", x.id);
     return pause([...groups.values()].sort((a, b) => (b.at ?? "").localeCompare(a.at ?? "")));
   },
+  /** R2: a Landmark's look, reward and fight; a common Waypost becomes a Landmark. */
+  setLandmark: async (id: string, landmark: LandmarkSettings, note: string | null) => {
+    canEdit();
+    const region = regionOfPost(id) ?? fail("not_found");
+    const old = postsFor(region).find((x) => x.id === id) ?? fail("not_found");
+    if (old.kind === "common" && id.endsWith("-wp-0")) fail("rack_not_empty");
+    const next: MapWaypost = { ...old, kind: "landmark", landmark: checkLandmark(landmark) };
+    postState.set(region.id, postsFor(region).map((x) => x.id === id ? next : x));
+    log({ action: old.kind === "common" ? "landmark.make" : "landmark.edit", target_type: "waypost", target_id: id, target_label: label(next), before: snapshot(old), after: snapshot(next), note });
+    await pause(null);
+    return activity[0]?.id ?? null;
+  },
   undo: async (actionId: number, note: string | null) => {
     canEdit();
     const row = activity.find((r) => r.id === actionId) ?? fail("not_found");
-    if (!/^(waypost|spot|spawn|config)\./.test(row.action)) fail("not_undoable");
+    if (!/^(waypost|spot|spawn|config|landmark)\./.test(row.action)) fail("not_undoable");
     if (activity.some((r) => r.id > actionId && r.target_id === row.target_id && r.target_type === row.target_type)) fail("stale");
     const before = row.before as any;
     if (row.target_type === "waypost_batch" || row.target_type === "spot_batch") {

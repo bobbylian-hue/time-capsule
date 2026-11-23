@@ -115,6 +115,10 @@ const strings = {
       cell_taken: "這一格已經有 Waypost 了",
       area_too_big: "方框太大了，請拖小一點（最大約 4 平方公里）",
       hunt_needs_wayposts: "城市尋寶需要這個 Waypost，不能隱藏或刪除",
+      bad_monument: "外觀的資料不對，請重新選。",
+      bad_vessel: "這個容器不能當地標獎勵。",
+      bad_fight: "血量要在 10–200，時間要在 60–600 秒。",
+      rack_not_empty: "這個 Waypost 的架子上還有膠囊沒被打開，暫時不能改成地標。",
     } as Record<string, string>,
   },
   en: {
@@ -229,6 +233,10 @@ const strings = {
       cell_taken: "This cell already has a Waypost",
       area_too_big: "That box is too big. Draw a smaller one (up to about 4 km²).",
       hunt_needs_wayposts: "A City Hunt needs this Waypost, so it can't be hidden or deleted",
+      bad_monument: "The look isn't valid. Choose it again.",
+      bad_vessel: "That vessel can't be a Landmark reward.",
+      bad_fight: "Health must be 10–200 and time 60–600 seconds.",
+      rack_not_empty: "This Waypost still has unopened capsules on its rack, so it can't become a Landmark yet.",
     } as Record<string, string>,
   },
 };

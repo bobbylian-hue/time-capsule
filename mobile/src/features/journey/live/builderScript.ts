@@ -115,7 +115,13 @@ function boxEnd(e){if(!boxOn||!boxFrom)return;const a=boxFrom,b=e.lngLat||a;boxF
 map.on('mousedown',boxStart);map.on('mousemove',boxMove);map.on('mouseup',boxEnd);
 map.on('touchstart',e=>{if(boxOn&&e.points&&e.points.length===1)boxStart(e)});map.on('touchmove',boxMove);map.on('touchend',boxEnd);
 function setBox(on){boxOn=on;boxFrom=null;if(on){map.dragPan.disable();map.touchZoomRotate.disable();map.getCanvas().style.cursor='crosshair'}else{map.dragPan.enable();map.touchZoomRotate.enable();map.getCanvas().style.cursor=B.placing?'none':''}}
+// Map builder R2: while picking a Landmark's buildings, a tap on a building sends its tile id and real height.
+let pickOn=false;const pickLayers=()=>['monument-tiles','buildings'].filter(l=>map.getLayer(l));
+window.__tcPick=e=>{if(!pickOn)return false;const hit=map.queryRenderedFeatures(e.point,{layers:pickLayers()})[0];
+  if(hit&&hit.id!=null)send({type:'building',id:hit.id,height:+(hit.properties.height||9)});return true};
+map.on('mousemove',e=>{if(pickOn)map.getCanvas().style.cursor=map.queryRenderedFeatures(e.point,{layers:pickLayers()}).length?'pointer':'crosshair'});
 function builderRecv(m){
+  if(m.type==='pick'){pickOn=m.on;window.__tcPickOn=m.on;map.getCanvas().style.cursor=m.on?'crosshair':''}
   if(m.type==='placing')setPlacing(m);
   if(m.type==='boxMode')setBox(m.on);
   if(m.type==='reveal'){const p=map.project([m.lng,m.lat]),c=map.getContainer(),w=c.clientWidth,h=c.clientHeight,x0=m.left||0,y1=h-(m.bottom||0)-(m.bottomShare||0)*h;
