@@ -36,7 +36,7 @@ export type MapCommand =
   /** R1.5: drag a box on the map (Fill an area); "clear" removes the drawn box. */
   | { type: "boxMode"; on: boolean } | { type: "boxClear" }
   /** Pan (never zoom) so a place isn't hidden under a popup covering the left or bottom of the map. */
-  | { type: "reveal"; lat: number; lng: number; left?: number; bottom?: number }
+  | { type: "reveal"; lat: number; lng: number; left?: number; bottom?: number; /** Part of the map's height a bottom sheet covers. */ bottomShare?: number }
   | { type: "namesMany"; seq: number; points: { lat: number; lng: number }[] };
 /** Optional framing for fit: room kept clear for cards, the camera's tilt and turn, and its duration at normal speed. */
 export type FitView = { padding?: { top: number; bottom: number; left: number; right: number }; pitch?: number; bearing?: number; ms?: number };

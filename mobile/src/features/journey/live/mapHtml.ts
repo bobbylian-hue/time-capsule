@@ -344,7 +344,7 @@ const rescale=()=>{const base=pickupZoom(you?you.lat:map.getCenter().lat,state.r
   zNow=state.reach===0?1:Math.max(.4,Math.min(1,Math.pow(2,d)));mapEl.style.setProperty('--z',zNow.toFixed(3));mapEl.style.setProperty('--zq',(state.reach===0?1:Math.max(.7,Math.min(1,Math.pow(2,d/2)))).toFixed(3));mapEl.classList.toggle('tiny',!${cityWave}&&state.reach!==0&&d<-3)};
 map.on('zoom',rescale);
 // Overlapping pins: the first tap on a stack fans it out around its spot (pins never move on the map itself);
-// tapping one then opens it. Tapping the map or moving it folds the fan back.
+// tapping one then opens it. In the map builder an editable place skips the fan. Tapping the map or moving it folds the fan back.
 let fan=null;
 const fold=()=>{if(!fan)return;for(const id of fan.ids){const m=marks.get(id);if(m){const b=m.marker.getElement();b.style.removeProperty('--fx');b.style.removeProperty('--fy');b.classList.remove('fanned')}}fan.dot.remove();fan=null};
 const screenOf=m=>{const p=map.project(m.marker.getLngLat()),o=m.marker.getOffset();return{x:p.x+o.x,y:p.y+o.y}};
@@ -359,6 +359,8 @@ const stackOf=id=>{const at=new Map();for(const [k,m] of marks){const box=artBox
   return{out,at,me:underMe?me:null}};
 const tapPin=id=>{
   if(fan&&fan.ids.includes(id)){fold();send({type:'select',id});return}
+  // Map builder (Roy, 2026-11-23): a place you can edit opens at once, even beside the Keeper or a spot; no split first.
+  const mine=marks.get(id);if(mine&&mine.marker.getElement().classList.contains('edit')){fold();send({type:'select',id});return}
   fold();const{out,at,me}=stackOf(id);if(out.length<2&&!me){send({type:'select',id});return}
   // Around the player's feet when they were in the way (they stay put), otherwise around the stack's middle.
   const c=me?{x:(me.l+me.r)/2,y:(me.t+me.b)/2+40*zNow}:out.reduce((s,k)=>({x:s.x+at.get(k).p.x/out.length,y:s.y+at.get(k).p.y/out.length}),{x:0,y:0});

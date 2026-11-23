@@ -165,10 +165,12 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   const stopPlacing = () => { setMode(null); setDraft(null); setTapNote(null); };
   // On phones the map sits above the panel: go up to it to tap a spot, then down to the form.
   const page = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  // On phones the popup covers the lower half of the map, so bring the place being edited into the part still showing.
   const toMap = (at?: { lat: number; lng: number }) => {
-    // On a computer the popup covers the map's left side: pan (without zooming) if the place is under it.
-    if (wide) { if (at) ref.current?.command({ type: "reveal", lat: at.lat, lng: at.lng, left: 432 }); return; } page.current?.scrollTo({ y: 0, animated: true }); if (at) ref.current?.focus(at.lat, at.lng); };
+    // The popup covers the map's left side on a computer and its lower half on a phone: pan if the place is under
+    // it, never zooming, so the place you just picked stays as close as you had it (Roy, 2026-11-23).
+    if (!wide) page.current?.scrollTo({ y: 0, animated: true });
+    if (at) ref.current?.command(wide ? { type: "reveal", lat: at.lat, lng: at.lng, left: 432 } : { type: "reveal", lat: at.lat, lng: at.lng, bottomShare: 0.52 });
+  };
   const place = (next: NonNullable<typeof mode>) => { setDraft(null); setTapNote(null); setMode(next); toMap(); };
   const cityName = zh ? map.region.name_zh : map.region.name_en;
   /** Only the city border refuses (R1); the server checks it again. */
