@@ -1,6 +1,5 @@
 -- In a rollback transaction, run the setup below, load the migration body
 -- twice without its transaction boundaries, then run the checks.
-create temporary table landmark_required_fixture (id uuid primary key) on commit drop;
 create temporary table landmark_required_before on commit drop as
 select * from public.public_capsule_spots where false;
 
@@ -45,9 +44,11 @@ begin
     lng := (points->i->>'lng')::double precision;
     post := jsonb_populate_record(null::public.public_capsule_spots, public.admin_waypost_add(
       'taipei', lat, lng, '地標預設驗收' || i, 'Required Landmark rollback ' || i, 'square',
-      p_status => 'draft', p_kind => 'landmark', p_landmark => jsonb_build_object('monument', shape)
+      p_status => 'draft', p_kind => 'landmark',
+      p_landmark => '{"monument":{"model":{"kind":"column","size":"m","rotate":0,"color":"landmark"}}}'
     ));
-    insert into pg_temp.landmark_required_fixture values(post.id);
+    -- Recreate legacy rows for the backfill test even after the migration is live.
+    update public.public_capsule_spots w set monument=shape where w.id=post.id returning w.* into post;
     insert into pg_temp.landmark_required_before select post.*;
     i := i + 1;
   end loop;
