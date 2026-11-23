@@ -11,7 +11,7 @@ import { assetUri } from "../journey/live/types";
 import { useLanguage } from "../../i18n";
 import * as Crypto from "expo-crypto";
 import { adminEdit, type Habitat, type MapWaypost, type Region, type Scene } from "../../services/admin";
-import { builder, FILL_DEFAULT, FILL_SPACING, sceneFor, type Box } from "../../services/mapBuilder";
+import { builder, FILL_DEFAULT, FILL_SPACING, sceneFor, type BatchResult, type Box } from "../../services/mapBuilder";
 import { numberedNames } from "../../services/waypostNames";
 import type { MapCommand, MapMessage } from "../journey/live/types";
 import { C, radii, sans, spacing } from "../../theme";
@@ -114,19 +114,24 @@ export function useFill({ region, wayposts, command, onSaved, reveal }: {
     const posts = chosen.filter((x) => x.kind === "waypost"), spots = chosen.filter((x) => x.kind === "spot");
     const opts = { status: live ? "live" as const : "draft" as const, batch: Crypto.randomUUID().toLowerCase() };
     setFill({ ...fill, phase: "saving" });
-    try {
-      const none = { added: [], skipped: [], action_id: null };
-      const a = posts.length ? await builder.addWayposts(region.id, posts.map(({ lat, lng, name_zh, name_en, scene }) => ({ lat, lng, name_zh, name_en, scene })), null, opts) : none;
-      const b = spots.length ? await builder.addSpots(region.id, spots.map(({ lat, lng, habitat }) => ({ lat, lng, habitat })), null, opts) : none;
+    const none = { added: [], skipped: [], action_id: null };
+    // Wayposts and spawn spots are two saves. If the second fails, the first stays saved and its Undo stays here.
+    let a: BatchResult<unknown> = none;
+    const finish = (b: BatchResult<unknown>, error?: string) => {
       command({ type: "boxClear" });
       const actions = [a.action_id, b.action_id].filter((x): x is number => typeof x === "number");
-      setFill((f) => f && { ...f, box: null, phase: "saved", items: [], off: new Set(), focus: null,
+      setFill((f) => f && { ...f, box: null, phase: "saved", items: [], off: new Set(), focus: null, error,
         saved: { live, w: a.added.length, s: b.added.length, skipped: a.skipped.length + b.skipped.length, actions } });
-      onSaved();
+    };
+    try {
+      if (posts.length) a = await builder.addWayposts(region.id, posts.map(({ lat, lng, name_zh, name_en, scene }) => ({ lat, lng, name_zh, name_en, scene })), null, opts);
+      finish(spots.length ? await builder.addSpots(region.id, spots.map(({ lat, lng, habitat }) => ({ lat, lng, habitat })), null, opts) : none);
     } catch (e) {
-      setFill((f) => f && { ...f, phase: "error", error: (e as Error)?.message || "failed" });
-      onSaved();
+      const error = (e as Error)?.message || "failed";
+      if (a.added.length) finish(none, error);
+      else setFill((f) => f && { ...f, phase: "error", error });
     }
+    onSaved();
   };
   /** Undo the save just made: its Activity rows, newest first. */
   const undo = async () => {
@@ -190,6 +195,7 @@ export function FillPanel({ api }: { api: FillApi }) {
     {fill.phase === "error" && fill.error && <Notice tone="stop" text={errorLabel(a, mb, fill.error)} />}
     {fill.phase === "saved" && done && <View style={{ gap: spacing.sm }}>
       <Notice text={(done.live ? mb.fillPublished : mb.fillDrafted)(mb.count(done.w, done.s), done.skipped)} />
+      {fill.error && <Notice tone="stop" text={mb.fillSpotsFailed(errorLabel(a, mb, fill.error).replace(/[。.]$/, ""))} />}
       {done.actions.length > 0 && <View style={{ alignItems: "flex-start" }}><AButton small tone="ghost" title={mb.fillUndo} onPress={api.undo} /></View>}
     </View>}
     {fill.phase === "undone" && <Notice text={mb.fillUndone} />}
