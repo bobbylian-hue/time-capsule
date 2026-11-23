@@ -29,8 +29,9 @@ import { ADMIN_HUNT_LOOP } from "../../services/adminHuntLoop";
 import { MAP_BUILDER_R1, MAP_BUILDER_R15, builder, insideBorder, type MapNames } from "../../services/mapBuilder";
 import { useMapBuilderText } from "./mapBuilderStrings";
 import { SpotForm, WaypostBuilderForm, WaypostNumbers, type Ask } from "./WaypostBuilder";
-import { EditSheet, StatusActions, errorLabel, type SheetGuard } from "./EditSheet";
+import { EditSheet, StatusActions, type SheetGuard } from "./EditSheet";
 import { FillPanel, useFill } from "./FillArea";
+import { DraftsCard } from "./DraftsCard";
 
 type Layer = "wayposts" | "wave" | "hunts" | "spots";
 /** Pins reach full size a couple of zooms in from the whole city, and stay readable (never vanish) out at city scale. */
@@ -117,7 +118,8 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     return { vessel, rarity: all[0]?.rarity ?? "common", out: all.filter((w) => !w.caught), caught: all.filter((w) => w.caught).length };
   }).filter((g) => g.out.length || g.caught), [map]);
   const left = map.wave[0] ? minutesLeft(map.wave[0].expires_at, now) : null;
-  const fillApi = useFill({ region: map.region, wayposts: map.wayposts, command: (m) => ref.current?.command(m), onSaved: () => { onChanged(); refresh(); } });
+  const fillApi = useFill({ region: map.region, wayposts: map.wayposts, command: (m) => ref.current?.command(m), onSaved: () => { onChanged(); refresh(); },
+    reveal: wide ? { left: 432 } : { bottomShare: 0.52 } });
   const fill = fillApi.fill;
   const gem = assetUri(gameArt.waypostGemBlue) ?? "";
   const pins = useMemo<LivePin[]>(() => [
@@ -146,10 +148,10 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
         drag: MAP_BUILDER_R1 && on && status !== "hidden" && !fill,
         edit: MAP_BUILDER_R1 && !fill && !moved };
     }) : []),
-    // Fill an area: the suggested places, see-through; tapping one leaves it out (fainter still).
+    // Fill an area: the suggested places, see-through (fainter still when left out); tapping one shows it in the list.
     ...(fill ? fill.items.map<LivePin>((it, i) => ({ id: `f:${i}`, lat: it.lat, lng: it.lng, kind: it.kind,
       vessel: it.kind === "waypost" ? gem : "", label: it.kind === "waypost" ? (zh ? it.name_zh : it.name_en) : undefined,
-      draft: !fill.off.has(i), ghost: fill.off.has(i) })) : []),
+      draft: !fill.off.has(i), ghost: fill.off.has(i), selected: fill.focus === i, edit: true })) : []),
     ...(layers.wave ? map.wave.map<LivePin>((c) => ({
       id: `c:${c.spot}`, lat: c.lat, lng: c.lng, kind: "corrupted", vessel: vesselUri(c.vessel),
       cracks: assetUri(crackOverlays[c.vessel]) ?? undefined, rarity: c.rarity, done: c.caught, selected: selected === `c:${c.spot}`,
@@ -182,7 +184,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   const leave = (go: () => void) => guard.current ? guard.current(go) : go();
   const pick = (pinId: string) => {
     if (pinId === "draft") return;
-    if (fill) { if (pinId.startsWith("f:")) fillApi.toggle(Number(pinId.slice(2))); return; }
+    if (fill) { if (pinId.startsWith("f:")) fillApi.focus(Number(pinId.slice(2))); return; }
     leave(() => {
       stopPlacing(); setSelected(pinId);
       const at = pinId.startsWith("w:") ? map.wayposts.find((w) => `w:${w.id}` === pinId) : pinId.startsWith("s:") ? map.spots.find((x) => `s:${x.id}` === pinId) : undefined;
@@ -289,28 +291,16 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
             </> }
     : null;
   const hint = MAP_BUILDER_R1 && editing && placing && !draft;
-  // R1.5: saved drafts players can't see yet, with one button to publish them all.
-  const drafts = { w: map.wayposts.filter((w) => statusOf(w) === "draft"), s: map.spots.filter((x) => statusOf(x) === "draft") };
-  const [publishing, setPublishing] = useState<"busy" | string | null>(null);
-  const publishAll = async () => {
-    setPublishing("busy");
-    try {
-      if (drafts.w.length) await builder.setStatus("waypost", drafts.w.map((w) => w.id), "live", null);
-      if (drafts.s.length) await builder.setStatus("spot", drafts.s.map((x) => x.id), "live", null);
-      setPublishing(null); saved();
-    } catch (e) { setPublishing((e as Error)?.message || "failed"); onChanged(); }
-  };
+  // Roy (2026-11-23): drafts are listed by who saved them and when, so nobody publishes a batch they haven't seen.
+  const draftCount = map.wayposts.filter((w) => statusOf(w) === "draft").length + map.spots.filter((x) => statusOf(x) === "draft").length;
   const builderPanel = <>
     {mayEdit && !placing && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
       <AButton small title={a.ed.addWaypost} onPress={() => leave(() => { setSelected(null); place("add"); })} />
       <AButton small tone="ghost" title={mb.addSpot} onPress={() => leave(() => { setSelected(null); place("spot"); })} />
       {MAP_BUILDER_R15 && <AButton small tone="ghost" title={mb.fill} onPress={() => leave(() => { stopPlacing(); setSelected(null); fillApi.start(); toMap(); })} />}
     </View>}
-    {MAP_BUILDER_R15 && mayEdit && (drafts.w.length > 0 || drafts.s.length > 0) && <Card style={{ gap: spacing.sm, borderColor: "#D9C4CD", backgroundColor: "#FAF4F6" }}>
-      <Text style={{ fontFamily: sans, fontSize: 13, lineHeight: 19, color: C.ink }}>{mb.drafts(drafts.w.length, drafts.s.length)}</Text>
-      {publishing && publishing !== "busy" && <Notice tone="stop" text={errorLabel(a, mb, publishing)} />}
-      <View style={{ alignItems: "flex-start" }}><AButton small title={publishing === "busy" ? a.ed.saving : mb.publishAll} disabled={publishing === "busy"} onPress={publishAll} /></View>
-    </Card>}
+    {MAP_BUILDER_R15 && mayEdit && draftCount > 0 && <DraftsCard map={map} count={draftCount}
+      onView={(pts) => ref.current?.fit(pts, wide ? { padding: { top: 60, bottom: 60, left: 60, right: 60 } } : undefined)} onChanged={saved} />}
     {!sheet && !hint && notes}
     {selected && !picked && !pickedSpot
       ? <Detail map={map} id={selected} now={now} />
