@@ -28,7 +28,8 @@ export type Monument = {
   custom?: { tiers: Tier[]; color: MonumentColor } | null;
 };
 /** A monument at its Landmark: `id` is the Landmark Waypost's id (what a tap on it selects). */
-export type PlacedMonument = { id: string; lat: number; lng: number; monument: Monument };
+/** ghost: the faint copy left at a moved Landmark's old spot until the move is saved (shapes only, no buildings). */
+export type PlacedMonument = { id: string; lat: number; lng: number; monument: Monument; ghost?: boolean };
 
 const flare = (from: number, h: number, narrow: number, wide: number): Tier[] => [[narrow, from, from + h * .35], [(narrow + wide) / 2, from + h * .35, from + h * .7], [wide, from + h * .7, from + h]];
 // The three hand-made shapes (before R2 they were code in mapHtml.ts). Each is both a named model and its seed's
@@ -174,10 +175,10 @@ export function paintMonuments(list: PlacedMonument[]): MonumentPaint {
     for (const [tiers, color, rotate] of groups) for (const tier of tiers) {
       const ring = tierRing(p.lat, p.lng, tier, rotate);
       const t = (tier[1] + tier[2]) / 2 / top;
-      features.push({ type: "Feature", properties: { id: p.id, base: tier[1], top: tier[2], c: color === "landmark" ? rampAt(t) : COLOR_HEX[color] },
+      features.push({ type: "Feature", properties: { id: p.id, base: tier[1], top: tier[2], c: color === "landmark" ? rampAt(t) : COLOR_HEX[color], ...(p.ghost ? { ghost: true } : {}) },
         geometry: { type: "Polygon", coordinates: [ring] } });
     }
-    if (m.buildings) for (const id of m.buildings.ids) {
+    if (m.buildings && !p.ghost) for (const id of m.buildings.ids) {
       tiles[String(id)] = [m.buildings.top / (m.buildings.real_top || 1), COLOR_HEX[m.buildings.color]];
       owner[String(id)] = p.id;
     }

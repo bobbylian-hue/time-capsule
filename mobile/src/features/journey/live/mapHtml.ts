@@ -247,7 +247,9 @@ const face=src=>src?'<div class="face"><img src="'+src+'"></div>':'<div class="f
 const circle=(c,r)=>{const pts=[];for(let i=0;i<=48;i++){const a=i/48*Math.PI*2;pts.push([c.lng+r*Math.cos(a)/(111320*Math.cos(c.lat*Math.PI/180)),c.lat+r*Math.sin(a)/110540])}return{type:'Feature',geometry:{type:'Polygon',coordinates:[pts]}}};
 map.on('load',()=>{
   map.addSource('monuments',{type:'geojson',data:${JSON.stringify(SEED.geo)}});
-  map.addLayer({id:'monuments',type:'fill-extrusion',source:'monuments',paint:{'fill-extrusion-base':['get','base'],'fill-extrusion-height':['get','top'],'fill-extrusion-color':['get','c'],'fill-extrusion-opacity':1,'fill-extrusion-vertical-gradient':true}});
+  map.addLayer({id:'monuments',type:'fill-extrusion',source:'monuments',filter:['!=',['get','ghost'],true],paint:{'fill-extrusion-base':['get','base'],'fill-extrusion-height':['get','top'],'fill-extrusion-color':['get','c'],'fill-extrusion-opacity':1,'fill-extrusion-vertical-gradient':true}});
+  // Map builder: a moved Landmark leaves its model faintly at the old spot, like a moved Waypost's faint gem.
+  map.addLayer({id:'monuments-ghost',type:'fill-extrusion',source:'monuments',filter:['==',['get','ghost'],true],paint:{'fill-extrusion-base':['get','base'],'fill-extrusion-height':['get','top'],'fill-extrusion-color':['get','c'],'fill-extrusion-opacity':.3}});
   if(state.monuments)paintMonuments(state.monuments);
   map.addSource('reach',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
   map.addLayer({id:'reach-fill',type:'fill',source:'reach',paint:{'fill-color':'${C.brass}','fill-opacity':.12}});
@@ -298,19 +300,48 @@ const tapPin=id=>{
 map.on('movestart',fold);
 map.on('resize',()=>{if(follow&&you)map.jumpTo({center:[you.lng,you.lat],zoom:pickupZoom(you.lat,state.reach||100),padding:cameraPadding})});
 // Tapping a monument building opens its Landmark; anywhere else is a plain map tap.
-let TILE_OWNER=${JSON.stringify(SEED.owner)},monumentsNow=null;
+let TILE_OWNER=${JSON.stringify(SEED.owner)},monumentsNow=null,monGeo=${JSON.stringify(SEED.geo)};
 // Map builder R2: each Landmark's monument comes in the state; the seed above shows until it does.
 function paintMonuments(p){const key=JSON.stringify(p);if(key===monumentsNow||!map.getSource('monuments'))return;monumentsNow=key;
-  map.getSource('monuments').setData(p.geo);TILE_OWNER=p.owner;const ids=Object.keys(p.tiles),nums=ids.map(Number);
+  monGeo=p.geo;map.getSource('monuments').setData(p.geo);TILE_OWNER=p.owner;const ids=Object.keys(p.tiles),nums=ids.map(Number);
   const match=(i,f)=>ids.length?['match',['id'],...ids.flatMap(id=>[Number(id),p.tiles[id][i]]),f]:f;
   if(map.getLayer('buildings'))map.setFilter('buildings',['!',['in',['id'],['literal',nums]]]);
   if(map.getLayer('monument-tiles')){map.setFilter('monument-tiles',['in',['id'],['literal',nums]]);
     map.setPaintProperty('monument-tiles','fill-extrusion-base',['*',['coalesce',['get','min_height'],0],match(0,0)]);
     map.setPaintProperty('monument-tiles','fill-extrusion-height',['*',['coalesce',['get','height'],9],match(0,0)]);
     map.setPaintProperty('monument-tiles','fill-extrusion-color',match(1,'${C.blue}'))}}
+// Map builder: dragging a Landmark's seal carries its model along (they are one thing, Roy 2026-11-24), and a saved
+// place leaves a faint copy of itself (seal and model) where it was until the drop, when the screen takes over.
+let monDrag=null,dragGhost=null;
+const shiftGeo=(f,dx,dy)=>({...f,geometry:{type:'Polygon',coordinates:f.geometry.coordinates.map(r=>r.map(([x,y])=>[x+dx,y+dy]))}});
+function dragStart(m,pid,ll){
+  if(pid!=='draft'&&!dragGhost){const el=m.marker.getElement(),c=el.cloneNode(true);c.classList.remove('dragging','sel','edit','fanned');c.classList.add('ghost');c.style.pointerEvents='none';
+    dragGhost=new maplibregl.Marker({element:c,anchor:'bottom',rotationAlignment:'viewport',pitchAlignment:'viewport'}).setLngLat(ll).setOffset(m.marker.getOffset()).addTo(map)}
+  const id=m.mon;if(!id||!map.getSource('monuments'))return;
+  const mine=f=>f.properties.id===id&&!f.properties.ghost,own=monGeo.features.filter(mine);if(!own.length)return;
+  const hasGhost=monGeo.features.some(f=>f.properties.id===id&&f.properties.ghost);
+  monDrag={from:ll,own,rest:monGeo.features.filter(f=>!mine(f)),ghost:pid==='draft'||hasGhost?[]:own.map(f=>({...f,properties:{...f.properties,ghost:true}}))};monumentsNow=null}
+function dragMove(ll){if(!monDrag)return;const dx=ll.lng-monDrag.from.lng,dy=ll.lat-monDrag.from.lat;
+  map.getSource('monuments').setData({type:'FeatureCollection',features:[...monDrag.rest,...monDrag.ghost,...monDrag.own.map(f=>shiftGeo(f,dx,dy))]})}
+const dropGhost=()=>{if(dragGhost){dragGhost.remove();dragGhost=null}};
+let grabbedAt=0;
+function dragEnd(mk,pid){const ll=mk.getLngLat();mk.getElement().classList.remove('dragging');mk.getElement().dataset.dragged='1';setTimeout(()=>{delete mk.getElement().dataset.dragged},400);
+  monDrag=null;setTimeout(dropGhost,600);window.__tcDragging=null;window.__tcDragEnd&&window.__tcDragEnd(pid);send({type:'drag',id:pid,lat:ll.lat,lng:ll.lng})}
+// The model is the Landmark as much as its seal: pressing on the model of a Landmark you can move drags the whole thing.
+function grabMonument(e){if(window.__tcPickOn||!map.getLayer('monuments')||(e.originalEvent.touches&&e.originalEvent.touches.length>1))return;
+  const hit=map.queryRenderedFeatures(e.point,{layers:['monuments']})[0];if(!hit)return;
+  let pid=null,mm=null;for(const [k,m] of marks)if(m.drag&&m.mon===hit.properties.id){pid=k;mm=m;break}
+  if(!mm)return;e.preventDefault();
+  const mk=mm.marker,from=mk.getLngLat(),off={lng:from.lng-e.lngLat.lng,lat:from.lat-e.lngLat.lat};let moved=false;
+  const move=ev=>{const ll={lng:ev.lngLat.lng+off.lng,lat:ev.lngLat.lat+off.lat};
+    if(!moved){moved=true;fold();dragStart(mm,pid,mm.start||from);window.__tcDragging=pid;mk.getElement().classList.add('dragging');map.getCanvas().style.cursor='grabbing'}
+    mk.setLngLat([ll.lng,ll.lat]);if(mm.lift)setLift(mm);dragMove(ll);window.__tcDragMove&&window.__tcDragMove(pid,mk.getLngLat())};
+  const up=()=>{map.off('mousemove',move);map.off('touchmove',move);map.off('mouseup',up);map.off('touchend',up);if(moved){grabbedAt=Date.now();map.getCanvas().style.cursor='';dragEnd(mk,pid)}};
+  map.on('mousemove',move);map.on('touchmove',move);map.on('mouseup',up);map.on('touchend',up)}
+map.on('mousedown',grabMonument);map.on('touchstart',grabMonument);
 const monumentAt=p=>{const layers=['monuments','monument-tiles'].filter(l=>map.getLayer(l));const hit=layers.length&&map.queryRenderedFeatures(p,{layers})[0];return hit?(hit.layer.id==='monuments'?hit.properties.id:TILE_OWNER[hit.id]):null};
-map.on('click',e=>{if(window.__tcPick&&window.__tcPick(e))return;if(fan){fold();return}const id=monumentAt(e.point);if(id){send({type:'select',id:'monument-'+id});return}send({type:'tap',lat:e.lngLat.lat,lng:e.lngLat.lng})});
-map.on('mousemove',e=>{if(window.__tcPickOn)return;map.getCanvas().style.cursor=monumentAt(e.point)?'pointer':''});
+map.on('click',e=>{if(Date.now()-grabbedAt<400)return;if(window.__tcPick&&window.__tcPick(e))return;if(fan){fold();return}const id=monumentAt(e.point);if(id){send({type:'select',id:'monument-'+id});return}send({type:'tap',lat:e.lngLat.lat,lng:e.lngLat.lng})});
+map.on('mousemove',e=>{if(window.__tcPickOn||window.__tcDragging)return;const id=monumentAt(e.point);let grab=false;if(id)for(const [,m] of marks)if(m.drag&&m.mon===id)grab=true;map.getCanvas().style.cursor=grab?'grab':id?'pointer':''});
 // A badge "on top" of a building: the screen offset from its ground point to the same point raised
 // to the building's height, through the camera's own perspective, so it stays on the spire as the map moves.
 const liftOffset=(ll,meters)=>{const t=map.transform;const mc=maplibregl.MercatorCoordinate.fromLngLat(ll);
@@ -423,20 +454,19 @@ function render(){
     if(m.html!==html){el.innerHTML=html;m.html=html}
     if(m.cls!==cls){if(m.cls)el.classList.remove(...m.cls.split(' '));el.classList.add(...cls.split(' '));m.cls=cls}
     el.style.zIndex=p.selected?20:p.kind==="keeper"?8:p.near?5:1;
-    if(window.__tcDragging!==p.id)m.marker.setLngLat([p.lng,p.lat]);
+    if(window.__tcDragging!==p.id){m.marker.setLngLat([p.lng,p.lat]);m.start={lng:p.lng,lat:p.lat}}m.mon=p.mon||null;
     // Admin map builder: the selected place can be dragged to move it; the page reports where it was dropped.
     if(m.drag!==!!p.drag){m.drag=!!p.drag;m.marker.setDraggable(m.drag);
       if(m.drag&&!m.wired){m.wired=true;const mk=m.marker,pid=p.id;
-        mk.on('dragstart',()=>{fold();window.__tcDragging=pid;mk.getElement().classList.add('dragging')});
-        mk.on('drag',()=>{const mm=marks.get(pid);if(mm&&mm.lift)setLift(mm);window.__tcDragMove&&window.__tcDragMove(pid,mk.getLngLat())});
-        mk.on('dragend',()=>{const ll=mk.getLngLat();mk.getElement().classList.remove('dragging');mk.getElement().dataset.dragged='1';setTimeout(()=>{delete mk.getElement().dataset.dragged},400);
-          window.__tcDragging=null;window.__tcDragEnd&&window.__tcDragEnd(pid);send({type:'drag',id:pid,lat:ll.lat,lng:ll.lng})})}}
+        mk.on('dragstart',()=>{fold();const mm=marks.get(pid);if(mm)dragStart(mm,pid,mm.start||mk.getLngLat());window.__tcDragging=pid;mk.getElement().classList.add('dragging')});
+        mk.on('drag',()=>{const mm=marks.get(pid);if(mm&&mm.lift)setLift(mm);dragMove(mk.getLngLat());window.__tcDragMove&&window.__tcDragMove(pid,mk.getLngLat())});
+        mk.on('dragend',()=>dragEnd(mk,pid))}}
     if(m.lift!==(p.lift||0)){m.lift=p.lift||0;setLift(m)}
   }
 }
 function recv(m){
   ${builder ? "builderRecv(m);" : ""}
-  if(m.type==='state'){if(fan&&m.pins.map(p=>p.id).join()!==state.pins.map(p=>p.id).join())fold();const moved=!you||!m.you||Math.abs(you.lat-m.you.lat)+Math.abs(you.lng-m.you.lng)>1e-6;if(walkFrom&&m.you&&metres(walkFrom,m.you)>10){you=m.you;walkHome()}you=m.you;state=m;heading=m.heading||heading;if(m.monuments)paintMonuments(m.monuments);render();rescale();if(follow&&you&&moved)map.easeTo({center:[you.lng,you.lat],duration:you?900:0,padding:cameraPadding})}
+  if(m.type==='state'){if(!window.__tcDragging)dropGhost();if(fan&&m.pins.map(p=>p.id).join()!==state.pins.map(p=>p.id).join())fold();const moved=!you||!m.you||Math.abs(you.lat-m.you.lat)+Math.abs(you.lng-m.you.lng)>1e-6;if(walkFrom&&m.you&&metres(walkFrom,m.you)>10){you=m.you;walkHome()}you=m.you;state=m;heading=m.heading||heading;if(m.monuments)paintMonuments(m.monuments);render();rescale();if(follow&&you&&moved)map.easeTo({center:[you.lng,you.lat],duration:you?900:0,padding:cameraPadding})}
   if(m.type==='recenter'&&you){follow=true;map.easeTo({center:[you.lng,you.lat],zoom:pickupZoom(you.lat,state.reach||100),pitch:40,bearing:0,duration:900,padding:cameraPadding})}
   if(m.type==='walk'&&you)walkTo({lat:m.lat,lng:m.lng});
   if(m.type==='hop')hop({lat:m.lat,lng:m.lng},m.ms);
