@@ -77,11 +77,18 @@ export const MODELS: Record<ModelKind, Tier[]> = {
   statue: [[3.6, 0, 3.5], [2.6, 3.5, 4.6], [1.5, 4.6, 12.5, { round: true }], [1, 12.5, 14.4, { round: true }]],
   taipei101: TAIPEI101_TIERS, senado: SENADO_TIERS, hkust: HKUST_TIERS,
 };
+/** The same value as text whatever its key order, with empty (null) keys dropped. The server stores looks as jsonb,
+ * which hands keys back in its own order, so comparing JSON.stringify output would see a saved look as changed. */
+export function sameJson(a: unknown, b: unknown): boolean {
+  const norm = (v: unknown): unknown => Array.isArray(v) ? v.map(norm)
+    : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().filter((k) => (v as any)[k] != null).map((k) => [k, norm((v as any)[k])])) : v;
+  return JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+}
 /** A Landmark still saved with one of the hand-made shapes as custom tiers, as the named model that draws the same. */
 export function asNamedModel(m: Monument | null): Monument | null {
   if (!m?.custom) return m;
-  const key = JSON.stringify(m.custom.tiers);
-  const kind = NAMED_MODELS.find((k) => JSON.stringify(MODELS[k]) === key);
+  const tiers = m.custom.tiers;
+  const kind = NAMED_MODELS.find((k) => sameJson(MODELS[k], tiers));
   return kind ? { ...m, custom: null, model: { kind, size: "m", rotate: 0, color: m.custom.color } } : m;
 }
 

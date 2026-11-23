@@ -18,7 +18,7 @@ import { numberedNames } from "../../services/waypostNames";
 import { gameArt } from "../../art/manifest";
 import type { LandmarkSettings } from "../../services/admin";
 import { LANDMARK_DEFAULTS, LANDMARK_MODELS } from "../../services/mapBuilder";
-import { asNamedModel } from "../journey/live/monuments";
+import { asNamedModel, sameJson } from "../journey/live/monuments";
 import { LandmarkFields, type BuildingTap } from "./LandmarkFields";
 import { useLandmarkText } from "./landmarkStrings";
 
@@ -162,7 +162,7 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
   const savedLook = React.useMemo(() => waypost?.landmark && LANDMARK_MODELS ? { ...waypost.landmark, monument: asNamedModel(waypost.landmark.monument) } : waypost?.landmark ?? null, [waypost?.id, waypost?.landmark]);
   const startLandmark = React.useMemo(() => isLandmark ? savedLook ?? LANDMARK_DEFAULTS : null, [isLandmark, waypost?.id]);
   const [look, setLook] = useState<LandmarkSettings | null>(startLandmark);
-  const lookChanged = !!look && JSON.stringify(look) !== JSON.stringify(savedLook);
+  const lookChanged = !!look && !sameJson(look, savedLook);
   useEffect(() => { landmark?.onPreview(look); }, [look]);
   useEffect(() => () => { landmark?.onPreview(null); landmark?.onPicking(false); }, []);
   const [nameZh, setNameZh] = useState(waypost?.name_zh ?? "");
