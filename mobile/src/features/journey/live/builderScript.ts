@@ -118,6 +118,8 @@ function setBox(on){boxOn=on;boxFrom=null;if(on){map.dragPan.disable();map.touch
 function builderRecv(m){
   if(m.type==='placing')setPlacing(m);
   if(m.type==='boxMode')setBox(m.on);
+  if(m.type==='reveal'){const p=map.project([m.lng,m.lat]),c=map.getContainer(),w=c.clientWidth,h=c.clientHeight,x0=m.left||0,y1=h-(m.bottom||0);
+    if(p.x<x0+40||p.x>w-40||p.y<60||p.y>y1-20){const tx=(x0+w)/2,ty=y1/2;map.easeTo({center:map.unproject([w/2+p.x-tx,h/2+p.y-ty]),duration:500})}}
   if(m.type==='boxClear')map.getSource('box')&&map.getSource('box').setData(fc([]));
   if(m.type==='namesMany'){const answer=()=>send({type:'namesMany',seq:m.seq,items:m.points.map(ll=>({names:namesNear(ll,150),habitat:habitatAt(ll)}))});
     if(map.areTilesLoaded())answer();else map.once('idle',answer)}

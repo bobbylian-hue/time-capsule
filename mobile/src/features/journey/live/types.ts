@@ -11,7 +11,8 @@ export type LivePin = { id: string; lat: number; lng: number; vessel: string; la
   /** A quest made by us (Today's Hunt, City Hunt): the blue quest pin instead of brass. */ blue?: boolean;
   /** Drops from the sky this many ms after it first appears (Today's Hunt). */ drop?: number; near?: boolean; far?: boolean; selected?: boolean; sealed?: boolean; private?: boolean; opened?: boolean; timer?: string;
   /** Admin map builder: not saved yet (see-through, dashed), and the faint old spot of a place being moved. */ draft?: boolean; ghost?: boolean;
-  /** Admin map builder: this pin can be dragged; the map reports the drop with a "drag" message. */ drag?: boolean };
+  /** Admin map builder: this pin can be dragged; the map reports the drop with a "drag" message. */ drag?: boolean;
+  /** Admin map builder: a place the admin can edit (green ring on hover and when selected). */ edit?: boolean };
 export type LiveState = { you: { lat: number; lng: number } | null; heading?: number | null; portrait?: string | null; figure?: string | null; youLabel?: string | null; reach: number; pins: LivePin[];
   /** A dotted line through these points, in order (an ordered hunt's route in the quest editor). */
   route?: { lat: number; lng: number }[] };
@@ -34,6 +35,8 @@ export type MapCommand =
   | { type: "placing"; kind: "waypost" | "spot" | null; img?: string; skip?: string }
   /** R1.5: drag a box on the map (Fill an area); "clear" removes the drawn box. */
   | { type: "boxMode"; on: boolean } | { type: "boxClear" }
+  /** Pan (never zoom) so a place isn't hidden under a popup covering the left or bottom of the map. */
+  | { type: "reveal"; lat: number; lng: number; left?: number; bottom?: number }
   | { type: "namesMany"; seq: number; points: { lat: number; lng: number }[] };
 /** Optional framing for fit: room kept clear for cards, the camera's tilt and turn, and its duration at normal speed. */
 export type FitView = { padding?: { top: number; bottom: number; left: number; right: number }; pitch?: number; bearing?: number; ms?: number };
