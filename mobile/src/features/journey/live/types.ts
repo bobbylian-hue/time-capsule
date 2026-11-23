@@ -15,7 +15,9 @@ export type LivePin = { id: string; lat: number; lng: number; vessel: string; la
   /** Admin map builder: a place the admin can edit (green ring on hover and when selected). */ edit?: boolean };
 export type LiveState = { you: { lat: number; lng: number } | null; heading?: number | null; portrait?: string | null; figure?: string | null; youLabel?: string | null; reach: number; pins: LivePin[];
   /** A dotted line through these points, in order (an ordered hunt's route in the quest editor). */
-  route?: { lat: number; lng: number }[] };
+  route?: { lat: number; lng: number }[];
+  /** Map builder R2: the Landmarks' monuments to draw (monuments.ts paintMonuments); without it the built-in three show. */
+  monuments?: import("./monuments").MonumentPaint };
 /** walk: the player's figure strolls to a spot inside the pickup circle (a picture only; the real position and the server's checks never change). */
 export type LiveMapHandle = { recenter: () => void; focus: (lat: number, lng: number) => void; walk: (lat: number, lng: number) => void;
   /** Fly to another city and look around it from above its buildings (the City Explorer). */
@@ -37,7 +39,9 @@ export type MapCommand =
   | { type: "boxMode"; on: boolean } | { type: "boxClear" }
   /** Pan (never zoom) so a place isn't hidden under a popup covering the left or bottom of the map. */
   | { type: "reveal"; lat: number; lng: number; left?: number; bottom?: number; /** Part of the map's height a bottom sheet covers. */ bottomShare?: number }
-  | { type: "namesMany"; seq: number; points: { lat: number; lng: number }[] };
+  | { type: "namesMany"; seq: number; points: { lat: number; lng: number }[] }
+  /** R2: map taps pick or drop a tile building for a Landmark's look instead of tapping the map. */
+  | { type: "pick"; on: boolean };
 /** Optional framing for fit: room kept clear for cards, the camera's tilt and turn, and its duration at normal speed. */
 export type FitView = { padding?: { top: number; bottom: number; left: number; right: number }; pitch?: number; bearing?: number; ms?: number };
 /** ms are at normal speed; the map divides them by the current speed. Reduce Motion makes them instant. */
@@ -55,13 +59,15 @@ export type LiveMapProps = {
   /** Answers to builder commands. */
   onNames?: (m: Extract<MapMessage, { type: "names" }>) => void;
   /** Builder R1.5: a place dropped after a drag, a box drawn, names for many points. */
-  onBuilder?: (m: Extract<MapMessage, { type: "drag" | "box" | "namesMany" }>) => void;
+  onBuilder?: (m: Extract<MapMessage, { type: "drag" | "box" | "namesMany" | "building" }>) => void;
 };
 export type MapMessage = { type: "ready" } | { type: "select"; id: string } | { type: "tap"; lat: number; lng: number } | { type: "follow"; follow: boolean } | { type: "error"; message: string }
   | { type: "names"; seq: number; names: { zh: string; en: string; kind: string; meters: number }[]; area: string | null; habitat?: string | null; same: { id: string; meters: number }[] }
   | { type: "drag"; id: string; lat: number; lng: number }
   | { type: "box"; south: number; west: number; north: number; east: number }
-  | { type: "namesMany"; seq: number; items: { names: { zh: string; en: string; kind: string; meters: number }[]; habitat: string | null }[] };
+  | { type: "namesMany"; seq: number; items: { names: { zh: string; en: string; kind: string; meters: number }[]; habitat: string | null }[] }
+  /** R2: a building tapped while picking a Landmark's buildings, with its real height in metres. */
+  | { type: "building"; id: number; height: number };
 
 /** A bundled image as a URL the map page can load (Metro dev server, web path or bundled file). */
 export function assetUri(source: ImageSourcePropType | undefined | null): string | null {

@@ -51,7 +51,11 @@ function Row({ row, first, onUndone }: { row: ActivityRow; first: boolean; onUnd
   };
   // A status change (R1.5) reads by the status the places moved to.
   const status = row.action.endsWith(".status") ? (row.after as { status?: string } | null)?.status : null;
-  const say = a.action[status ? `${row.action}.${status}` : row.action];
+  // R2 logs every Landmark change as landmark.set and a new Landmark as waypost.add; the kinds before and after tell them apart.
+  const kind = (v: unknown) => (v as { kind?: string } | null)?.kind;
+  const key = row.action === "landmark.set" ? (kind(row.before) === "common" ? "landmark.make" : "landmark.edit")
+    : row.action === "waypost.add" && kind(row.after) === "landmark" ? "landmark.add" : row.action;
+  const say = a.action[status ? `${row.action}.${status}` : key];
   const sentence = say ? say(row.actor.name, row.target_label) : a.actionFallback(row.actor.name, row.action, row.target_label);
   const roleWord = (v: unknown) => v && typeof v === "object" && "role" in (v as any) ? a.role[(v as any).role as keyof typeof a.role] : null;
   const change = row.action === "member.role" ? `${roleWord(row.before)} → ${roleWord(row.after)}` : row.action === "member.add" ? roleWord(row.after) : null;

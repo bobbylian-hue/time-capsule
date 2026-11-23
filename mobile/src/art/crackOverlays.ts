@@ -83,6 +83,7 @@ export const crackOverlays: Record<string, ImageSourcePropType> = {
   "rooster": require('../../../public/art/game/cracks/rooster.webp'),
   "pedicab": require('../../../public/art/game/cracks/pedicab.webp'),
   "north-gate": require('../../../public/art/game/cracks/north-gate.webp'),
+  "landmark-keepsake": require('../../../public/art/game/cracks/landmark-keepsake.webp'),
   "durian": require('../../../public/art/game/cracks/durian.webp'),
   "lighthouse": require('../../../public/art/game/cracks/lighthouse.webp'),
 };

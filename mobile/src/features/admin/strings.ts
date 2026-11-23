@@ -154,6 +154,10 @@ const strings = {
       "member.role": (who: string, what: string) => `${who} 改了 ${what} 的身份`,
       "member.remove": (who: string, what: string) => `${who} 把 ${what} 移出成員`,
       "waypost.add": (who: string, what: string) => `${who} 新增了 Waypost「${what}」`,
+      // Map builder R2.
+      "landmark.add": (who: string, what: string) => `${who} 新增了地標「${what}」`,
+      "landmark.make": (who: string, what: string) => `${who} 把「${what}」改成地標`,
+      "landmark.edit": (who: string, what: string) => `${who} 修改了地標「${what}」的外觀、獎勵或對戰`,
       "waypost.move": (who: string, what: string) => `${who} 移動了 Waypost「${what}」`,
       "waypost.edit": (who: string, what: string) => `${who} 修改了 Waypost「${what}」`,
       "waypost.hide": (who: string, what: string) => `${who} 隱藏了 Waypost「${what}」`,
@@ -409,6 +413,10 @@ const strings = {
       "member.role": (who: string, what: string) => `${who} changed ${what}'s role`,
       "member.remove": (who: string, what: string) => `${who} removed ${what} from the members`,
       "waypost.add": (who: string, what: string) => `${who} added the Waypost “${what}”`,
+      // Map builder R2.
+      "landmark.add": (who: string, what: string) => `${who} added the Landmark “${what}”`,
+      "landmark.make": (who: string, what: string) => `${who} made “${what}” a Landmark`,
+      "landmark.edit": (who: string, what: string) => `${who} changed the look, reward or fight of the Landmark “${what}”`,
       "waypost.move": (who: string, what: string) => `${who} moved the Waypost “${what}”`,
       "waypost.edit": (who: string, what: string) => `${who} edited the Waypost “${what}”`,
       "waypost.hide": (who: string, what: string) => `${who} hid the Waypost “${what}”`,

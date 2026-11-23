@@ -3,7 +3,7 @@ import { crackOverlays } from "../../art/crackOverlays";
 import { gameArt } from "../../art/manifest";
 import { distanceMeters } from "../../services/data";
 import { GAME_ACTION_RADIUS_M, type CorruptedCapsule, type Nearby, type Waypost } from "../../services/game";
-import { MONUMENTS, monumentTop } from "./live/mapHtml";
+import { monumentTop, placedMonument } from "./live/monuments";
 import { assetUri, type LivePin } from "./live/types";
 
 import { vesselUri } from "./journeyModel";
@@ -18,9 +18,9 @@ export function useGamePins(nearby: Nearby, throwing: CorruptedCapsule | null, y
     )),
     ...nearby.wayposts.map<LivePin>((w) => {
       // A Landmark with a monument is the building itself: its seal floats on top, at the real spot.
-      const monument = w.kind === "landmark" ? MONUMENTS.find((m) => m.id === w.place) : undefined;
+      const monument = placedMonument(w);
       return {
-      id: `way-${w.id}`, lat: monument?.lat ?? w.lat, lng: monument?.lng ?? w.lng, lift: monument ? monumentTop(monument) + 4 : undefined, kind: w.kind === "landmark" ? "landmark" : "waypost", vessel: assetUri(w.kind === "landmark" ? gameArt.landmarkGem : cooling(w) ? gameArt.waypostGem : gameArt.waypostGemBlue) ?? "",
+      id: `way-${w.id}`, lat: monument?.lat ?? w.lat, lng: monument?.lng ?? w.lng, lift: monument ? monumentTop(monument.monument) + 4 : undefined, kind: w.kind === "landmark" ? "landmark" : "waypost", vessel: assetUri(w.kind === "landmark" ? gameArt.landmarkGem : cooling(w) ? gameArt.waypostGem : gameArt.waypostGemBlue) ?? "",
       done: cooling(w),
       near: metersTo(w.lat, w.lng) <= GAME_ACTION_RADIUS_M,
     }; }),

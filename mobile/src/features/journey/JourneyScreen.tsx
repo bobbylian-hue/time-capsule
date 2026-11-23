@@ -54,6 +54,7 @@ import { SelectedCard } from "./SelectedCard";
 import { useCapsuleItems } from './useCapsuleItems';
 import { openCityHunt, useCityHuntPins } from './useCityHuntPins';
 import { useGamePins } from "./useGamePins";
+import { monumentsFor, paintMonuments } from "./live/monuments";
 import { usePrivateQuestPins } from "./usePrivateQuestPins";
 import { usePinQuests, type PinQuest } from "./usePinQuests";
 import { QuestPlay } from "../quests/QuestPlay";
@@ -95,6 +96,7 @@ export default function JourneyScreen() {
   const [passportStamps, setPassportStamps] = useState<Record<string, string>>({});
   const [huntStamps, setHuntStamps] = useState<PassportHunt[]>([]);
   const [privateHuntStamps, setPrivateHuntStamps] = useState<Awaited<ReturnType<typeof game.passport>>["privateHunts"]>([]);
+  const [landmarkStamps, setLandmarkStamps] = useState<Awaited<ReturnType<typeof game.passport>>["landmarks"]>([]);
   const [huntList, setHuntList] = useState<Hunt[]>([]);
   const [questOpen, setQuestOpen] = useState(false);
   // Private hunts: the ones I joined, the join-by-code sheet, the quest I have open and the leaderboard.
@@ -225,7 +227,7 @@ export default function JourneyScreen() {
     if (!GAME_ENABLED || !at) return;
     try {
       const [state, around, stamps] = await Promise.all([game.state(), game.nearby({ lat: at.lat, lng: at.lng, accuracy: at.accuracy }), game.passport()]);
-      setGameState(state); setNearby(around); nearbyRef.current = around; setPassportStamps(stamps.places); setHuntStamps(stamps.hunts);
+      setGameState(state); setNearby(around); nearbyRef.current = around; setPassportStamps(stamps.places); setHuntStamps(stamps.hunts); setLandmarkStamps(stamps.landmarks);
       setPrivateHuntStamps(stamps.privateHunts);
     } catch { /* the map still works without the game */ }
     const previewAllowed = __DEV__ || isTestLocationUser(userId);
@@ -294,6 +296,8 @@ export default function JourneyScreen() {
   const allPins = useMemo<LivePin[]>(() => [...items.map<LivePin>((i) => i.kind === "publicCapsule"
     ? { id: i.id, lat: i.lat, lng: i.lng, kind: "publicCapsule", vessel: vesselUri("bottle"), portrait: portraitUri(i.publicCapsule.sender.avatar), near: i.meters <= PUBLIC_CAPSULE_PICKUP_RADIUS_M, far: i.meters > 600, selected: i.id === selectedId, tag: i.meters <= PUBLIC_CAPSULE_PICKUP_RADIUS_M ? undefined : distanceText(i.meters) }
     : placePin(i)), ...gamePins, ...huntPins, ...questPins, ...guidePins, ...pinQuestPins], [items, selectedId, language, gamePins, huntPins, questPins, guidePins, pinQuestPins, senders, now]);
+  // Map builder R2: each nearby Landmark's own monument (the built-in three until the server sends them).
+  const monuments = useMemo(() => paintMonuments(monumentsFor(nearby.wayposts)), [nearby.wayposts]);
   const mapState = useMemo(() => huntMap ? {
     // Today's Hunt: only its three pins, and your figure at the hunt instead of where you are; no pickup circle.
     you: huntMap.you, heading: null, reach: 0, portrait: portraitUri(profile?.avatar), figure: assetUri(figureFor(profile?.avatar)), youLabel: null, pins: huntMap.pins,
@@ -304,7 +308,8 @@ export default function JourneyScreen() {
     youLabel: youLabel && !throwing ? h.thisIsYou : null,
     // While throwing, the capsule is alone on the plain map.
     pins: throwing ? [] : allPins.filter((p) => showsPin(filter, p)),
-  }, [you?.lat, you?.lng, heading, profile?.avatar, allPins, filter, !!throwing, youLabel, h, huntMap]);
+    monuments,
+  }, [you?.lat, you?.lng, heading, profile?.avatar, allPins, filter, !!throwing, youLabel, h, huntMap, monuments]);
   const counts = useMemo(() => filterCounts(allPins), [allPins]);
   const pickFilter = (f: MapFilter) => {
     setFilter(f); setFilterOpen(false);
@@ -390,7 +395,7 @@ export default function JourneyScreen() {
     }
     if (id.startsWith("way-") || id.startsWith("monument-")) {
       const waypost = id.startsWith("monument-")
-        ? nearby.wayposts.find((w) => w.kind === "landmark" && w.place === id.slice("monument-".length))
+        ? nearby.wayposts.find((w) => w.kind === "landmark" && (w.id === id.slice("monument-".length) || w.place === id.slice("monument-".length)))
         : nearby.wayposts.find((w) => `way-${w.id}` === id);
       if (!waypost) return;
       setSelectedId(null); void haptics.tick();
@@ -637,7 +642,8 @@ export default function JourneyScreen() {
       state={gameState} onState={setGameState} onClose={closeFight} />}
     <Passport visible={passport} onClose={() => setPassport(false)} userId={userId} stamps={stampRows}
       hunts={[...huntStamps, ...(__DEV__ && !userId ? hunts.previewStamps() : []).filter((p) => !huntStamps.some((x) => x.id === p.id))]}
-      privateHunts={[...privateHuntStamps, ...(__DEV__ && !userId ? privateHunts.demoStamps() : [])]} />
+      privateHunts={[...privateHuntStamps, ...(__DEV__ && !userId ? privateHunts.demoStamps() : [])]}
+      landmarks={landmarkStamps.filter((s) => !s.place || !places.some((p) => p.id === s.place))} />
     <QuestSheet visible={questOpen} hunts={huntList} busy={busy} onClose={() => setQuestOpen(false)} onJoin={(x) => void joinHunt(x)} onShowOnMap={showHunt}
       located={activeHunt ? { huntId: activeHunt.id, quests: cityQuests } : undefined}
       onOpenQuest={(x, quest) => { setQuestOpen(false); setSelectedId(null); setGameCard(null); map.current?.focus(quest.location_lat, quest.location_lng); setPinQuest({ kind: "city", hunt: x, quest }); }}

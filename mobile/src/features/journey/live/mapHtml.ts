@@ -3,6 +3,7 @@
 // when no PMTiles URL is configured (development only).
 import { C } from "../../../theme";
 import { BUILDER_JS, BUILDER_LAYERS, S2_GEOMETRY } from "./builderScript";
+import { MONUMENT_SEED, paintMonuments, type MonumentPaint } from "./monuments";
 
 export const MAPLIBRE = "https://unpkg.com/maplibre-gl@5.24.0/dist";
 export const PMTILES = "https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js";
@@ -11,99 +12,15 @@ export const PMTILES = "https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js";
 const TOY_SCALE = 0.35;
 const TOY_MAX_M = 40;
 
-// Landmarks drawn in blues at their real spot (docs/sop/landmark-monument.md). Two ways, mixable:
-// - tile: the real building outline already in our map tiles, picked by feature id and repainted in ink blue;
-// - tiers: hand-stacked boxes for shapes the tiles don't have (fountains, statues, flared towers).
-/**
- * [half-width m, base m, top m, options]: a box centred on the monument. Options: `round` (a disc of that radius),
- * `dx`/`dy` (shift east/north in m), `arc` (a curved band from radius `inner` to the half-width, between two
- * compass-free angles in degrees: 0 = east, 90 = north).
- */
-type Tier = [number, number, number, { round?: boolean; dx?: number; dy?: number; arc?: { inner: number; from: number; to: number } }?];
-type Monument = {
-  id: string; lat: number; lng: number; tiers?: Tier[];
-  /** Tile buildings: their feature ids, the real height of the tallest one, and the toy height it is drawn at. */
-  tile?: { ids: number[]; realTop: number; top: number };
+// Landmarks drawn in blues at their real spot (docs/sop/landmark-monument.md). Since map builder R2 they are data
+// (monuments.ts): the page starts with the three built-in monuments and the app sends each Landmark's own in the state.
+const SEED = paintMonuments(Object.entries(MONUMENT_SEED).map(([id, m]) => ({ id, ...m })));
+/** The map style's matches for the repainted tile buildings: [ids, value, …, fallback]. */
+const tileMatch = (paint: MonumentPaint, i: 0 | 1, fallback: unknown): unknown => {
+  const ids = Object.keys(paint.tiles);
+  return ids.length ? ["match", ["id"], ...ids.flatMap((id) => [Number(id), paint.tiles[id][i]]), fallback] : fallback;
 };
-const flare = (from: number, h: number, narrow: number, wide: number): Tier[] => [[narrow, from, from + h * .35], [(narrow + wide) / 2, from + h * .35, from + h * .7], [wide, from + h * .7, from + h]];
-/** The monument's top, where its Landmark seal floats. */
-export const monumentTop = (m: Monument) => Math.max(m.tile?.top ?? 0, ...(m.tiers ?? []).map((t) => t[2]));
-export const MONUMENTS: Monument[] = [
-  { id: "taipei101", lat: 25.033667, lng: 121.56481, tiers: [ // spire axis from the OSM building data in our tiles; Wikipedia agrees within ~20 m
-    // A wide low base covers the real (grey) mall around the tower foot.
-    [62, 0, 18], [36, 18, 24], [24, 24, 30], [21, 30, 36],
-    ...Array.from({ length: 8 }, (_, i) => flare(36 + i * 8, 8, 14, 18.5)).flat(),
-    [12, 100, 106], [8, 106, 112], [4, 112, 116], [1.6, 116, 142],
-  ] },
-  // Senado Square: the fountain (wide round basin, inner bowl, small armillary globe) at the fountain basin in our tiles, and
-  // the buildings lining the square (tile buildings within 3 m of OSM way 192573684; Leal Senado is across the road).
-  { id: "senado", lat: 22.193683, lng: 113.53989, tile: { ids: [35184577873359, 35185133855962, 35185133855963, 35184763410348, 35185029968552, 35185133855967, 35185133855964, 35185133855966, 35185133855960, 35185133855961, 35184763410351, 35185190550958, 35185133855953, 35184637522361, 35184702457087, 35185152337983, 35184702457086], realTop: 26.2, top: 12 }, tiers: [
-    // Low and wide, like the real one: a round step, a thick hollow basin rim (two half-rings) around the water,
-    // a dark inner bowl, and a small armillary globe just above the jets.
-    [13, 0, .5, { round: true }],
-    [9, .5, 3.5, { arc: { inner: 7.4, from: 0, to: 180 } }], [9, .5, 3.5, { arc: { inner: 7.4, from: 180, to: 360 } }],
-    [7.4, .5, 1.6, { round: true }],
-    [4, 1.6, 5, { round: true }], [1.6, 5, 7.5, { round: true }],
-    [2.2, 7.5, 8.5, { round: true }], [3.2, 8.5, 10, { round: true }], [3.6, 10, 11.5, { round: true }], [3.2, 11.5, 13, { round: true }], [2.2, 13, 14, { round: true }],
-    [1.5, 14, 15, { round: true }],
-    // The armillary's ring band around the globe's middle.
-    [4.6, 10.3, 11.2, { arc: { inner: 4.1, from: 0, to: 180 } }], [4.6, 10.3, 11.2, { arc: { inner: 4.1, from: 180, to: 360 } }],
-  ] },
-  // HKUST: the curved academic building that wraps the Piazza, opening west towards the gate. The Piazza
-  // (OSM way 235913807) is a ring centred here; the seal floats over the Piazza. Roy (2026-11-10): the whole
-  // campus is the landmark, so every tile building inside the campus outline (OSM way 40664120) is blue too.
-  { id: "hkust", lat: 22.3374255, lng: 114.2629606,
-    tile: { realTop: 38, top: 14, ids: [
-      35184588150781, 35184588150874, 35184588151507, 35184588151845, 35184604980730, 35184604980739, 35184605712876, 35184605712877,
-      35184605712878, 35184605712879, 35184605712885, 35184607417841, 35184607417844, 35184607417847, 35184607417851, 35184607946900,
-      35184607946908, 35184608001582, 35184608002636, 35184608003256, 35184608003258, 35184608003259, 35184608003393, 35184608118220,
-      35184608118222, 35184608118225, 35184608118226, 35184608118228, 35184608234791, 35184608234793, 35184608234794, 35184609084167,
-      35184612483705, 35184612483717, 35184612546772, 35184612546783, 35184612546784, 35184635582360, 35184635582361, 35184650365030,
-      35184650365035, 35184650365036, 35184650365040, 35184650365043, 35184650365055, 35184650365059, 35184660294276, 35184675660611,
-      35184687662679, 35184687793739, 35184740860876, 35184961096812, 35185113745772, 35185113746500, 35185113746501, 35185113746502,
-      35185132194864, 35185133480445, 35185133480455, 35185301575605, 35185382178161, 35185478357636, 35185478357638, 35185478357639,
-      35185478357640, 35185684953432, 35185684953433, 35185684953434, 35185684953436, 35185797136924, 35185797136925, 35185797136926,
-      35185797136927, 35185797247856, 35185797247857, 35185930730155, 35185932128835, 35185932223402, 35185932693361, 35185932930162,
-      35185932930163, 35185933216948, 52776561307952,
-    ] },
-    tiers: [
-    [64, 0, 14, { arc: { inner: 50, from: -80, to: 100 } }], [62, 14, 18, { arc: { inner: 53, from: -76, to: 96 } }],
-    // The Red Bird (OSM node 2439950828, exactly this lat/lng) in front of the arc, so the seal sits on its tip:
-    // the round sundial it stands on, a curling foot, and a neck that sways up into a beak. Tallest piece (20 m).
-    [8, 0, .5, { round: true }],
-    [2.6, .5, 1.5, { round: true, dx: -9 }], [2.6, .5, 1.5, { round: true, dx: -7.5, dy: -1 }],
-    [1.7, .5, 3, { round: true, dx: -8, dy: 3.5 }], [1.5, 3, 5, { round: true, dx: -9, dy: 4.5 }],
-    [2.5, .5, 2.5, { round: true, dx: -5.5 }], [2.4, 2.5, 4.5, { round: true, dx: -3.5 }], [2.3, 4.5, 6.5, { round: true, dx: -1.5 }],
-    [2.2, 6.5, 8.5, { round: true }], [2, 8.5, 10.5, { round: true, dx: .8 }], [1.9, 10.5, 12.5, { round: true, dx: .8 }],
-    [1.8, 12.5, 14.5, { round: true }], [1.7, 14.5, 16, { round: true, dx: 1.5 }], [1.6, 16, 17.5, { round: true, dx: 3 }],
-    [1.5, 17.5, 19, { round: true, dx: 4.5 }], [1.5, 19, 20, { round: true, dx: 6 }],
-  ] },
-] as Monument[];
-const TILE_IDS = MONUMENTS.flatMap((m) => m.tile?.ids ?? []);
-/** Which monument a tile building belongs to, for taps. */
-const TILE_OWNER = Object.fromEntries(MONUMENTS.flatMap((m) => (m.tile?.ids ?? []).map((id) => [id, m.id])));
-/** Per tile building: real metres → toy metres. */
-const tileScale = (): unknown => TILE_IDS.length
-  ? ["match", ["id"], ...MONUMENTS.flatMap((m) => m.tile ? [m.tile.ids, m.tile.top / m.tile.realTop] : []), 0]
-  : 0;
-function monumentGeoJson() {
-  const features = MONUMENTS.flatMap((m) => (m.tiers ?? []).map(([half, base, top, o]) => {
-    const mLat = 110540, mLng = 111320 * Math.cos(m.lat * Math.PI / 180);
-    const cLat = m.lat + (o?.dy ?? 0) / mLat, cLng = m.lng + (o?.dx ?? 0) / mLng;
-    const at = (r: number, deg: number) => [cLng + r * Math.cos(deg * Math.PI / 180) / mLng, cLat + r * Math.sin(deg * Math.PI / 180) / mLat];
-    const arc = o?.arc, steps = arc ? Math.max(6, Math.ceil(Math.abs(arc.to - arc.from) / 7.5)) : 0;
-    const ring = arc
-      ? [...Array.from({ length: steps + 1 }, (_, k) => at(half, arc.from + (arc.to - arc.from) * k / steps)),
-         ...Array.from({ length: steps + 1 }, (_, k) => at(arc.inner, arc.to - (arc.to - arc.from) * k / steps)), at(half, arc.from)]
-      : o?.round
-      ? Array.from({ length: 25 }, (_, k) => { const a = k / 24 * Math.PI * 2; return [cLng + half * Math.cos(a) / mLng, cLat + half * Math.sin(a) / mLat]; })
-      : [[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]].map(([x, y]) => [cLng + x * half / mLng, cLat + y * half / mLat]);
-    return { type: "Feature", properties: { id: m.id, base, top, t: (base + top) / 2 / monumentTop(m) }, geometry: { type: "Polygon", coordinates: [ring] } };
-  }));
-  return { type: "FeatureCollection", features };
-}
-// Everything of ours on the map is blue; brass is kept for private hunts (docs/design/city-orienteering.md).
-const MONUMENT_RAMP = (t: unknown) => ["interpolate", ["linear"], t, 0, C.ink, 0.35, C.blue, 0.75, C.lightBlue, 1, C.glass];
+const SEED_IDS = Object.keys(SEED.tiles).map(Number);
 export const mapPalette = {
   water: "#BCD3E6", waterLine: "#9DBBD6", land: "#F3EFE6", park: "#DCE6CF", sand: "#EFE3C6",
   building: "#E6E0D3", buildingTop: "#EEE9DE", road: "#FFFFFF", roadCase: "#D5DDE7", major: "#F1E2BF", label: C.blue, halo: "#F6F8FB",
@@ -123,9 +40,9 @@ function vectorStyle(pmtiles: string, builder = false) {
       { id: "waterline", type: "line", source: "base", "source-layer": "water", paint: { "line-color": mapPalette.waterLine, "line-width": 1.2 } },
       { id: "road-case", type: "line", source: "base", "source-layer": "roads", filter: ["in", ["get", "kind"], ["literal", ["highway", "major_road", "minor_road"]]], layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": mapPalette.roadCase, "line-width": ["interpolate", ["linear"], ["zoom"], 13, 2, 17, 12, 19, 22] } },
       { id: "roads", type: "line", source: "base", "source-layer": "roads", filter: ["in", ["get", "kind"], ["literal", ["highway", "major_road", "minor_road", "path"]]], layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": ["match", ["get", "kind"], ["highway", "major_road"], mapPalette.major, mapPalette.road], "line-width": ["interpolate", ["linear"], ["zoom"], 13, 1, 17, ["match", ["get", "kind"], "path", 2, 9], 19, ["match", ["get", "kind"], "path", 4, 18]] } },
-      { id: "buildings", type: "fill-extrusion", source: "base", "source-layer": "buildings", minzoom: 15, filter: ["!", ["in", ["id"], ["literal", TILE_IDS]]], paint: { "fill-extrusion-color": mapPalette.building, "fill-extrusion-height": ["min", ["*", ["coalesce", ["get", "height"], 9], TOY_SCALE], TOY_MAX_M], "fill-extrusion-opacity": .82 } },
+      { id: "buildings", type: "fill-extrusion", source: "base", "source-layer": "buildings", minzoom: 15, filter: ["!", ["in", ["id"], ["literal", SEED_IDS]]], paint: { "fill-extrusion-color": mapPalette.building, "fill-extrusion-height": ["min", ["*", ["coalesce", ["get", "height"], 9], TOY_SCALE], TOY_MAX_M], "fill-extrusion-opacity": .82 } },
       // Landmark buildings from the tiles, repainted in the monument blue.
-      { id: "monument-tiles", type: "fill-extrusion", source: "base", "source-layer": "buildings", minzoom: 15, filter: ["in", ["id"], ["literal", TILE_IDS]], paint: { "fill-extrusion-base": ["*", ["coalesce", ["get", "min_height"], 0], tileScale()], "fill-extrusion-height": ["*", ["coalesce", ["get", "height"], 9], tileScale()], "fill-extrusion-color": C.blue, "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true } },
+      { id: "monument-tiles", type: "fill-extrusion", source: "base", "source-layer": "buildings", minzoom: 15, filter: ["in", ["id"], ["literal", SEED_IDS]], paint: { "fill-extrusion-base": ["*", ["coalesce", ["get", "min_height"], 0], tileMatch(SEED, 0, 0)], "fill-extrusion-height": ["*", ["coalesce", ["get", "height"], 9], tileMatch(SEED, 0, 0)], "fill-extrusion-color": tileMatch(SEED, 1, C.blue), "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true } },
       ...(builder ? BUILDER_LAYERS : []),
       { id: "places", type: "symbol", source: "base", "source-layer": "places", filter: ["in", ["get", "kind"], ["literal", ["neighbourhood", "locality", "macrohood"]]], layout: { "text-field": ["coalesce", ["get", "name:zh-Hant"], ["get", "name"]], "text-font": ["Noto Sans Regular"], "text-size": 12, "text-letter-spacing": .08 }, paint: { "text-color": mapPalette.label, "text-halo-color": mapPalette.halo, "text-halo-width": 1.6 } },
     ],
@@ -322,8 +239,9 @@ const glyphBadge=kind=>'<svg viewBox="-12 -12 24 24"><g transform="scale(.82)"><
 const face=src=>src?'<div class="face"><img src="'+src+'"></div>':'<div class="face"></div>';
 const circle=(c,r)=>{const pts=[];for(let i=0;i<=48;i++){const a=i/48*Math.PI*2;pts.push([c.lng+r*Math.cos(a)/(111320*Math.cos(c.lat*Math.PI/180)),c.lat+r*Math.sin(a)/110540])}return{type:'Feature',geometry:{type:'Polygon',coordinates:[pts]}}};
 map.on('load',()=>{
-  map.addSource('monuments',{type:'geojson',data:${JSON.stringify(monumentGeoJson())}});
-  map.addLayer({id:'monuments',type:'fill-extrusion',source:'monuments',paint:{'fill-extrusion-base':['get','base'],'fill-extrusion-height':['get','top'],'fill-extrusion-color':${JSON.stringify(MONUMENT_RAMP(["get", "t"]))},'fill-extrusion-opacity':1,'fill-extrusion-vertical-gradient':true}});
+  map.addSource('monuments',{type:'geojson',data:${JSON.stringify(SEED.geo)}});
+  map.addLayer({id:'monuments',type:'fill-extrusion',source:'monuments',paint:{'fill-extrusion-base':['get','base'],'fill-extrusion-height':['get','top'],'fill-extrusion-color':['get','c'],'fill-extrusion-opacity':1,'fill-extrusion-vertical-gradient':true}});
+  if(state.monuments)paintMonuments(state.monuments);
   map.addSource('reach',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
   map.addLayer({id:'reach-fill',type:'fill',source:'reach',paint:{'fill-color':'${C.brass}','fill-opacity':.12}});
   map.addLayer({id:'reach-line',type:'line',source:'reach',paint:{'line-color':'${C.brass}','line-width':1.5,'line-dasharray':[2,2]}});
@@ -371,10 +289,19 @@ const tapPin=id=>{
 map.on('movestart',fold);
 map.on('resize',()=>{if(follow&&you)map.jumpTo({center:[you.lng,you.lat],zoom:pickupZoom(you.lat,state.reach||100),padding:cameraPadding})});
 // Tapping a monument building opens its Landmark; anywhere else is a plain map tap.
-const TILE_OWNER=${JSON.stringify(TILE_OWNER)};
+let TILE_OWNER=${JSON.stringify(SEED.owner)},monumentsNow=null;
+// Map builder R2: each Landmark's monument comes in the state; the seed above shows until it does.
+function paintMonuments(p){const key=JSON.stringify(p);if(key===monumentsNow||!map.getSource('monuments'))return;monumentsNow=key;
+  map.getSource('monuments').setData(p.geo);TILE_OWNER=p.owner;const ids=Object.keys(p.tiles),nums=ids.map(Number);
+  const match=(i,f)=>ids.length?['match',['id'],...ids.flatMap(id=>[Number(id),p.tiles[id][i]]),f]:f;
+  if(map.getLayer('buildings'))map.setFilter('buildings',['!',['in',['id'],['literal',nums]]]);
+  if(map.getLayer('monument-tiles')){map.setFilter('monument-tiles',['in',['id'],['literal',nums]]);
+    map.setPaintProperty('monument-tiles','fill-extrusion-base',['*',['coalesce',['get','min_height'],0],match(0,0)]);
+    map.setPaintProperty('monument-tiles','fill-extrusion-height',['*',['coalesce',['get','height'],9],match(0,0)]);
+    map.setPaintProperty('monument-tiles','fill-extrusion-color',match(1,'${C.blue}'))}}
 const monumentAt=p=>{const layers=['monuments','monument-tiles'].filter(l=>map.getLayer(l));const hit=layers.length&&map.queryRenderedFeatures(p,{layers})[0];return hit?(hit.layer.id==='monuments'?hit.properties.id:TILE_OWNER[hit.id]):null};
-map.on('click',e=>{if(fan){fold();return}const id=monumentAt(e.point);if(id){send({type:'select',id:'monument-'+id});return}send({type:'tap',lat:e.lngLat.lat,lng:e.lngLat.lng})});
-map.on('mousemove',e=>{map.getCanvas().style.cursor=monumentAt(e.point)?'pointer':''});
+map.on('click',e=>{if(window.__tcPick&&window.__tcPick(e))return;if(fan){fold();return}const id=monumentAt(e.point);if(id){send({type:'select',id:'monument-'+id});return}send({type:'tap',lat:e.lngLat.lat,lng:e.lngLat.lng})});
+map.on('mousemove',e=>{if(window.__tcPickOn)return;map.getCanvas().style.cursor=monumentAt(e.point)?'pointer':''});
 // A badge "on top" of a building: the screen offset from its ground point to the same point raised
 // to the building's height, through the camera's own perspective, so it stays on the spire as the map moves.
 const liftOffset=(ll,meters)=>{const t=map.transform;const mc=maplibregl.MercatorCoordinate.fromLngLat(ll);
@@ -497,7 +424,7 @@ function render(){
 }
 function recv(m){
   ${builder ? "builderRecv(m);" : ""}
-  if(m.type==='state'){if(fan&&m.pins.map(p=>p.id).join()!==state.pins.map(p=>p.id).join())fold();const moved=!you||!m.you||Math.abs(you.lat-m.you.lat)+Math.abs(you.lng-m.you.lng)>1e-6;if(walkFrom&&m.you&&metres(walkFrom,m.you)>10){you=m.you;walkHome()}you=m.you;state=m;heading=m.heading||heading;render();rescale();if(follow&&you&&moved)map.easeTo({center:[you.lng,you.lat],duration:you?900:0,padding:cameraPadding})}
+  if(m.type==='state'){if(fan&&m.pins.map(p=>p.id).join()!==state.pins.map(p=>p.id).join())fold();const moved=!you||!m.you||Math.abs(you.lat-m.you.lat)+Math.abs(you.lng-m.you.lng)>1e-6;if(walkFrom&&m.you&&metres(walkFrom,m.you)>10){you=m.you;walkHome()}you=m.you;state=m;heading=m.heading||heading;if(m.monuments)paintMonuments(m.monuments);render();rescale();if(follow&&you&&moved)map.easeTo({center:[you.lng,you.lat],duration:you?900:0,padding:cameraPadding})}
   if(m.type==='recenter'&&you){follow=true;map.easeTo({center:[you.lng,you.lat],zoom:pickupZoom(you.lat,state.reach||100),pitch:40,bearing:0,duration:900,padding:cameraPadding})}
   if(m.type==='walk'&&you)walkTo({lat:m.lat,lng:m.lng});
   if(m.type==='hop')hop({lat:m.lat,lng:m.lng},m.ms);

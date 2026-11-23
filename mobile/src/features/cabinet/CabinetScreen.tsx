@@ -22,7 +22,7 @@ import { copiesOf, COPIES } from "../../services/copies";
 import { useCopiesText } from "../copies/strings";
 
 type Owned = { vessel: string; edition_no: number | null; acquired_at: string };
-type VesselRow = { earned_place?: string | null; id: string; price_mop: number; edition_total: number | null; sort: number };
+type VesselRow = { earned_place?: string | null; earned_only?: boolean | null; id: string; price_mop: number; edition_total: number | null; sort: number };
 type SlotRect = { x: number; y: number; width: number; height: number };
 /** One vessel on the shelves. `key` is unique even when the same kind appears more than once. */
 export type CabinetItem = {

@@ -13,7 +13,9 @@ export type VesselKind = 'dome' | 'bottle' | 'envelope' | 'tin' | 'lantern' | 'm
   | 'rwb-bag' | 'bolo-bun' | 'tram'
   | 'tiffin' | 'kamcheng' | 'orchid'
   | 'egg-tart' | 'rooster' | 'pedicab'
-  | 'north-gate' | 'durian' | 'lighthouse';
+  | 'north-gate' | 'durian' | 'lighthouse'
+  // Map builder R2: the default Landmark reward
+  | 'landmark-keepsake';
 /** The original 7 vessels, which also have SVG drawings. */
 export type SvgVesselKind = 'dome' | 'bottle' | 'envelope' | 'tin' | 'lantern' | 'musicbox' | 'maison';
 // Pivots are normalized to the vessel view box and identify the moving lid.

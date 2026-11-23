@@ -42,4 +42,12 @@ describe('Shop once the game is on', () => {
   it('never sells an earned vessel, even a numbered one', () => {
     expect(showVesselInShop({ price_mop: 0, earned_place: 'merlion', edition_total: 10 }, false, true)).toBe(false);
   });
+  it('treats the place-free Landmark Keepsake (earned_only) as earned, though it costs nothing', () => {
+    const keepsake = { id: 'landmark-keepsake', price_mop: 0, earned_place: null, earned_only: true };
+    expect(canUseVessel(keepsake, false)).toBe(false);
+    expect(canUseVessel(keepsake, true)).toBe(true);
+    expect(showVesselInShop(keepsake, false)).toBe(false);
+    expect(showVesselInShop(keepsake, false, true)).toBe(false);
+    expect(isCollected(keepsake, false, false)).toBe(false);
+  });
 });

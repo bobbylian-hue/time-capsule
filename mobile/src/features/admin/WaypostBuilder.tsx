@@ -15,6 +15,11 @@ import { useSheetActions } from "./EditSheet";
 import { MAP_BUILDER_R15 } from "../../services/mapBuilder";
 import { ScenePicker } from "./WaypostEditor";
 import { numberedNames } from "../../services/waypostNames";
+import { gameArt } from "../../art/manifest";
+import type { LandmarkSettings } from "../../services/admin";
+import { LANDMARK_DEFAULTS } from "../../services/mapBuilder";
+import { LandmarkFields, type BuildingTap } from "./LandmarkFields";
+import { useLandmarkText } from "./landmarkStrings";
 
 const hasChinese = (x: string) => /[㐀-鿿]/.test(x);
 /** Errors are kept as codes and translated when shown, so they follow a language switch. */
@@ -92,8 +97,8 @@ function NameChips({ names, onPick }: { names: MapNames | null; onPick: (n: MapN
 }
 
 /** The picture players see when they spin: one of our scenes, or an uploaded photo over it with its credit. */
-function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredit }: {
-  region: string; scene: Scene | null; onScene: (s: Scene) => void;
+function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredit, landmark }: {
+  region: string; scene: Scene | null; onScene: (s: Scene) => void; /** R2: a Landmark has the default Landmark picture instead of scenes. */ landmark?: boolean;
   photo: string | null; onPhoto: (p: string | null) => void; credit: string; onCredit: (c: string) => void;
 }) {
   const mb = useMapBuilderText();
@@ -110,11 +115,13 @@ function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredi
     } catch (e) { setError(errorCode(e)); } finally { setBusy(false); }
   };
   const url = photoUrl(photo);
+  const lt = useLandmarkText();
   return <View style={{ gap: spacing.sm }}>
-    <ScenePicker value={scene} onChange={onScene} />
+    {landmark ? <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.picture}</Text> : <ScenePicker value={scene} onChange={onScene} />}
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
       {url
         ? <Image source={{ uri: url }} accessibilityLabel={mb.picture} style={{ width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: C.blue }} />
+        : landmark ? <Image source={gameArt.wheel.landmark} accessibilityLabel={mb.picture} style={{ width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: C.blue }} />
         : <View style={{ width: 72, height: 72, borderRadius: 36, borderWidth: 1.5, borderStyle: "dashed", borderColor: C.muted, alignItems: "center", justifyContent: "center" }}>
             <Text style={{ fontFamily: sans, fontSize: 22, color: C.muted }}>＋</Text>
           </View>}
@@ -123,14 +130,14 @@ function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredi
         {url && <AButton small tone="ghost" title={mb.removePhoto} onPress={() => { onPhoto(null); onCredit(""); }} />}
       </View>
     </View>
-    <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.photoNote}</Text>
+    <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{landmark && !url ? lt.pictureDefault : mb.photoNote}</Text>
     {url && <Field label={mb.credit} value={credit} onChangeText={onCredit} maxLength={120} placeholder="© …" />}
     {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
   </View>;
 }
 
 /** Adding a Waypost at `at`, or editing one (moving it to `at` when that differs). */
-export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving, ask, onMove, onMoveHere, onSaved, onCancel }: {
+export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving, ask, onMove, onMoveHere, onSaved, onCancel, landmark }: {
   /** Inside the map popup: no card frame, and the popup's title replaces the pill. */
   flat?: boolean;
   region: Region;
@@ -143,14 +150,25 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
   onMoveHere: () => void;
   onSaved: (w: MapWaypost) => void;
   onCancel: () => void;
+  /** R2: a Landmark (new, existing, or a Waypost being made one): its look previews on the map as it changes. */
+  landmark?: { onPreview: (l: LandmarkSettings | null) => void; picking: boolean; onPicking: (on: boolean) => void; buildingTap: BuildingTap };
 }) {
   const a = useAdminText();
   const mb = useMapBuilderText();
+  const lt = useLandmarkText();
   const { language } = useLanguage();
   const adding = !waypost;
+  const isLandmark = !!landmark;
+  const making = isLandmark && waypost?.kind === "common";
+  const startLandmark = React.useMemo(() => isLandmark ? waypost?.landmark ?? LANDMARK_DEFAULTS : null, [isLandmark, waypost?.id]);
+  const [look, setLook] = useState<LandmarkSettings | null>(startLandmark);
+  const lookChanged = !!look && JSON.stringify(look) !== JSON.stringify(waypost?.landmark ?? null);
+  useEffect(() => { landmark?.onPreview(look); }, [look]);
+  useEffect(() => () => { landmark?.onPreview(null); landmark?.onPicking(false); }, []);
   const [nameZh, setNameZh] = useState(waypost?.name_zh ?? "");
   const [nameEn, setNameEn] = useState(waypost?.name_en ?? "");
-  const [scene, setScene] = useState<Scene | null>(waypost?.scene ?? null);
+  // A Landmark shows the default Landmark picture, so it only needs a scene for the server (any will do).
+  const [scene, setScene] = useState<Scene | null>(waypost?.scene ?? (landmark ? "square" : null));
   const [photo, setPhoto] = useState<string | null>(waypost?.photo ?? null);
   const [credit, setCredit] = useState(waypost?.photo_credit ?? "");
   const [note, setNote] = useState("");
@@ -192,28 +210,33 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
   const ready = !!nameZh.trim() && hasChinese(nameZh) && !!nameEn.trim() && !!scene && inside && cellFree && !busy;
   // R1.5: a new Waypost can be saved as a draft first.
   const [asDraft, setAsDraft] = useState(false);
-  const dirty = adding || moved || !!note.trim() || nameZh.trim() !== waypost.name_zh || nameEn.trim() !== waypost.name_en
-    || scene !== (waypost.scene ?? null) || photo !== (waypost.photo ?? null) || (photo ? credit.trim() : "") !== (waypost.photo_credit ?? "");
+  const baseDirty = adding || moved || !!note.trim() || nameZh.trim() !== waypost.name_zh || nameEn.trim() !== waypost.name_en
+    || scene !== (waypost.scene ?? (landmark ? "square" : null)) || photo !== (waypost.photo ?? null) || (photo ? credit.trim() : "") !== (waypost.photo_credit ?? "");
+  const dirty = baseDirty || making || lookChanged;
 
   const save = async () => {
     if (!ready || !scene) return false;
     setBusy(true); setError(null);
     try {
       const base = { lat: at.lat, lng: at.lng, name_zh: nameZh.trim(), name_en: nameEn.trim(), scene };
-      if (adding) onSaved(await builder.addWaypost(region.id, { ...base, photo, photo_credit: photo ? credit.trim() || null : null }, note.trim() || null, asDraft ? "draft" : "live"));
+      if (adding && look) onSaved(await builder.addLandmark(region.id, { ...base, photo, photo_credit: photo ? credit.trim() || null : null }, look, note.trim() || null, asDraft ? "draft" : "live"));
+      else if (adding) onSaved(await builder.addWaypost(region.id, { ...base, photo, photo_credit: photo ? credit.trim() || null : null }, note.trim() || null, asDraft ? "draft" : "live"));
+      else if (look && !baseDirty) { await builder.setLandmark(waypost.id, look, note.trim() || null); onSaved({ ...waypost, kind: "landmark", landmark: look }); }
       else {
         // null keeps what's there; "" clears it.
         const nextCredit = photo ? credit.trim() : "";
         onSaved(await builder.updateWaypost(waypost.id, { ...base,
           photo: photo === (waypost.photo ?? null) ? null : photo ?? "",
           photo_credit: nextCredit === (waypost.photo_credit ?? "") ? null : nextCredit }, note.trim() || null));
+        // A Landmark's look, reward or fight is a second write (its own Activity row).
+        if (look && (making || lookChanged)) await builder.setLandmark(waypost.id, look, null);
       }
       return true;
     } catch (e) { setError(errorCode(e)); return false; } finally { setBusy(false); }
   };
   // Inside the popup, Save and Cancel live in its header.
   const inSheet = useSheetActions({ dirty, canSave: ready && (adding || dirty), busy, save,
-    saveLabel: adding ? (asDraft ? mb.saveDraft : mb.publish) : undefined });
+    saveLabel: adding ? (asDraft ? mb.saveDraft : mb.publish) : making ? lt.make : undefined });
 
   const Frame = flat ? View : Card;
   return <Frame style={{ gap: spacing.md }}>
@@ -238,7 +261,9 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
           onPress={() => { setNameZh(suggestion.zh); setNameEn(suggestion.en); }} />
       </View>
     </View>}
-    <PicturePicker region={region.id} scene={scene} onScene={setScene} photo={photo} onPhoto={setPhoto} credit={credit} onCredit={setCredit} />
+    {making && <Notice text={lt.makeNote} />}
+    <PicturePicker region={region.id} scene={scene} onScene={setScene} photo={photo} onPhoto={setPhoto} credit={credit} onCredit={setCredit} landmark={isLandmark} />
+    {look && landmark && <LandmarkFields value={look} onChange={setLook} picking={landmark.picking} onPicking={landmark.onPicking} buildingTap={landmark.buildingTap} />}
     <Field label={a.ed.noteOptional} value={note} onChangeText={setNote} maxLength={300} />
     {adding && MAP_BUILDER_R15 && <Check on={asDraft} onChange={setAsDraft} label={mb.asDraft} />}
     {error && <Notice tone="stop" text={errorText(a, mb, error)} />}

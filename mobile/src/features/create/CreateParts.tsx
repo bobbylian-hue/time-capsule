@@ -129,7 +129,7 @@ const CATEGORY: Record<string, VesselCategory> = {
   'sky-lantern': 'festival', 'rwb-bag': 'keepsake', tram: 'keepsake', kamcheng: 'keepsake',
   orchid: 'keepsake', rooster: 'keepsake', pedicab: 'keepsake',
   'pineapple-cake': 'food', teapot: 'food', 'bolo-bun': 'food', tiffin: 'food', 'egg-tart': 'food',
-  'north-gate': 'landmark', durian: 'landmark', lighthouse: 'landmark',
+  'north-gate': 'landmark', durian: 'landmark', lighthouse: 'landmark', 'landmark-keepsake': 'landmark',
   ramen: 'food', 'fortune-cookie': 'food', 'chocolate-heart': 'food', 'bubble-tea': 'food', 'dim-sum-steamer': 'food', bento: 'food',
   'red-bird': 'landmark', 'clock-tower': 'landmark', 'senado-fountain': 'landmark', 'bamboo-tower': 'landmark', 'gate-lantern': 'landmark', 'torii-scroll': 'landmark',
   'palace-pavilion': 'landmark', 'lionfish-fountain': 'landmark', 'golden-roof': 'landmark', 'gate-lacquer': 'landmark', 'twin-towers': 'landmark',

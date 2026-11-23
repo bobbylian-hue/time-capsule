@@ -32,6 +32,11 @@ import { SpotForm, WaypostBuilderForm, WaypostNumbers, type Ask } from "./Waypos
 import { EditSheet, StatusActions, type SheetGuard } from "./EditSheet";
 import { FillPanel, useFill } from "./FillArea";
 import { DraftsCard } from "./DraftsCard";
+import { MAP_BUILDER_R2 } from "../../services/mapBuilder";
+import type { LandmarkSettings } from "../../services/admin";
+import { monumentTop, monumentsFor, paintMonuments, placedMonument } from "../journey/live/monuments";
+import type { BuildingTap } from "./LandmarkFields";
+import { useLandmarkText } from "./landmarkStrings";
 
 type Layer = "wayposts" | "wave" | "hunts" | "spots";
 /** Pins reach full size a couple of zooms in from the whole city, and stay readable (never vanish) out at city scale. */
@@ -54,6 +59,7 @@ export default function CityMapScreen() {
 function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }) {
   const a = useAdminText();
   const mb = useMapBuilderText();
+  const lt = useLandmarkText();
   const { language } = useLanguage();
   const zh = language === "zh";
   const wide = useWide();
@@ -67,7 +73,12 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   const setEditing = setEditMode;
   /** add: the next map tap drops a new Waypost. move: the next tap is the selected Waypost's new spot.
    * spot / moveSpot: the same for spawn spots (R1). */
-  const [mode, setMode] = useState<"add" | "move" | "spot" | "moveSpot" | null>(null);
+  const [mode, setMode] = useState<"add" | "landmark" | "move" | "spot" | "moveSpot" | null>(null);
+  /** R2: the Waypost being made a Landmark, the look being edited (previewed on the map) and whether map taps pick buildings. */
+  const [making, setMaking] = useState<string | null>(null);
+  const [preview, setPreview] = useState<LandmarkSettings | null>(null);
+  const [picking, setPicking] = useState(false);
+  const buildingTap: BuildingTap = useRef(null);
   const [grid, setGrid] = useState(false);
   /** Why the last tap did nothing (outside the border), or the GPS note for Move here. */
   // Kept as a reason, not text, so it follows a language switch.
@@ -85,7 +96,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   const pickedSpot = selected?.startsWith("s:") ? map.spots.find((x) => x.id === selected.slice(2)) : undefined;
   // The border, the grid and which cells already have a Waypost or Landmark (R1.5: drafts and hidden ones hold
   // their cell too), and what a dragged pin is, so a dragged Waypost shows its cell green or red.
-  const dragKind = mode === "add" || mode === "move" || picked ? "waypost" : mode === "spot" || mode === "moveSpot" || pickedSpot ? "spot" : null;
+  const dragKind = mode === "add" || mode === "landmark" || mode === "move" || picked ? "waypost" : mode === "spot" || mode === "moveSpot" || pickedSpot ? "spot" : null;
   useEffect(() => {
     if (!MAP_BUILDER_R1) return;
     ref.current?.command({ type: "builder", border: map.region.border ?? null, grid,
@@ -93,12 +104,15 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
       dragKind, dragSkip: picked?.id ?? null });
   }, [map, grid, dragKind, picked?.id]);
   // While placing, a see-through Waypost (or spot) follows the pointer until the first tap.
-  const following = !draft && (mode === "add" || mode === "spot") ? mode : null;
+  const following = !draft && (mode === "add" || mode === "landmark" || mode === "spot") ? mode : null;
   useEffect(() => {
     if (!MAP_BUILDER_R1) return;
-    ref.current?.command(following ? { type: "placing", kind: following === "add" ? "waypost" : "spot", img: following === "add" ? assetUri(gameArt.waypostGemBlue) ?? undefined : undefined }
+    ref.current?.command(following ? { type: "placing", kind: following === "spot" ? "spot" : "waypost",
+      img: following === "spot" ? undefined : assetUri(following === "landmark" ? gameArt.landmarkGem : gameArt.waypostGemBlue) ?? undefined }
       : { type: "placing", kind: null });
   }, [following]);
+  // R2: while choosing a Landmark's buildings, map taps pick buildings instead.
+  useEffect(() => { if (MAP_BUILDER_R2) ref.current?.command({ type: "pick", on: picking }); }, [picking]);
   // Asking the map page what the tiles call a spot; answers come back by number.
   const asks = useRef(new Map<number, (n: MapNames) => void>());
   const seq = useRef(0);
@@ -128,16 +142,23 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
       // A Waypost being moved stays where it is as a faint ghost; the unsaved new spot is the draft pin.
       const moved = mode === "move" && !!draft && selected === `w:${w.id}`;
       const status = statusOf(w), on = selected === `w:${w.id}` && !moved;
-      return { id: `w:${w.id}`, lat: w.lat, lng: w.lng, kind: w.kind === "landmark" ? "landmark" : "waypost",
+      // R2: Landmarks are edited like Wayposts; the seal floats on top of the monument (the one being edited, if this one).
+      const editable = w.kind === "common" || MAP_BUILDER_R2;
+      const look = on && preview ? preview.monument : w.landmark?.monument;
+      const lift = w.kind === "landmark" || (on && preview) ? monumentTop(look ?? placedMonument(w)?.monument) : 0;
+      return { id: `w:${w.id}`, lat: w.lat, lng: w.lng, kind: w.kind === "landmark" || (on && preview) ? "landmark" : "waypost", lift: lift ? lift + 4 : undefined,
         label: zh ? w.name_zh : w.name_en,
         vessel: assetUri(w.kind === "landmark" ? gameArt.landmarkGem : gameArt.waypostGemBlue) ?? "", selected: on, locked: status === "hidden", ghost: moved,
         // A saved draft looks like an unsaved place but says Draft.
         draft: status === "draft", tag: status === "draft" ? mb.status.draft : undefined,
-        drag: MAP_BUILDER_R1 && editing && on && w.kind === "common" && status !== "hidden" && !fill,
-        edit: MAP_BUILDER_R1 && editing && w.kind === "common" && !fill && !moved };
+        drag: MAP_BUILDER_R1 && editing && on && editable && status !== "hidden" && !fill,
+        edit: MAP_BUILDER_R1 && editing && editable && !fill && !moved };
     }) : []),
     // Not saved yet: see-through with a dashed ring and a "Not saved" tag.
-    ...(editing && (mode === "add" || mode === "move") && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "waypost", vessel: gem, selected: true, draft: true, tag: mb.notSaved, drag: MAP_BUILDER_R1, edit: MAP_BUILDER_R1 } as LivePin] : []),
+    ...(editing && (mode === "add" || mode === "landmark" || mode === "move") && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng,
+      kind: mode === "landmark" || (mode === "move" && (picked?.kind === "landmark" || preview)) ? "landmark" : "waypost",
+      lift: preview?.monument ? monumentTop(preview.monument) + 4 : undefined,
+      vessel: mode === "landmark" ? assetUri(gameArt.landmarkGem) ?? "" : gem, selected: true, draft: true, tag: mb.notSaved, drag: MAP_BUILDER_R1, edit: MAP_BUILDER_R1 } as LivePin] : []),
     ...(editing && (mode === "spot" || mode === "moveSpot") && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "spot", vessel: "", selected: true, draft: true, tag: mb.notSaved, drag: MAP_BUILDER_R1, edit: MAP_BUILDER_R1 } as LivePin] : []),
     ...(editing && (layers.spots || mode === "spot" || mode === "moveSpot" || fill?.kinds.includes("spot")) ? map.spots.map<LivePin>((x) => {
       const moved = mode === "moveSpot" && !!draft && selected === `s:${x.id}`;
@@ -160,11 +181,23 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
       ...map.keepers.map<LivePin>((k) => ({ id: `k:${k.hunt}`, lat: k.lat, lng: k.lng, kind: "keeper", vessel: "", portrait: assetUri(keeperPortrait), figure: assetUri(characters.keeper) })),
       ...map.private_quests.map<LivePin>((q) => ({ id: `q:${q.id}`, lat: q.lat, lng: q.lng, kind: "quest", vessel: "", quest: "arrive", photo: questImageUri(q.picture) })),
     ] : []),
-  ], [map, layers, selected, editing, mode, draft, zh, a.ed.spotTitle, mb, fill, gem, bump]);
-  const state = useMemo(() => ({ you: null, reach: CITY_REACH, pins }), [pins]);
+  ], [map, layers, selected, editing, mode, draft, zh, a.ed.spotTitle, mb, fill, gem, bump, preview]);
+  // R2: the city's monuments as saved, with the one being edited shown as it is now (at its unsaved spot when moved).
+  const monuments = useMemo(() => {
+    if (!MAP_BUILDER_R2) return undefined;
+    const editingId = mode === "landmark" ? "draft" : picked?.id;
+    const at = draft ?? picked;
+    const rows = map.wayposts.filter((w) => statusOf(w) !== "deleted" && w.id !== editingId)
+      .map((w) => ({ ...w, monument: w.landmark ? w.landmark.monument : undefined }));
+    const list = map.wayposts.some((w) => w.landmark) ? rows.map(placedMonument).filter((m) => !!m) as NonNullable<ReturnType<typeof placedMonument>>[] : monumentsFor(rows);
+    if (preview?.monument && editingId && at) list.push({ id: editingId, lat: at.lat, lng: at.lng, monument: preview.monument });
+    else if (!preview && picked && picked.kind === "landmark") { const own = placedMonument({ ...picked, monument: picked.landmark ? picked.landmark.monument : undefined }); if (own) list.push({ ...own, ...(draft ?? {}) }); }
+    return paintMonuments(list);
+  }, [map, preview, picked?.id, mode, draft?.lat, draft?.lng]);
+  const state = useMemo(() => ({ you: null, reach: CITY_REACH, pins, monuments }), [pins, monuments]);
 
   const focus = (pinId: string, lat: number, lng: number) => { setSelected(pinId); ref.current?.focus(lat, lng); };
-  const stopPlacing = () => { setMode(null); setDraft(null); setTapNote(null); };
+  const stopPlacing = () => { setMode(null); setDraft(null); setTapNote(null); setMaking(null); setPicking(false); };
   // On phones the map sits above the panel: go up to it to tap a spot, then down to the form.
   const page = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const toMap = (at?: { lat: number; lng: number }) => {
@@ -198,7 +231,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     if (mode) {
       if (!allowed({ lat, lng })) return;
       setTapNote(null);
-      setDraft({ lat, lng }); if (mode === "add" || mode === "spot") setSelected(null); toMap({ lat, lng });
+      setDraft({ lat, lng }); if (mode === "add" || mode === "landmark" || mode === "spot") setSelected(null); toMap({ lat, lng });
     }
     else if (selected) leave(() => setSelected(null));
   };
@@ -232,7 +265,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
 
   // R1's editing happens in a popup over the map (Roy, 2026-11-23: it must be obvious you're editing); the side
   // panel dims behind it. Before the first tap, a hint sits on the map itself.
-  const placing = mode === "add" || mode === "spot";
+  const placing = mode === "add" || mode === "landmark" || mode === "spot";
   const closeSheet = () => { stopPlacing(); setSelected(null); };
   const notes = <>
     {tapNote && (tapNote.kind === "outside" ? <Notice tone="stop" text={mb.outside(cityName)} />
@@ -251,12 +284,23 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     <Pressable accessibilityRole="button" onPress={() => moveHere(next)} hitSlop={6}><Text style={{ fontFamily: sans, fontSize: 12, color: C.blue }}>{mb.moveHereLink}</Text></Pressable>
   </View>;
   const moving = mode === "move" && !!draft;
+  const landmarkProps = { onPreview: setPreview, picking, onPicking: setPicking, buildingTap };
   // What the popup shows. edit: something here can be changed, so the side panel dims behind it.
   const sheet: { title: string; body: React.ReactNode; status?: PlaceStatus; edit: boolean; onClose?: () => void } | null = !MAP_BUILDER_R1 ? null
     : fill ? { title: mb.fillTitle, edit: true, body: <FillPanel api={fillApi} />, onClose: fillApi.stop }
     : editing && mode === "add" && draft ? { title: mb.titleAddWaypost, edit: true, body:
         <WaypostBuilderForm flat key="new" region={map.region} wayposts={map.wayposts} waypost={null} at={draft} moving={false} ask={ask}
           onMove={() => {}} onMoveHere={() => {}} onSaved={saved} onCancel={stopPlacing} /> }
+    : MAP_BUILDER_R2 && editing && mode === "landmark" && draft ? { title: lt.titleAdd, edit: true, body:
+        <WaypostBuilderForm flat key="newLandmark" region={map.region} wayposts={map.wayposts} waypost={null} at={draft} moving={false} ask={ask} landmark={landmarkProps}
+          onMove={() => {}} onMoveHere={() => {}} onSaved={saved} onCancel={stopPlacing} /> }
+    : MAP_BUILDER_R2 && picked && editing && (picked.kind === "landmark" || making === picked.id) ? { title: making === picked.id ? lt.titleMake : lt.titleEdit, status: statusOf(picked), edit: true, body: <>
+        {statusOf(picked) === "hidden"
+          ? <Detail map={map} id={selected!} now={now} />
+          : <WaypostBuilderForm flat key={`lm:${picked.id}`} region={map.region} wayposts={map.wayposts} waypost={picked} at={moving ? draft! : picked} moving={mode === "move"} ask={ask}
+              landmark={landmarkProps} onMove={() => {}} onMoveHere={() => moveHere("move")} onSaved={saved} onCancel={closeSheet} />}
+        {!moving && making !== picked.id && <StatusActions key={`st:${picked.id}`} status={statusOf(picked)} name={zh ? picked.name_zh : picked.name_en} onStatus={(st) => changeStatus("waypost", picked.id, st)} />}
+      </> }
     : editing && mode === "spot" && draft ? { title: mb.titleAddSpot, edit: true, body:
         <SpotForm flat key="newSpot" region={map.region} spot={null} at={draft} ask={ask} onSaved={saved} onCancel={stopPlacing} /> }
     : picked && editing && picked.kind === "common" ? { title: mb.titleEditWaypost, status: statusOf(picked), edit: true, body: <>
@@ -268,6 +312,9 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
         {!moving && (MAP_BUILDER_R15
           ? <StatusActions key={`st:${picked.id}`} status={statusOf(picked)} name={zh ? picked.name_zh : picked.name_en} onStatus={(st) => changeStatus("waypost", picked.id, st)} />
           : <VisibilityCard key={`v:${picked.id}:${picked.game_enabled}`} region={map.region.id} waypost={picked} onSaved={saved} />)}
+        {!moving && MAP_BUILDER_R2 && statusOf(picked) !== "hidden" && <View style={{ alignItems: "flex-start" }}>
+          <AButton small tone="ghost" title={lt.make} onPress={() => leave(() => setMaking(picked.id))} />
+        </View>}
         {!moving && <WaypostNumbers key={`n:${picked.id}`} id={picked.id} />}
         {!moving && ADMIN_HUNT_LOOP && <RackCard key={`r:${picked.id}`} waypost={picked.id} />}
       </> }
@@ -299,6 +346,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     {mayEdit && !placing && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
       <AButton small title={a.ed.addWaypost} onPress={() => leave(() => { setSelected(null); place("add"); })} />
       <AButton small tone="ghost" title={mb.addSpot} onPress={() => leave(() => { setSelected(null); place("spot"); })} />
+      {MAP_BUILDER_R2 && <AButton small tone="ghost" title={lt.add} onPress={() => leave(() => { setSelected(null); place("landmark"); })} />}
       {MAP_BUILDER_R15 && <AButton small tone="ghost" title={mb.fill} onPress={() => leave(() => { stopPlacing(); setSelected(null); fillApi.start(); toMap(); })} />}
     </View>}
     {MAP_BUILDER_R15 && mayEdit && draftCount > 0 && <DraftsCard map={map} count={draftCount}
@@ -316,12 +364,13 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
 
   const mapView = <View style={wide ? { flex: 1 } : { height: 420, borderBottomWidth: 1, borderBottomColor: C.line }}>
     <LiveMap ref={ref} html={html} state={state} onSelect={pick} onTap={tap} onNames={(m) => asks.current.get(m.seq)?.({ names: m.names, area: m.area as MapNames["area"], habitat: (m.habitat ?? null) as MapNames["habitat"], same: m.same })}
-      onBuilder={(m) => m.type === "drag" ? dropped(m.id, { lat: m.lat, lng: m.lng }) : m.type === "box" ? fillApi.onBox(m) : fillApi.onMany(m)} />
+      onBuilder={(m) => m.type === "drag" ? dropped(m.id, { lat: m.lat, lng: m.lng }) : m.type === "box" ? fillApi.onBox(m)
+        : m.type === "building" ? buildingTap.current?.(m.id, m.height) : fillApi.onMany(m)} />
     {hint && <View style={{ position: "absolute", top: spacing.md, left: spacing.md, right: spacing.md, alignItems: "center" }} pointerEvents="box-none">
       <View style={{ maxWidth: 420, gap: spacing.sm, backgroundColor: C.white, borderRadius: radii.md, padding: 12, borderWidth: 1, borderColor: C.line, shadowColor: C.ink, shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } }}>
         {notes}
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-          <Text style={{ flex: 1, fontFamily: sans, fontSize: 14, color: C.ink }}>{mode === "add" ? mb.tapToAdd : mb.tapToAddSpot}</Text>
+          <Text style={{ flex: 1, fontFamily: sans, fontSize: 14, color: C.ink }}>{mode === "add" ? mb.tapToAdd : mode === "landmark" ? lt.tapToAdd : mb.tapToAddSpot}</Text>
           <AButton small tone="ghost" title={a.ed.cancel} onPress={stopPlacing} />
         </View>
       </View>

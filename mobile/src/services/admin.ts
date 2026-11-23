@@ -96,7 +96,11 @@ export type MapWaypost = { id: string; name_zh: string; name_en: string; lat: nu
   /** Map builder R1: an uploaded photo shown instead of the scene, and who took it. */
   photo?: string | null; photo_credit?: string | null;
   /** R1.5; before it, live when game_enabled and hidden otherwise. */
-  status?: PlaceStatus };
+  status?: PlaceStatus;
+  /** Map builder R2, Landmarks only: its look, reward and fight. Absent before the R2 backend. */
+  landmark?: LandmarkSettings };
+/** A Landmark's look (null = the seal alone), the earned vessel a win gives, its Passport stamp and its fight. */
+export type LandmarkSettings = { monument: import("../features/journey/live/monuments").Monument | null; vessel: string; stamp: string; fight_health: number; fight_seconds: number };
 export type MapSpot = { id: string; lat: number; lng: number; habitat: Habitat | null; hidden_at?: string | null; status?: PlaceStatus };
 /** A Waypost's or spot's state, also for rows from before R1.5. */
 export const statusOf = (p: MapWaypost | MapSpot): PlaceStatus => p.status ?? ("game_enabled" in p ? (p.game_enabled ? "live" : "hidden") : p.hidden_at ? "hidden" : "live");
@@ -232,7 +236,7 @@ export const adminEdit = {
 };
 
 /** Kinds of change Undo can put back. */
-export const undoable = (action: string) => /^(waypost|spawn|config|question_pool|todays_hunt|vessel)\./.test(action) || ["rack.remove", "spot.add", "spot.move", "spot.status", "spot.add_batch"].includes(action);
+export const undoable = (action: string) => /^(waypost|spawn|config|question_pool|todays_hunt|vessel|landmark)\./.test(action) || ["rack.remove", "spot.add", "spot.move", "spot.status", "spot.add_batch"].includes(action);
 
 /** When a new wave length would start: the next moment that ends a wave under both lengths (the server decides; this is for showing it). */
 export function nextLengthStart(from: number, to: number, now = Date.now()) {

@@ -1,6 +1,7 @@
 // The collecting game's data. Signed-in players use the live server functions; signed-out
 // development falls back to an in-memory stand-in.
 import type { PublicCapsule } from "./publicCapsule";
+import type { Monument } from "../features/journey/live/monuments";
 import { supabase } from "./supabase";
 
 export const GAME_ENABLED = true;
@@ -15,7 +16,10 @@ export type CorruptedCapsule = { id: string; vessel: string; rarity: Rarity; lat
 export type SpinResult = { wax: number; gold: number; vessel?: string | null; state: GameState };
 export type Waypost = { id: string; kind: "common" | "landmark"; name_zh: string; name_en: string; lat: number; lng: number; cooldown_until: string | null; place?: string | null; scene?: string | null;
   /** An uploaded photo (map builder R1), shown instead of the scene picture. */
-  photo?: string | null };
+  photo?: string | null;
+  /** Map builder R2, Landmarks only: the monument (null = the seal alone), the vessel a win gives and the stamp it earns.
+   * Absent from servers before R2, when the place decides all three. */
+  monument?: Monument | null; vessel?: string | null; stamp?: string | null };
 export type Nearby = { corrupted: CorruptedCapsule[]; wayposts: Waypost[] };
 /** What a won fight gives. Copies are null for an unlimited vessel (a starter or an earned Landmark vessel). */
 export type Restored = { vessel: string; copies: number | null; stars: number; is_new: boolean; xp_gained: number };
@@ -24,6 +28,8 @@ export type LandmarkAttempt = { id: string; waypost: string; vessel: string; cra
 export const cityHuntNameZh = (name: string) => name.replace("城市尋寶", "城市定向");
 export type PassportHunt = { id: string; name_zh: string; name_en: string; at: string };
 export type PrivateHuntStamp = { id: string; name: string; at: string };
+/** Map builder R2: a stamp won at a Landmark that is not one of the fixed places; `id` is its Waypost, `stamp` the art. */
+export type LandmarkStamp = { id: string; stamp: string; name_zh: string; name_en: string; at: string; place: string | null };
 export type DevLetter = { publicCapsule: PublicCapsule; message: string };
 export type GameErrorCode = "no_balls" | "expired" | "no_attempts" | "already_caught" | "too_far" | "too_fast" | "cooldown" | "active_attempt" | "too_soon" | "not_enough_damage" | "network" | "unknown";
 export class GameError extends Error { constructor(public code: GameErrorCode) { super(code); } }
@@ -35,6 +41,8 @@ const fail = (error: { message?: string } | null) => {
 // Landmark Wayposts only return their place; each place has one earned vessel.
 const LANDMARK_VESSEL: Record<string, string> = { taipei101: "bamboo-tower", merlion: "lionfish-fountain", senado: "senado-fountain", hkust: "red-bird",
   beimen: "north-gate", esplanade: "durian", guia: "lighthouse" };
+/** The vessel a Landmark win gives: its own (R2), else its place's, else the default keepsake. */
+export const landmarkVessel = (w: Pick<Waypost, "place" | "vessel">) => w.vessel || LANDMARK_VESSEL[w.place ?? ""] || "landmark-keepsake";
 let position: Coords | null = null;
 /** Successful game actions, also counted by the signed-out development City Hunt preview. */
 export type GameEvent = { kind: "spin"; waypost: string; lat: number; lng: number } | { kind: "restore"; lat: number; lng: number } | { kind: "landmark"; waypost: string };
@@ -61,7 +69,8 @@ async function liveState(): Promise<GameState> {
 }
 type NearbyPayload = {
   spawns: { spawn_id: string; vessel: string; rarity: Rarity; lat: number; lng: number; expires_at: string; attempts_left: number; already_caught: boolean }[];
-  wayposts: { id: string; kind: "common" | "landmark"; name_zh: string; name_en: string; place: string | null; scene?: string | null; photo?: string | null; lat: number; lng: number; cooldown_end: string | null }[];
+  wayposts: { id: string; kind: "common" | "landmark"; name_zh: string; name_en: string; place: string | null; scene?: string | null; photo?: string | null; lat: number; lng: number; cooldown_end: string | null;
+    monument?: Monument | null; vessel?: string | null; stamp?: string | null }[];
 };
 
 const STAR_COPIES = [1, 3, 6, 10, 15];
@@ -140,7 +149,8 @@ export const game = {
       return {
         corrupted: payload.spawns.filter((c) => !c.already_caught && c.attempts_left > 0)
           .map((c) => ({ id: c.spawn_id, vessel: c.vessel, rarity: c.rarity, lat: c.lat, lng: c.lng, expires_at: c.expires_at, attempts_left: c.attempts_left })),
-        wayposts: payload.wayposts.map((w) => ({ id: w.id, kind: w.kind, name_zh: w.name_zh, name_en: w.name_en, lat: w.lat, lng: w.lng, cooldown_until: w.cooldown_end, place: w.place, scene: w.scene, photo: w.photo ?? null })),
+        wayposts: payload.wayposts.map((w) => ({ id: w.id, kind: w.kind, name_zh: w.name_zh, name_en: w.name_en, lat: w.lat, lng: w.lng, cooldown_until: w.cooldown_end, place: w.place, scene: w.scene, photo: w.photo ?? null,
+          ...(w.kind === "landmark" && "monument" in w ? { monument: w.monument ?? null, vessel: w.vessel ?? null, stamp: w.stamp ?? null } : {}) })),
       };
     }
     if (!__DEV__) return { corrupted: [], wayposts: [] };
@@ -156,7 +166,7 @@ export const game = {
       fail(error);
       const row = data?.[0];
       if (!row) throw new GameError("unknown");
-      return { id: row.attempt_id, waypost: target.id, vessel: LANDMARK_VESSEL[target.place ?? ""] ?? "hourglass", cracks: row.cracks,
+      return { id: row.attempt_id, waypost: target.id, vessel: landmarkVessel(target), cracks: row.cracks,
         // DF3's landmark_start also returns max_health; the older one only the cracks left, out of 20.
         maxCracks: (row as { max_health?: number }).max_health ?? Math.max(row.cracks, 20), expires_at: row.expires_at };
     }
@@ -192,8 +202,8 @@ export const game = {
     return found;
   },
   /** Places stamped by a Landmark win or an opened capsule, with when they were first earned. */
-  async passport(): Promise<{ places: Record<string, string>; hunts: PassportHunt[]; privateHunts: PrivateHuntStamp[] }> {
-    if (!await live()) return { places: {}, hunts: [], privateHunts: [] };
+  async passport(): Promise<{ places: Record<string, string>; hunts: PassportHunt[]; privateHunts: PrivateHuntStamp[]; landmarks: LandmarkStamp[] }> {
+    if (!await live()) return { places: {}, hunts: [], privateHunts: [], landmarks: [] };
     const { data, error } = await supabase.rpc("my_passport");
     fail(error);
     const rows = data ?? [];
@@ -201,6 +211,9 @@ export const game = {
       places: Object.fromEntries(rows.filter((row) => row.how_earned !== "hunt" && row.how_earned !== "private_hunt").map((row) => [row.place, row.first_at])),
       hunts: rows.filter((row) => row.how_earned === "hunt").map((row) => ({ id: row.place, name_zh: cityHuntNameZh(row.name_zh), name_en: row.name_en, at: row.first_at })),
       privateHunts: rows.filter((row) => row.how_earned === "private_hunt").map((row) => ({ id: row.place, name: row.name_zh, at: row.first_at })),
+      // R2 rows name the Landmark and its stamp art; Journey keeps the ones whose place is not in the places list.
+      landmarks: (rows as (typeof rows[number] & { landmark?: string | null; stamp?: string | null })[]).filter((row) => row.landmark && row.stamp)
+        .map((row) => ({ id: row.landmark!, stamp: row.stamp!, name_zh: row.name_zh, name_en: row.name_en, at: row.first_at, place: row.place ?? null })),
     };
   },
   async spin(id: string): Promise<SpinResult> {
@@ -254,7 +267,7 @@ export type DodgeFinish = {
 
 /** Session methods serve the located fights only. Today's Hunt plays entirely on the device. */
 export const dodgeFights = {
-  landmarkVessel: (waypost: Waypost) => LANDMARK_VESSEL[waypost.place ?? ""] ?? "hourglass",
+  landmarkVessel,
   async start(target: DodgeTarget): Promise<DodgeSession> {
     if (target.landmark) {
       const row = await game.landmarkStartOnce(target.landmark);

@@ -13,7 +13,7 @@ import { C, motion, radii, sans, serif, shadows, spacing } from "../../theme";
 type Place = Tables<"places">;
 type Stamp = { place: Place; openedAt: string | null };
 const art = manifest as typeof manifest & { passportCover?: ImageSourcePropType; passportPage?: ImageSourcePropType; stamps?: Record<string, ImageSourcePropType> };
-export function Passport({ visible, onClose, userId, stamps, hunts = [], privateHunts = [] }: {
+export function Passport({ visible, onClose, userId, stamps, hunts = [], privateHunts = [], landmarks = [] }: {
   visible: boolean;
   onClose: () => void;
   userId: string;
@@ -22,6 +22,8 @@ export function Passport({ visible, onClose, userId, stamps, hunts = [], private
   hunts?: { id: string; name_zh: string; name_en: string; at: string }[];
   /** Private hunt stamps, in their own brass section (docs/design/city-orienteering.md). */
   privateHunts?: { id: string; name: string; at: string }[];
+  /** Stamps from Landmarks made in the map builder (R2): the stamp art, with the Landmark's own name under it. */
+  landmarks?: { id: string; stamp: string; name_zh: string; name_en: string; at: string }[];
 }) {
   const { t, language } = useLanguage();
   const reduced = useReducedMotion();
@@ -56,6 +58,7 @@ export function Passport({ visible, onClose, userId, stamps, hunts = [], private
         <ScrollView contentContainerStyle={{ padding: spacing.md, flexDirection: "row", flexWrap: "wrap", gap: spacing.md, backgroundColor: C.cream }}>
           <Image source={art.passportPage} resizeMode="stretch" pointerEvents="none" style={{ position: 'absolute', width: '100%', height: '100%' }} />
           {shown !== null && stamps.map((stamp) => <StampSlot key={stamp.place.id} stamp={stamp} language={language} animate={!!stamp.openedAt && !shown.includes(stamp.place.id)} reduced={reduced} onStamped={() => remember(stamp.place.id)} />)}
+          {shown !== null && landmarks.map((l) => <LandmarkStamp key={l.id} stamp={l} language={language} />)}
           {shown !== null && hunts.length > 0 && <Text style={{ width: "100%", fontFamily: serif, fontSize: 17, color: C.plum, marginTop: spacing.sm }}>{t("journey.huntStamps")}</Text>}
           {shown !== null && hunts.map((hunt) => <HuntStamp key={hunt.id} hunt={hunt} language={language} />)}
           {shown !== null && privateHunts.length > 0 && <Text style={{ width: "100%", fontFamily: serif, fontSize: 17, color: C.plum, marginTop: spacing.sm }}>{t("journey.privateHuntStamps")}</Text>}
@@ -103,6 +106,18 @@ function StampSlot({ stamp, language, animate, reduced, onStamped }: {
     <Text numberOfLines={2} style={{ fontFamily: serif, color: C.ink, textAlign: "center", marginTop: spacing.sm }}>{name}</Text>
     {stamp.openedAt && <Text style={{ fontFamily: sans, color: C.muted, fontSize: 11 }}>{new Date(stamp.openedAt).toLocaleDateString(language === "zh" ? "zh-Hant" : "en-US")}</Text>}
     {stamp.place.brand_vessel && <Text style={{ fontFamily: sans, color: C.brass, fontSize: 10 }}>{t("journey.brandStamp")}</Text>}
+  </View>;
+}
+
+/** A map-builder Landmark's stamp: ink blue like the place stamps, its own name below (a shared stamp still reads as its place). */
+function LandmarkStamp({ stamp, language }: { stamp: { stamp: string; name_zh: string; name_en: string; at: string }; language: "zh" | "en" }) {
+  const source = art.stamps?.[stamp.stamp] ?? art.stamps?.["landmark-default"];
+  return <View style={{ width: "47%", minHeight: 152, borderWidth: 1, borderColor: C.brass, borderStyle: "dashed", borderRadius: radii.md, padding: spacing.sm, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF9EA", ...shadows.card }}>
+    <View style={{ width: 86, height: 86, borderRadius: 43, borderWidth: 3, borderColor: C.plum, justifyContent: "center", alignItems: "center", transform: [{ rotate: "5deg" }] }}>
+      {source ? <Image source={source} style={{ width: 76, height: 76 }} resizeMode="contain" /> : <ArtIcon name="check" color={C.plum} size={32} />}
+    </View>
+    <Text numberOfLines={2} style={{ fontFamily: serif, color: C.ink, textAlign: "center", marginTop: spacing.sm }}>{language === "zh" ? stamp.name_zh : stamp.name_en}</Text>
+    <Text style={{ fontFamily: sans, color: C.muted, fontSize: 11 }}>{new Date(stamp.at).toLocaleDateString(language === "zh" ? "zh-Hant" : "en-US")}</Text>
   </View>;
 }
 
