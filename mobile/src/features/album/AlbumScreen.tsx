@@ -16,7 +16,7 @@ import { useCopiesText } from "../copies/strings";
 import { C, sans, serif, spacing } from "../../theme";
 import { useGameText } from "../game/strings";
 
-type Row = { id: string; price_mop: number; edition_total?: number | null; sort: number; earned_place?: string | null };
+type Row = { id: string; price_mop: number; edition_total?: number | null; sort: number; earned_place?: string | null; earned_only?: boolean | null };
 /** `copies` replaces stars once copies are on: a number, null for unlimited. */
 type Card = { id: VesselKind; no: number; collected: boolean; stars: number; copies?: number | null };
 const isVessel = (id: string): id is VesselKind => id in VESSELS;

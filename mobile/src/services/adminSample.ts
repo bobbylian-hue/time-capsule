@@ -389,7 +389,7 @@ export const sample = {
     const post: MapWaypost = { id, ...w, name_zh: w.name_zh.trim(), name_en: w.name_en.trim(), photo: clean(w.photo), photo_credit: clean(w.photo_credit),
       kind: landmark ? "landmark" : "common", source_ref: `admin:${id}`, ...asStatus(status), ...(landmark ? { landmark: checkLandmark(landmark) } : {}) };
     postState.set(region.id, [...postsFor(region), post]);
-    log({ action: landmark ? "landmark.add" : "waypost.add", target_type: "waypost", target_id: id, target_label: label(post), before: null, after: snapshot(post), note });
+    log({ action: "waypost.add", target_type: "waypost", target_id: id, target_label: label(post), before: null, after: snapshot(post), note });
     return pause({ ...post });
   },
   updateWaypost: async (id: string, w: Partial<{ lat: number; lng: number; name_zh: string; name_en: string; scene: Scene; photo: string | null; photo_credit: string | null }>, note: string | null) => {
@@ -606,7 +606,7 @@ export const sample = {
     if (old.kind === "common" && id.endsWith("-wp-0")) fail("rack_not_empty");
     const next: MapWaypost = { ...old, kind: "landmark", landmark: checkLandmark(landmark) };
     postState.set(region.id, postsFor(region).map((x) => x.id === id ? next : x));
-    log({ action: old.kind === "common" ? "landmark.make" : "landmark.edit", target_type: "waypost", target_id: id, target_label: label(next), before: snapshot(old), after: snapshot(next), note });
+    log({ action: "landmark.set", target_type: "waypost", target_id: id, target_label: label(next), before: snapshot(old), after: snapshot(next), note });
     await pause(null);
     return activity[0]?.id ?? null;
   },

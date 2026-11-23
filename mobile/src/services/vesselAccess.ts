@@ -1,6 +1,7 @@
-/** Pre-migration catalogues omit earned_place; zero price never unlocks a reward. */
-export type VesselAccess = { price_mop: number; earned_place?: string | null; brand?: string | null; edition_total?: number | null };
-export const isEarnedVessel = (v: VesselAccess) => v.earned_place != null;
+/** Pre-migration catalogues omit earned_place (and, before R2, earned_only); zero price never unlocks a reward. */
+export type VesselAccess = { price_mop: number; earned_place?: string | null; earned_only?: boolean | null; brand?: string | null; edition_total?: number | null };
+/** Earned at a Landmark: tied to a place, or (R2) earned anywhere a Landmark gives it, like the Landmark Keepsake. */
+export const isEarnedVessel = (v: VesselAccess) => v.earned_place != null || v.earned_only === true;
 export const canUseVessel = (v: VesselAccess, owned: boolean) => owned || (v.price_mop === 0 && !isEarnedVessel(v));
 /** Once the game is on, the Shop sells only what can't be found: brand and numbered editions. */
 export const showVesselInShop = (v: VesselAccess, owned: boolean, gameOn = false) =>
