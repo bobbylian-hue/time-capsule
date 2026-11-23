@@ -32,7 +32,7 @@ import { SpotForm, WaypostBuilderForm, WaypostNumbers, type Ask } from "./Waypos
 import { EditSheet, StatusActions, type SheetGuard } from "./EditSheet";
 import { FillPanel, useFill } from "./FillArea";
 import { DraftsCard } from "./DraftsCard";
-import { MAP_BUILDER_R2 } from "../../services/mapBuilder";
+import { LANDMARK_DEFAULTS, MAP_BUILDER_R2 } from "../../services/mapBuilder";
 import type { LandmarkSettings } from "../../services/admin";
 import { monumentTop, monumentsFor, paintMonuments, placedMonument } from "../journey/live/monuments";
 import type { BuildingTap } from "./LandmarkFields";
@@ -82,8 +82,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   const [grid, setGrid] = useState(false);
   /** Why the last tap did nothing (outside the border), or the GPS note for Move here. */
   // Kept as a reason, not text, so it follows a language switch.
-  const [tapNote, setTapNote] = useState<{ kind: "outside" } | { kind: "gpsFailed" } | { kind: "gps"; meters: number } | null>(null);
-  const [locating, setLocating] = useState(false);
+  const [tapNote, setTapNote] = useState<{ kind: "outside" } | null>(null);
   const [draft, setDraft] = useState<{ lat: number; lng: number } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   /** Bumped when a drag is refused, so the pin goes back to where it was. */
@@ -107,9 +106,16 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   const following = !draft && (mode === "add" || mode === "landmark" || mode === "spot") ? mode : null;
   useEffect(() => {
     if (!MAP_BUILDER_R1) return;
-    ref.current?.command(following ? { type: "placing", kind: following === "spot" ? "spot" : "waypost",
-      img: following === "spot" ? undefined : assetUri(following === "landmark" ? gameArt.landmarkGem : gameArt.waypostGemBlue) ?? undefined }
-      : { type: "placing", kind: null });
+    if (!following) { ref.current?.command({ type: "placing", kind: null }); return; }
+    if (following === "landmark") {
+      // The default model and its seal follow the pointer, painted once at the city's middle and moved by the page.
+      const c = everything.length ? { lat: everything.reduce((t, p) => t + p.lat, 0) / everything.length, lng: everything.reduce((t, p) => t + p.lng, 0) / everything.length } : { lat: 0, lng: 0 };
+      const look = LANDMARK_DEFAULTS.monument!;
+      ref.current?.command({ type: "placing", kind: "landmark", monument: { ...c, top: monumentTop(look) + 4, geo: paintMonuments([{ id: "ghost", ...c, monument: look }]).geo } });
+      return;
+    }
+    ref.current?.command({ type: "placing", kind: following === "spot" ? "spot" : "waypost",
+      img: following === "spot" ? undefined : assetUri(gameArt.waypostGemBlue) ?? undefined });
   }, [following]);
   // R2: while choosing a Landmark's buildings, map taps pick buildings instead.
   useEffect(() => { if (MAP_BUILDER_R2) ref.current?.command({ type: "pick", on: picking }); }, [picking]);
@@ -245,21 +251,6 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     setDraft(at);
   };
   const saved = () => { stopPlacing(); onChanged(); refresh(); };
-  /** Move here: the selected Waypost or spot moves to where the admin is standing (for field visits). */
-  const moveHere = (next: "move" | "moveSpot") => {
-    const geo = typeof navigator !== "undefined" ? navigator.geolocation : undefined;
-    if (!geo) { setTapNote({ kind: "gpsFailed" }); return; }
-    setLocating(true); setTapNote(null);
-    geo.getCurrentPosition((p) => {
-      setLocating(false);
-      const at = { lat: p.coords.latitude, lng: p.coords.longitude }, m = Math.round(p.coords.accuracy);
-      setMode(next);
-      if (!allowed(at)) return;
-      setDraft(at);
-      setTapNote({ kind: "gps", meters: m });
-      ref.current?.focus(at.lat, at.lng);
-    }, () => { setLocating(false); setTapNote({ kind: "gpsFailed" }); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-  };
   const leaveEdit = () => { setEditing(false); stopPlacing(); if (selected?.startsWith("s:")) setSelected(null); };
   const name = zh ? map.region.name_zh : map.region.name_en;
 
@@ -268,10 +259,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   const placing = mode === "add" || mode === "landmark" || mode === "spot";
   const closeSheet = () => { stopPlacing(); setSelected(null); };
   const notes = <>
-    {tapNote && (tapNote.kind === "outside" ? <Notice tone="stop" text={mb.outside(cityName)} />
-      : tapNote.kind === "gpsFailed" ? <Notice tone="stop" text={mb.gpsFailed} />
-        : <Notice tone={tapNote.meters > 30 ? "warn" : "info"} text={tapNote.meters > 30 ? mb.gpsWeak(tapNote.meters) : mb.gpsAt(tapNote.meters)} />)}
-    {locating && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.locating}</Text>}
+    {tapNote && <Notice tone="stop" text={mb.outside(cityName)} />}
   </>;
   // Publish, Hide, Show or Delete (R1.5). Deleting closes the popup; Activity can undo every change.
   const changeStatus = async (kind: "waypost" | "spot", id: string, status: PlaceStatus) => {
@@ -279,10 +267,6 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     if (status === "deleted") setSelected(null);
     saved();
   };
-  const moveLinks = (next: "moveSpot") => <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.md }}>
-    <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.dragHint}</Text>
-    <Pressable accessibilityRole="button" onPress={() => moveHere(next)} hitSlop={6}><Text style={{ fontFamily: sans, fontSize: 12, color: C.blue }}>{mb.moveHereLink}</Text></Pressable>
-  </View>;
   const moving = mode === "move" && !!draft;
   const landmarkProps = { onPreview: setPreview, picking, onPicking: setPicking, buildingTap };
   // What the popup shows. edit: something here can be changed, so the side panel dims behind it.
@@ -290,15 +274,15 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     : fill ? { title: mb.fillTitle, edit: true, body: <FillPanel api={fillApi} />, onClose: fillApi.stop }
     : editing && mode === "add" && draft ? { title: mb.titleAddWaypost, edit: true, body:
         <WaypostBuilderForm flat key="new" region={map.region} wayposts={map.wayposts} waypost={null} at={draft} moving={false} ask={ask}
-          onMove={() => {}} onMoveHere={() => {}} onSaved={saved} onCancel={stopPlacing} /> }
+          onMove={() => {}} onSaved={saved} onCancel={stopPlacing} /> }
     : MAP_BUILDER_R2 && editing && mode === "landmark" && draft ? { title: lt.titleAdd, edit: true, body:
         <WaypostBuilderForm flat key="newLandmark" region={map.region} wayposts={map.wayposts} waypost={null} at={draft} moving={false} ask={ask} landmark={landmarkProps}
-          onMove={() => {}} onMoveHere={() => {}} onSaved={saved} onCancel={stopPlacing} /> }
+          onMove={() => {}} onSaved={saved} onCancel={stopPlacing} /> }
     : MAP_BUILDER_R2 && picked && editing && (picked.kind === "landmark" || making === picked.id) ? { title: making === picked.id ? lt.titleMake : lt.titleEdit, status: statusOf(picked), edit: true, body: <>
         {statusOf(picked) === "hidden"
           ? <Detail map={map} id={selected!} now={now} />
           : <WaypostBuilderForm flat key={`lm:${picked.id}`} region={map.region} wayposts={map.wayposts} waypost={picked} at={moving ? draft! : picked} moving={mode === "move"} ask={ask}
-              landmark={landmarkProps} onMove={() => {}} onMoveHere={() => moveHere("move")} onSaved={saved} onCancel={closeSheet} />}
+              landmark={landmarkProps} onMove={() => {}} onSaved={saved} onCancel={closeSheet} />}
         {!moving && making !== picked.id && <StatusActions key={`st:${picked.id}`} status={statusOf(picked)} name={zh ? picked.name_zh : picked.name_en} onStatus={(st) => changeStatus("waypost", picked.id, st)} />}
       </> }
     : editing && mode === "spot" && draft ? { title: mb.titleAddSpot, edit: true, body:
@@ -308,7 +292,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
           ? <Detail map={map} id={selected!} now={now} />
           // Keyed by the Waypost only, so unsaved names, photo and note survive a drag.
           : <WaypostBuilderForm flat key={picked.id} region={map.region} wayposts={map.wayposts} waypost={picked} at={moving ? draft! : picked} moving={mode === "move"} ask={ask}
-              onMove={() => {}} onMoveHere={() => moveHere("move")} onSaved={saved} onCancel={closeSheet} />}
+              onMove={() => {}} onSaved={saved} onCancel={closeSheet} />}
         {!moving && (MAP_BUILDER_R15
           ? <StatusActions key={`st:${picked.id}`} status={statusOf(picked)} name={zh ? picked.name_zh : picked.name_en} onStatus={(st) => changeStatus("waypost", picked.id, st)} />
           : <VisibilityCard key={`v:${picked.id}:${picked.game_enabled}`} region={map.region.id} waypost={picked} onSaved={saved} />)}
@@ -332,7 +316,6 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
               <View style={{ gap: 4 }}>
                 <Text style={{ fontFamily: sans, fontSize: 14, color: C.ink }}>{pickedSpot.habitat ? a.habitat[pickedSpot.habitat] : a.ed.spotTitle}</Text>
                 <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{pickedSpot.lat.toFixed(5)}, {pickedSpot.lng.toFixed(5)}</Text>
-                {statusOf(pickedSpot) !== "hidden" && moveLinks("moveSpot")}
               </View>
               {MAP_BUILDER_R15
                 ? <StatusActions key={`st:${pickedSpot.id}`} status={statusOf(pickedSpot)} name={a.ed.spotTitle} onStatus={(st) => changeStatus("spot", pickedSpot.id, st)} />

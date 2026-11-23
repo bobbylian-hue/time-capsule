@@ -34,7 +34,9 @@ export type MapCommand =
       dragKind?: "waypost" | "spot" | null; dragSkip?: string | null }
   | { type: "names"; seq: number; lat: number; lng: number; skip?: string }
   /** R1.5: a see-through Waypost or spot follows the pointer while placing (the Waypost's cell turns green or red). */
-  | { type: "placing"; kind: "waypost" | "spot" | null; img?: string; skip?: string }
+  | { type: "placing"; kind: "waypost" | "landmark" | "spot" | null; img?: string; skip?: string;
+      /** A new Landmark's model painted at (lat, lng), moved with the pointer; its seal floats `top` metres up. */
+      monument?: { lat: number; lng: number; top: number; geo: unknown } }
   /** R1.5: drag a box on the map (Fill an area); "clear" removes the drawn box. */
   | { type: "boxMode"; on: boolean } | { type: "boxClear" }
   /** Pan (never zoom) so a place isn't hidden under a popup covering the left or bottom of the map. */

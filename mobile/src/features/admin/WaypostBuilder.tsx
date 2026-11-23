@@ -17,7 +17,8 @@ import { ScenePicker } from "./WaypostEditor";
 import { numberedNames } from "../../services/waypostNames";
 import { gameArt } from "../../art/manifest";
 import type { LandmarkSettings } from "../../services/admin";
-import { LANDMARK_DEFAULTS } from "../../services/mapBuilder";
+import { LANDMARK_DEFAULTS, LANDMARK_MODELS } from "../../services/mapBuilder";
+import { asNamedModel, sameJson } from "../journey/live/monuments";
 import { LandmarkFields, type BuildingTap } from "./LandmarkFields";
 import { useLandmarkText } from "./landmarkStrings";
 
@@ -115,7 +116,6 @@ function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredi
     } catch (e) { setError(errorCode(e)); } finally { setBusy(false); }
   };
   const url = photoUrl(photo);
-  const lt = useLandmarkText();
   return <View style={{ gap: spacing.sm }}>
     {landmark ? <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.picture}</Text> : <ScenePicker value={scene} onChange={onScene} />}
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
@@ -130,14 +130,13 @@ function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredi
         {url && <AButton small tone="ghost" title={mb.removePhoto} onPress={() => { onPhoto(null); onCredit(""); }} />}
       </View>
     </View>
-    <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{landmark && !url ? lt.pictureDefault : mb.photoNote}</Text>
     {url && <Field label={mb.credit} value={credit} onChangeText={onCredit} maxLength={120} placeholder="© …" />}
     {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
   </View>;
 }
 
 /** Adding a Waypost at `at`, or editing one (moving it to `at` when that differs). */
-export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving, ask, onMove, onMoveHere, onSaved, onCancel, landmark }: {
+export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving, ask, onMove, onSaved, onCancel, landmark }: {
   /** Inside the map popup: no card frame, and the popup's title replaces the pill. */
   flat?: boolean;
   region: Region;
@@ -147,7 +146,6 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
   moving: boolean;
   ask: Ask;
   onMove: () => void;
-  onMoveHere: () => void;
   onSaved: (w: MapWaypost) => void;
   onCancel: () => void;
   /** R2: a Landmark (new, existing, or a Waypost being made one): its look previews on the map as it changes. */
@@ -160,9 +158,11 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
   const adding = !waypost;
   const isLandmark = !!landmark;
   const making = isLandmark && waypost?.kind === "common";
-  const startLandmark = React.useMemo(() => isLandmark ? waypost?.landmark ?? LANDMARK_DEFAULTS : null, [isLandmark, waypost?.id]);
+  // A Landmark still saved with a hand-made shape opens with it as the named model (same look), once the server takes them.
+  const savedLook = React.useMemo(() => waypost?.landmark && LANDMARK_MODELS ? { ...waypost.landmark, monument: asNamedModel(waypost.landmark.monument) } : waypost?.landmark ?? null, [waypost?.id, waypost?.landmark]);
+  const startLandmark = React.useMemo(() => isLandmark ? savedLook ?? LANDMARK_DEFAULTS : null, [isLandmark, waypost?.id]);
   const [look, setLook] = useState<LandmarkSettings | null>(startLandmark);
-  const lookChanged = !!look && JSON.stringify(look) !== JSON.stringify(waypost?.landmark ?? null);
+  const lookChanged = !!look && !sameJson(look, savedLook);
   useEffect(() => { landmark?.onPreview(look); }, [look]);
   useEffect(() => () => { landmark?.onPreview(null); landmark?.onPicking(false); }, []);
   const [nameZh, setNameZh] = useState(waypost?.name_zh ?? "");
@@ -244,10 +244,6 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
       {!flat && <Pill tone="blue" label={adding ? a.ed.newWaypost : a.commonWaypost} />}
       {!adding && <Text style={{ fontFamily: serif, fontSize: 18, color: C.ink }}>{language === "zh" ? waypost.name_zh : waypost.name_en}</Text>}
       <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{at.lat.toFixed(5)}, {at.lng.toFixed(5)}</Text>
-      {inSheet && <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.md }}>
-        <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.dragHint}</Text>
-        <Pressable accessibilityRole="button" onPress={onMoveHere} hitSlop={6}><Text style={{ fontFamily: sans, fontSize: 12, color: C.blue }}>{mb.moveHereLink}</Text></Pressable>
-      </View>}
     </View>
     {(adding || moved) && <PlaceNotes region={region} at={at} wayposts={wayposts} check={check} names={names} />}
     <NameChips names={names} onPick={pick} />
@@ -261,7 +257,6 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
           onPress={() => { setNameZh(suggestion.zh); setNameEn(suggestion.en); }} />
       </View>
     </View>}
-    {making && <Notice text={lt.makeNote} />}
     <PicturePicker region={region.id} scene={scene} onScene={setScene} photo={photo} onPhoto={setPhoto} credit={credit} onCredit={setCredit} landmark={isLandmark} />
     {look && landmark && <LandmarkFields value={look} onChange={setLook} picking={landmark.picking} onPicking={landmark.onPicking} buildingTap={landmark.buildingTap} />}
     <Field label={a.ed.noteOptional} value={note} onChangeText={setNote} maxLength={300} />
@@ -269,7 +264,6 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
     {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
     {!inSheet && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" }}>
       {!adding && !moving && <AButton small tone="ghost" title={a.ed.move} onPress={onMove} />}
-      {!adding && <AButton small tone="ghost" title={mb.moveHere} onPress={onMoveHere} />}
       <AButton small tone="ghost" title={a.ed.cancel} onPress={onCancel} />
       <AButton small title={busy ? a.ed.saving : a.ed.save} disabled={!ready} onPress={save} />
     </View>}
@@ -325,7 +319,6 @@ export function SpotForm({ flat, region, spot, at, ask, onSaved, onCancel }: { f
         </Text>
         {habitat && !choosing && <AButton small tone="ghost" title={mb.change} onPress={() => setChoosing(true)} />}
       </View>
-      <Text style={{ fontFamily: sans, fontSize: 12, lineHeight: 18, color: C.muted }}>{mb.habitatNote}</Text>
       {choosing && <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: spacing.sm }}>
         {HABITATS.map((h) => {
           const on = habitat === h;

@@ -31,6 +31,9 @@ function builderLayers(){
   map.addSource('hint',{type:'geojson',data:fc([])});
   map.addLayer({id:'hint-fill',type:'fill',source:'hint',paint:{'fill-color':['case',['get','taken'],'${C.wax}','#3E8E5A'],'fill-opacity':.28}});
   map.addLayer({id:'hint-line',type:'line',source:'hint',paint:{'line-color':['case',['get','taken'],'${C.wax}','#3E8E5A'],'line-width':2}});
+  // R2: the default model, see-through, following the pointer while a new Landmark is placed.
+  map.addSource('ghostmon',{type:'geojson',data:fc([])});
+  map.addLayer({id:'ghostmon',type:'fill-extrusion',source:'ghostmon',paint:{'fill-extrusion-base':['get','base'],'fill-extrusion-height':['get','top'],'fill-extrusion-color':['get','c'],'fill-extrusion-opacity':.55}});
   map.addSource('box',{type:'geojson',data:fc([])});
   map.addLayer({id:'box-fill',type:'fill',source:'box',paint:{'fill-color':'${C.blue}','fill-opacity':.08}});
   map.addLayer({id:'box-line',type:'line',source:'box',paint:{'line-color':'${C.blue}','line-width':2,'line-dasharray':[3,2]}});
@@ -100,10 +103,16 @@ window.__tcDragEnd=()=>{clearCell()};
 // Placing: a see-through Waypost or spot follows the pointer instead of the hand cursor.
 const ghost=document.createElement('div');ghost.style.cssText='position:absolute;left:0;top:0;pointer-events:none;z-index:40;display:none;opacity:.55';
 map.getContainer().appendChild(ghost);
-map.on('mousemove',e=>{if(!B.placing){return}ghost.style.display='block';ghost.style.transform='translate('+e.point.x+'px,'+e.point.y+'px)';if(B.placing.kind==='waypost')showCell(e.lngLat,null)});
-map.getCanvas().addEventListener('mouseleave',()=>{ghost.style.display='none';if(B.placing)clearCell()});
+// A Landmark: its model at the pointer and the star seal floating on top, as it will look once placed.
+function ghostMonument(ll){const g=B.placing&&B.placing.monument;if(!g||!map.getSource('ghostmon'))return;const dx=ll?ll.lng-g.lng:0,dy=ll?ll.lat-g.lat:0;
+  map.getSource('ghostmon').setData(ll?{type:'FeatureCollection',features:g.geo.features.map(f=>({...f,geometry:{type:'Polygon',coordinates:f.geometry.coordinates.map(r=>r.map(([x,y])=>[x+dx,y+dy]))}}))}:fc([]));
+  const seal=ghost.firstChild;if(seal&&ll){const o=liftOffset(ll,g.top);seal.style.transform='translate('+o[0]+'px,'+o[1]+'px)'}}
+map.on('mousemove',e=>{if(!B.placing){return}ghost.style.display='block';ghost.style.transform='translate('+e.point.x+'px,'+e.point.y+'px)';if(B.placing.kind!=='spot')showCell(e.lngLat,null);ghostMonument(e.lngLat)});
+map.getCanvas().addEventListener('mouseleave',()=>{ghost.style.display='none';if(B.placing){clearCell();ghostMonument(null)}});
 function setPlacing(m){B.placing=m.kind?m:null;window.__tcPlacing=!!m.kind;map.getCanvas().style.cursor=m.kind?'none':'';ghost.style.display='none';clearCell();
-  ghost.innerHTML=m.kind==='waypost'?'<div style="position:absolute;left:-13px;top:-41px;width:26px;height:41px;background:url('+m.img+') center/122px no-repeat"></div>'
+  map.getSource('ghostmon')&&map.getSource('ghostmon').setData(fc([]));
+  ghost.innerHTML=m.kind==='landmark'?'<div class="pin landmark" style="position:absolute;left:-20px;top:-44px"><div class="pin-body"><div class="badge"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 1.5C12.8 8.2 15.8 11.2 22.5 12 15.8 12.8 12.8 15.8 12 22.5 11.2 15.8 8.2 12.8 1.5 12 8.2 11.2 11.2 8.2 12 1.5Z"/></svg></div></div></div>'
+    :m.kind==='waypost'?'<div style="position:absolute;left:-13px;top:-41px;width:26px;height:41px;background:url('+m.img+') center/122px no-repeat"></div>'
     :m.kind==='spot'?'<div style="position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;background:${C.plum};box-shadow:0 0 0 2px #fff"></div>':''}
 // Fill an area: drag a box (mouse or finger) while the map stays still.
 let boxOn=false,boxFrom=null;

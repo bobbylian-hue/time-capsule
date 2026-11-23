@@ -25,8 +25,14 @@ const FILL_PUBLISH = FILL_PUBLISH_BACKEND || ADMIN_SAMPLE;
 /** Turn on once Codex's R2 migration is applied: Landmarks with a look, a reward and a fight, made in the builder. */
 export const MAP_BUILDER_R2_BACKEND = true;
 export const MAP_BUILDER_R2 = MAP_BUILDER_R2_BACKEND || ADMIN_SAMPLE;
-/** What a new Landmark starts with: the seal alone, the default keepsake and stamp, and today's fight (40 HP, 150 s). */
-export const LANDMARK_DEFAULTS: LandmarkSettings = { monument: null, vessel: "landmark-keepsake", stamp: "landmark-default", fight_health: 40, fight_seconds: 150 };
+/** Turn on once Codex's migration accepts the named models (Taipei 101, Senado, HKUST) and converts the three
+ * hand-made Landmarks to them (Roy, 2026-11-24: one model field for every Landmark). */
+export const LANDMARK_MODELS_BACKEND = false;
+export const LANDMARK_MODELS = LANDMARK_MODELS_BACKEND || ADMIN_SAMPLE;
+/** What a new Landmark starts with: a Column (so it's clear there's something to move), the default keepsake and
+ * stamp, and today's fight (40 HP, 150 s). */
+export const LANDMARK_DEFAULTS: LandmarkSettings = { monument: { model: { kind: "column", size: "m", rotate: 0, color: "landmark" } },
+  vessel: "landmark-keepsake", stamp: "landmark-default", fight_health: 40, fight_seconds: 150 };
 
 export type CellNeighbour = { id: string; name_zh: string; name_en: string; meters: number };
 /** What the server says about a spot under the R1 rules: only the border refuses; the rest are notes. */
