@@ -131,22 +131,24 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
         vessel: assetUri(w.kind === "landmark" ? gameArt.landmarkGem : gameArt.waypostGemBlue) ?? "", selected: on, locked: status === "hidden", ghost: moved,
         // A saved draft looks like an unsaved place but says Draft.
         draft: status === "draft", tag: status === "draft" ? mb.status.draft : undefined,
-        drag: MAP_BUILDER_R1 && editing && on && w.kind === "common" && status !== "hidden" && !fill };
+        drag: MAP_BUILDER_R1 && editing && on && w.kind === "common" && status !== "hidden" && !fill,
+        edit: MAP_BUILDER_R1 && editing && w.kind === "common" && !fill && !moved };
     }) : []),
     // Not saved yet: see-through with a dashed ring and a "Not saved" tag.
-    ...(editing && (mode === "add" || mode === "move") && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "waypost", vessel: gem, selected: true, draft: true, tag: mb.notSaved, drag: MAP_BUILDER_R1 } as LivePin] : []),
-    ...(editing && (mode === "spot" || mode === "moveSpot") && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "spot", vessel: "", selected: true, draft: true, tag: mb.notSaved, drag: MAP_BUILDER_R1 } as LivePin] : []),
-    ...(editing && (layers.spots || mode === "spot" || mode === "moveSpot" || fill?.kind === "spot") ? map.spots.map<LivePin>((x) => {
+    ...(editing && (mode === "add" || mode === "move") && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "waypost", vessel: gem, selected: true, draft: true, tag: mb.notSaved, drag: MAP_BUILDER_R1, edit: MAP_BUILDER_R1 } as LivePin] : []),
+    ...(editing && (mode === "spot" || mode === "moveSpot") && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "spot", vessel: "", selected: true, draft: true, tag: mb.notSaved, drag: MAP_BUILDER_R1, edit: MAP_BUILDER_R1 } as LivePin] : []),
+    ...(editing && (layers.spots || mode === "spot" || mode === "moveSpot" || fill?.kinds.includes("spot")) ? map.spots.map<LivePin>((x) => {
       const moved = mode === "moveSpot" && !!draft && selected === `s:${x.id}`;
       const status = statusOf(x), on = selected === `s:${x.id}` && !moved;
       return { id: `s:${x.id}`, lat: x.lat, lng: x.lng, kind: "spot", vessel: "",
         label: `${a.ed.spotTitle} ${x.lat.toFixed(5)}, ${x.lng.toFixed(5)}`, locked: status === "hidden", selected: on, ghost: moved,
         draft: status === "draft", tag: status === "draft" ? mb.status.draft : undefined,
-        drag: MAP_BUILDER_R1 && on && status !== "hidden" && !fill };
+        drag: MAP_BUILDER_R1 && on && status !== "hidden" && !fill,
+        edit: MAP_BUILDER_R1 && !fill && !moved };
     }) : []),
     // Fill an area: the suggested places, see-through; tapping one leaves it out (fainter still).
-    ...(fill ? fill.items.map<LivePin>((it, i) => ({ id: `f:${i}`, lat: it.lat, lng: it.lng, kind: fill.kind === "waypost" ? "waypost" : "spot",
-      vessel: fill.kind === "waypost" ? gem : "", label: fill.kind === "waypost" ? (zh ? it.name_zh : it.name_en) : undefined,
+    ...(fill ? fill.items.map<LivePin>((it, i) => ({ id: `f:${i}`, lat: it.lat, lng: it.lng, kind: it.kind,
+      vessel: it.kind === "waypost" ? gem : "", label: it.kind === "waypost" ? (zh ? it.name_zh : it.name_en) : undefined,
       draft: !fill.off.has(i), ghost: fill.off.has(i) })) : []),
     ...(layers.wave ? map.wave.map<LivePin>((c) => ({
       id: `c:${c.spot}`, lat: c.lat, lng: c.lng, kind: "corrupted", vessel: vesselUri(c.vessel),
@@ -164,7 +166,9 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   // On phones the map sits above the panel: go up to it to tap a spot, then down to the form.
   const page = useRef<React.ComponentRef<typeof ScrollView>>(null);
   // On phones the popup covers the lower half of the map, so bring the place being edited into the part still showing.
-  const toMap = (at?: { lat: number; lng: number }) => { if (wide) return; page.current?.scrollTo({ y: 0, animated: true }); if (at) ref.current?.focus(at.lat, at.lng); };
+  const toMap = (at?: { lat: number; lng: number }) => {
+    // On a computer the popup covers the map's left side: pan (without zooming) if the place is under it.
+    if (wide) { if (at) ref.current?.command({ type: "reveal", lat: at.lat, lng: at.lng, left: 432 }); return; } page.current?.scrollTo({ y: 0, animated: true }); if (at) ref.current?.focus(at.lat, at.lng); };
   const place = (next: NonNullable<typeof mode>) => { setDraft(null); setTapNote(null); setMode(next); toMap(); };
   const cityName = zh ? map.region.name_zh : map.region.name_en;
   /** Only the city border refuses (R1); the server checks it again. */

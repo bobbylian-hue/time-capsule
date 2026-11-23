@@ -72,8 +72,11 @@ export const builder = {
 };
 export type Box = { south: number; west: number; north: number; east: number };
 export type BatchResult<T> = { added: T[]; skipped: { index: number; reason: string }[] };
-/** Fill an area: the spacings offered (metres). Wayposts also keep to one per level-17 cell. */
-export const FILL_SPACING = { waypost: [150, 250, 400], spot: [100, 150, 250] } as const;
+/** Fill an area: the spacings offered (metres). A level-17 cell is about 70 m across, so 75 m is as close as
+ * Wayposts can get (one per cell); spawn spots have no cell rule and can go down to 50 m. */
+export const FILL_SPACING = { waypost: [75, 150, 250, 400], spot: [50, 100, 150, 250] } as const;
+/** The spacing Fill an area starts with. */
+export const FILL_DEFAULT = { waypost: 250, spot: 150 } as const;
 
 /** The picture a kind of place from the map tiles suggests (park, pier, artwork…). */
 export function sceneFor(kind: string | null | undefined): Scene {

@@ -213,11 +213,20 @@ html,body,#map{margin:0;height:100%;width:100%;background:${C.paper};overflow:hi
 .pin.spot .dot{position:absolute;left:3px;top:3px;width:10px;height:10px;border-radius:50%;background:${C.plum};box-shadow:0 0 0 2px #fff,0 1px 3px rgba(22,38,63,.35)}
 .pin.spot.locked .dot{background:#fff;box-shadow:0 0 0 2px ${C.plum}66}
 .pin.spot.sel .dot{box-shadow:0 0 0 3px ${C.brass}}
-/* Admin only: a place being added or moved but not saved yet is see-through with a dashed ring and a tag,
-   and a moving place leaves a faint ghost where it is now. */
+/* Admin only (Roy, 2026-11-23): a place the admin can edit shows a green ring on hover and while selected, so
+   it's obvious what will move; green is also the free-cell colour. */
+.pin.edit{cursor:pointer}.pin.edit.sel{cursor:grab}
+.pin.waypost.edit.sel .disc{background:none;border:2.5px solid #3E8E5A;left:0;width:40px;height:14px;bottom:-4px}
+.pin.spot.edit.sel .dot{box-shadow:0 0 0 2px #fff,0 0 0 4.5px #3E8E5A}
+@media (hover:hover){
+.pin.waypost.edit:hover .disc{background:none;border:2.5px solid #3E8E5A;left:0;width:40px;height:14px;bottom:-4px}
+.pin.spot.edit:hover .dot{box-shadow:0 0 0 2px #fff,0 0 0 4.5px #3E8E5A}
+}
+/* A place being added or moved but not saved yet is see-through with a dashed green ring and a tag, and a
+   moving place leaves a faint ghost where it is now. The dashed ring shows while dragging too, not only after the drop. */
 .pin.draft .post{opacity:.55;animation:none}
-.pin.draft .disc{background:none;border:2px dashed ${C.blue};left:0;width:36px;height:12px;bottom:-3px}
-.pin.spot.draft .dot{background:${C.plum}99;box-shadow:none;outline:2px dashed ${C.plum};outline-offset:3px}
+.pin.draft .disc,.pin.waypost.edit.draft .disc,.pin.waypost.edit.dragging .disc{background:none;border:2px dashed #3E8E5A;left:0;width:36px;height:12px;bottom:-3px}
+.pin.spot.draft .dot,.pin.spot.edit.draft .dot,.pin.spot.edit.dragging .dot{background:${C.plum}99;box-shadow:none;outline:2px dashed #3E8E5A;outline-offset:3px}
 .pin.draft .tag{bottom:-24px;background:#fff;color:${C.plum};border:1px dashed ${C.plum};box-shadow:none}
 .pin.spot.draft .tag{bottom:-26px}
 .pin.ghost .pin-body{opacity:.3}.pin.ghost .pin-body>*{pointer-events:none}
@@ -451,7 +460,7 @@ function render(){
       :p.kind==='quest'?'<div class="pin-body"><div class="disc"></div><div class="ring"></div><div class="photo">'+(p.frame?'<div class="win" style="background-image:url('+p.photo+')"></div><img class="fr" alt="" src="'+p.frame+'">':'<div class="drop"><div class="ph" style="background-image:url('+p.photo+')"></div></div>')+(p.done?'<div class="badge">'+glyphBadge('done')+'</div>':'')+'</div>'+(p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>'
       :p.kind==='spot'?'<div class="pin-body"><div class="dot"></div>'+(p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>'
       :p.kind==='waypost'?'<div class="pin-body"><div class="disc"></div>'+'<div class="post" style="background-image:url('+p.vessel+')"></div>'+(p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>':'<div class="pin-body"><div class="disc"></div><img class="v" src="'+p.vessel+'">'+(p.kind==='corrupted'&&p.cracks?'<img class="v cracks" src="'+p.cracks+'">':'')+(p.portrait!==undefined&&(p.portrait||p.private)?'<div class="who">'+face(p.portrait)+(p.private?'<div class="lock">'+PADLOCK+'</div>':'')+'</div>':'')+(p.timer?'<div class="tag timer">'+HOURGLASS+p.timer+'</div>':p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>';
-    const cls='pin '+(p.kind||'')+(p.near?' near':'')+(p.far?' far':'')+(p.selected?' sel':'')+(p.sealed?' sealed':'')+(p.rarity?' '+p.rarity:'')+(p.done?' done':'')+(p.hunt?' hunt':'')+(p.lift?' top':'')+(p.private?' private':'')+(p.opened?' opened':'')+(p.locked?' locked':'')+(p.blue?' blue':'')+(p.draft?' draft':'')+(p.ghost?' ghost':'');
+    const cls='pin '+(p.kind||'')+(p.near?' near':'')+(p.far?' far':'')+(p.selected?' sel':'')+(p.sealed?' sealed':'')+(p.rarity?' '+p.rarity:'')+(p.done?' done':'')+(p.hunt?' hunt':'')+(p.lift?' top':'')+(p.private?' private':'')+(p.opened?' opened':'')+(p.locked?' locked':'')+(p.blue?' blue':'')+(p.draft?' draft':'')+(p.ghost?' ghost':'')+(p.edit?' edit':'');
     let m=marks.get(p.id);
     if(!m){const el=document.createElement('div');el.addEventListener('click',ev=>{ev.stopPropagation();
         // Just dropped after a drag: not a tap. Placing a new place (admin map builder): a tap on a pin places it there.
@@ -477,9 +486,9 @@ function render(){
     // Admin map builder: the selected place can be dragged to move it; the page reports where it was dropped.
     if(m.drag!==!!p.drag){m.drag=!!p.drag;m.marker.setDraggable(m.drag);
       if(m.drag&&!m.wired){m.wired=true;const mk=m.marker,pid=p.id;
-        mk.on('dragstart',()=>{fold();window.__tcDragging=pid});
+        mk.on('dragstart',()=>{fold();window.__tcDragging=pid;mk.getElement().classList.add('dragging')});
         mk.on('drag',()=>{window.__tcDragMove&&window.__tcDragMove(pid,mk.getLngLat())});
-        mk.on('dragend',()=>{const ll=mk.getLngLat();mk.getElement().dataset.dragged='1';setTimeout(()=>{delete mk.getElement().dataset.dragged},400);
+        mk.on('dragend',()=>{const ll=mk.getLngLat();mk.getElement().classList.remove('dragging');mk.getElement().dataset.dragged='1';setTimeout(()=>{delete mk.getElement().dataset.dragged},400);
           window.__tcDragging=null;window.__tcDragEnd&&window.__tcDragEnd(pid);send({type:'drag',id:pid,lat:ll.lat,lng:ll.lng})})}}
     if(m.lift!==(p.lift||0)){m.lift=p.lift||0;m.marker.setOffset(m.lift?liftOffset(m.marker.getLngLat(),m.lift):[0,0])}
   }
