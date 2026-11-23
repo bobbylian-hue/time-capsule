@@ -133,6 +133,13 @@ html,body,#map{margin:0;height:100%;width:100%;background:${C.paper};overflow:hi
 /* Admin only (Roy, 2026-11-23): a place the admin can edit shows a green ring on hover and while selected, so
    it's obvious what will move; green is also the free-cell colour. */
 .pin.edit{cursor:pointer}.pin.edit.sel{cursor:grab}
+/* Shared by every editable place with a ground disc (Wayposts, Landmarks and whatever comes next): solid green ring
+   on hover and while selected, dashed while unsaved or being dragged. Each kind only sets where its disc sits. */
+.pin.edit.sel .disc{background:none;border:2.5px solid #3E8E5A}
+@media (hover:hover){.pin.edit:hover .disc{background:none;border:2.5px solid #3E8E5A}}
+.pin.draft .disc,.pin.edit.draft .disc,.pin.edit.dragging .disc{background:none;border:2px dashed #3E8E5A}
+/* A Landmark's disc is on the ground at its point, under the monument, even though its seal floats on top. */
+.pin.landmark .disc{left:0;width:40px;height:14px;bottom:-4px;background:none;transform:translate(var(--gx,0px),var(--gy,0px))}
 .pin.waypost.edit.sel .disc{background:none;border:2.5px solid #3E8E5A;left:0;width:40px;height:14px;bottom:-4px}
 .pin.spot.edit.sel .dot{box-shadow:0 0 0 2px #fff,0 0 0 4.5px #3E8E5A}
 @media (hover:hover){
@@ -265,6 +272,7 @@ map.on('zoom',rescale);
 // tapping one then opens it. In the map builder an editable place skips the fan. Tapping the map or moving it folds the fan back.
 let fan=null;
 const fold=()=>{if(!fan)return;for(const id of fan.ids){const m=marks.get(id);if(m){const b=m.marker.getElement();b.style.removeProperty('--fx');b.style.removeProperty('--fy');b.classList.remove('fanned')}}fan.dot.remove();fan=null};
+const isLandmark=id=>{const m=marks.get(id);return !!m&&m.marker.getElement().classList.contains('landmark')};
 const screenOf=m=>{const p=map.project(m.marker.getLngLat()),o=m.marker.getOffset();return{x:p.x+o.x,y:p.y+o.y}};
 // The pictures you can see (not the transparent box around them), so "overlapping" means what it looks like.
 const artBox=el=>{let b=null;for(const x of el.querySelectorAll('.pin-body>*:not(.disc)')){const r=x.getBoundingClientRect();if(!r.width)continue;b=b?{l:Math.min(b.l,r.left),t:Math.min(b.t,r.top),r:Math.max(b.r,r.right),b:Math.max(b.b,r.bottom)}:{l:r.left,t:r.top,r:r.right,b:r.bottom}}return b};
@@ -273,12 +281,13 @@ const stackOf=id=>{const at=new Map();for(const [k,m] of marks){const box=artBox
   // The player counts too: whatever they cover joins the stack, and the ring forms around them.
   const meEl=youMark&&youMark.getElement().querySelector('.me,.face'),r0=meEl&&meEl.getBoundingClientRect();
   const me=r0&&r0.width?{l:r0.left,t:r0.top,r:r0.right,b:r0.bottom}:null,underMe=me&&ov(A.box,me);
-  const out=[id];for(const [k,B] of at)if(k!==id&&out.length<10&&(ov(A.box,B.box)||(underMe&&ov(me,B.box))))out.push(k);
+  const out=[id];for(const [k,B] of at)if(k!==id&&!isLandmark(k)&&out.length<10&&(ov(A.box,B.box)||(underMe&&ov(me,B.box))))out.push(k);
   return{out,at,me:underMe?me:null}};
 const tapPin=id=>{
   if(fan&&fan.ids.includes(id)){fold();send({type:'select',id});return}
   // Map builder (Roy, 2026-11-23): a place you can edit opens at once, even beside the Keeper or a spot; no split first.
-  const mine=marks.get(id);if(mine&&mine.marker.getElement().classList.contains('edit')){fold();send({type:'select',id});return}
+  // A Landmark's star seal belongs to its monument (Roy, 2026-11-24), so it never fans out or joins another stack.
+  const mine=marks.get(id);if(mine&&(mine.marker.getElement().classList.contains('edit')||isLandmark(id))){fold();send({type:'select',id});return}
   fold();const{out,at,me}=stackOf(id);if(out.length<2&&!me){send({type:'select',id});return}
   // Around the player's feet when they were in the way (they stay put), otherwise around the stack's middle.
   const c=me?{x:(me.l+me.r)/2,y:(me.t+me.b)/2+40*zNow}:out.reduce((s,k)=>({x:s.x+at.get(k).p.x/out.length,y:s.y+at.get(k).p.y/out.length}),{x:0,y:0});
@@ -306,7 +315,10 @@ map.on('mousemove',e=>{if(window.__tcPickOn)return;map.getCanvas().style.cursor=
 // to the building's height, through the camera's own perspective, so it stays on the spire as the map moves.
 const liftOffset=(ll,meters)=>{const t=map.transform;const mc=maplibregl.MercatorCoordinate.fromLngLat(ll);
   if(typeof t.coordinatePoint!=='function')return [0,0];const a=t.coordinatePoint(mc,0),b=t.coordinatePoint(mc,meters);return [b.x-a.x,b.y-a.y]};
-const relift=()=>{for(const [,m] of marks){if(m.lift)m.marker.setOffset(liftOffset(m.marker.getLngLat(),m.lift))}};
+// The marker sits on top; --gx/--gy move its ground disc back down to the Landmark's point.
+const setLift=m=>{const o=m.lift?liftOffset(m.marker.getLngLat(),m.lift):[0,0],el=m.marker.getElement();m.marker.setOffset(o);
+  el.style.setProperty('--gx',(-o[0]).toFixed(1)+'px');el.style.setProperty('--gy',(-o[1]).toFixed(1)+'px')};
+const relift=()=>{for(const [,m] of marks){if(m.lift)setLift(m)}};
 map.on('move',relift);map.on('resize',relift);
 // Tap-to-walk: inside the pickup circle the figure strolls to where you tapped. Only the picture moves: the
 // circle, the camera and every server check stay on your real position. Once you really move about 10 m,
@@ -385,7 +397,7 @@ function render(){
   for(const [id,m] of marks){if(!want.has(id)){m.marker.remove();marks.delete(id)}}
   for(const p of pins){
     const html=p.kind==='keeper'?'<div class="pin-body"><div class="disc"></div>'+(p.figure?'<div class="fig full" style="background-image:url('+p.figure+')"></div>':'<div class="fig">'+face(p.portrait)+'</div>')+(p.mark?'<div class="seal">'+p.mark+'</div>':'')+'</div>'
-      :p.kind==='landmark'?'<div class="pin-body"><div class="badge"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 1.5C12.8 8.2 15.8 11.2 22.5 12 15.8 12.8 12.8 15.8 12 22.5 11.2 15.8 8.2 12.8 1.5 12 8.2 11.2 11.2 8.2 12 1.5Z"/></svg></div></div>'
+      :p.kind==='landmark'?'<div class="pin-body"><div class="disc"></div><div class="badge"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 1.5C12.8 8.2 15.8 11.2 22.5 12 15.8 12.8 12.8 15.8 12 22.5 11.2 15.8 8.2 12.8 1.5 12 8.2 11.2 11.2 8.2 12 1.5Z"/></svg></div></div>'
       :p.kind==='quest'?'<div class="pin-body"><div class="disc"></div><div class="ring"></div><div class="photo">'+(p.frame?'<div class="win" style="background-image:url('+p.photo+')"></div><img class="fr" alt="" src="'+p.frame+'">':'<div class="drop"><div class="ph" style="background-image:url('+p.photo+')"></div></div>')+(p.done?'<div class="badge">'+glyphBadge('done')+'</div>':'')+'</div>'+(p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>'
       :p.kind==='spot'?'<div class="pin-body"><div class="dot"></div>'+(p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>'
       :p.kind==='waypost'?'<div class="pin-body"><div class="disc"></div>'+'<div class="post" style="background-image:url('+p.vessel+')"></div>'+(p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>':'<div class="pin-body"><div class="disc"></div><img class="v" src="'+p.vessel+'">'+(p.kind==='corrupted'&&p.cracks?'<img class="v cracks" src="'+p.cracks+'">':'')+(p.portrait!==undefined&&(p.portrait||p.private)?'<div class="who">'+face(p.portrait)+(p.private?'<div class="lock">'+PADLOCK+'</div>':'')+'</div>':'')+(p.timer?'<div class="tag timer">'+HOURGLASS+p.timer+'</div>':p.tag?'<div class="tag">'+p.tag+'</div>':'')+'</div>';
@@ -416,10 +428,10 @@ function render(){
     if(m.drag!==!!p.drag){m.drag=!!p.drag;m.marker.setDraggable(m.drag);
       if(m.drag&&!m.wired){m.wired=true;const mk=m.marker,pid=p.id;
         mk.on('dragstart',()=>{fold();window.__tcDragging=pid;mk.getElement().classList.add('dragging')});
-        mk.on('drag',()=>{window.__tcDragMove&&window.__tcDragMove(pid,mk.getLngLat())});
+        mk.on('drag',()=>{const mm=marks.get(pid);if(mm&&mm.lift)setLift(mm);window.__tcDragMove&&window.__tcDragMove(pid,mk.getLngLat())});
         mk.on('dragend',()=>{const ll=mk.getLngLat();mk.getElement().classList.remove('dragging');mk.getElement().dataset.dragged='1';setTimeout(()=>{delete mk.getElement().dataset.dragged},400);
           window.__tcDragging=null;window.__tcDragEnd&&window.__tcDragEnd(pid);send({type:'drag',id:pid,lat:ll.lat,lng:ll.lng})})}}
-    if(m.lift!==(p.lift||0)){m.lift=p.lift||0;m.marker.setOffset(m.lift?liftOffset(m.marker.getLngLat(),m.lift):[0,0])}
+    if(m.lift!==(p.lift||0)){m.lift=p.lift||0;setLift(m)}
   }
 }
 function recv(m){

@@ -8,8 +8,11 @@ import { C } from "../../../theme";
 
 export type MonumentColor = "landmark" | "ink" | "light" | "glass" | "wax" | "brass";
 export const MONUMENT_COLORS: MonumentColor[] = ["landmark", "ink", "light", "glass", "wax", "brass"];
-export type ModelKind = "tower" | "pagoda" | "gate" | "fountain" | "column" | "pavilion" | "dome" | "statue";
+/** The eight generic shapes, then the three hand-made ones as named models (Roy, 2026-11-24: one model field for every Landmark). */
+export type ModelKind = "tower" | "pagoda" | "gate" | "fountain" | "column" | "pavilion" | "dome" | "statue" | NamedModel;
+export type NamedModel = "taipei101" | "senado" | "hkust";
 export const MODEL_KINDS: ModelKind[] = ["tower", "pagoda", "gate", "fountain", "column", "pavilion", "dome", "statue"];
+export const NAMED_MODELS: NamedModel[] = ["taipei101", "senado", "hkust"];
 export type ModelSize = "s" | "m" | "l";
 /**
  * [half-width m, base m, top m, options]: a box centred on the Landmark. Options: `round` (a disc of that radius),
@@ -27,6 +30,35 @@ export type Monument = {
 /** A monument at its Landmark: `id` is the Landmark Waypost's id (what a tap on it selects). */
 export type PlacedMonument = { id: string; lat: number; lng: number; monument: Monument };
 
+const flare = (from: number, h: number, narrow: number, wide: number): Tier[] => [[narrow, from, from + h * .35], [(narrow + wide) / 2, from + h * .35, from + h * .7], [wide, from + h * .7, from + h]];
+// The three hand-made shapes (before R2 they were code in mapHtml.ts). Each is both a named model and its seed's
+// custom tiers, so a converted Landmark looks identical at size M, rotate 0.
+const TAIPEI101_TIERS: Tier[] = [
+  // A wide low base covers the real (grey) mall around the tower foot.
+  [62, 0, 18], [36, 18, 24], [24, 24, 30], [21, 30, 36],
+  ...Array.from({ length: 8 }, (_, i) => flare(36 + i * 8, 8, 14, 18.5)).flat(),
+  [12, 100, 106], [8, 106, 112], [4, 112, 116], [1.6, 116, 142],
+];
+const SENADO_TIERS: Tier[] = [
+  [13, 0, .5, { round: true }],
+  [9, .5, 3.5, { arc: { inner: 7.4, from: 0, to: 180 } }], [9, .5, 3.5, { arc: { inner: 7.4, from: 180, to: 360 } }],
+  [7.4, .5, 1.6, { round: true }],
+  [4, 1.6, 5, { round: true }], [1.6, 5, 7.5, { round: true }],
+  [2.2, 7.5, 8.5, { round: true }], [3.2, 8.5, 10, { round: true }], [3.6, 10, 11.5, { round: true }], [3.2, 11.5, 13, { round: true }], [2.2, 13, 14, { round: true }],
+  [1.5, 14, 15, { round: true }],
+  [4.6, 10.3, 11.2, { arc: { inner: 4.1, from: 0, to: 180 } }], [4.6, 10.3, 11.2, { arc: { inner: 4.1, from: 180, to: 360 } }],
+];
+const HKUST_TIERS: Tier[] = [
+  [64, 0, 14, { arc: { inner: 50, from: -80, to: 100 } }], [62, 14, 18, { arc: { inner: 53, from: -76, to: 96 } }],
+  [8, 0, .5, { round: true }],
+  [2.6, .5, 1.5, { round: true, dx: -9 }], [2.6, .5, 1.5, { round: true, dx: -7.5, dy: -1 }],
+  [1.7, .5, 3, { round: true, dx: -8, dy: 3.5 }], [1.5, 3, 5, { round: true, dx: -9, dy: 4.5 }],
+  [2.5, .5, 2.5, { round: true, dx: -5.5 }], [2.4, 2.5, 4.5, { round: true, dx: -3.5 }], [2.3, 4.5, 6.5, { round: true, dx: -1.5 }],
+  [2.2, 6.5, 8.5, { round: true }], [2, 8.5, 10.5, { round: true, dx: .8 }], [1.9, 10.5, 12.5, { round: true, dx: .8 }],
+  [1.8, 12.5, 14.5, { round: true }], [1.7, 14.5, 16, { round: true, dx: 1.5 }], [1.6, 16, 17.5, { round: true, dx: 3 }],
+  [1.5, 17.5, 19, { round: true, dx: 4.5 }], [1.5, 19, 20, { round: true, dx: 6 }],
+];
+
 const SIZE: Record<ModelSize, number> = { s: 0.6, m: 1, l: 1.5 };
 /** The eight ready-made models, at size M, as tiers. Built so they read at the toy city's scale. */
 export const MODELS: Record<ModelKind, Tier[]> = {
@@ -43,34 +75,28 @@ export const MODELS: Record<ModelKind, Tier[]> = {
     [7.5, 5, 5.8, { round: true }], [5, 5.8, 6.8, { round: true }], [2.5, 6.8, 7.6, { round: true }], [0.6, 7.6, 9, { round: true }]],
   dome: [[8, 0, 6, { round: true }], [7, 6, 8, { round: true }], [6, 8, 9.5, { round: true }], [4.5, 9.5, 10.6, { round: true }], [2.5, 10.6, 11.3, { round: true }], [0.6, 11.3, 13, { round: true }]],
   statue: [[3.6, 0, 3.5], [2.6, 3.5, 4.6], [1.5, 4.6, 12.5, { round: true }], [1, 12.5, 14.4, { round: true }]],
+  taipei101: TAIPEI101_TIERS, senado: SENADO_TIERS, hkust: HKUST_TIERS,
 };
+/** A Landmark still saved with one of the hand-made shapes as custom tiers, as the named model that draws the same. */
+export function asNamedModel(m: Monument | null): Monument | null {
+  if (!m?.custom) return m;
+  const key = JSON.stringify(m.custom.tiers);
+  const kind = NAMED_MODELS.find((k) => JSON.stringify(MODELS[k]) === key);
+  return kind ? { ...m, custom: null, model: { kind, size: "m", rotate: 0, color: m.custom.color } } : m;
+}
 
-const flare = (from: number, h: number, narrow: number, wide: number): Tier[] => [[narrow, from, from + h * .35], [(narrow + wide) / 2, from + h * .35, from + h * .7], [wide, from + h * .7, from + h]];
 /**
  * The three monuments that were code before R2, moved into data with no visible change. Codex seeds them from this
  * JSON (MONUMENT_SEED) exactly; Journey also uses it before the R2 backend is live, keyed by the Landmark's place.
  */
 export const MONUMENT_SEED: Record<string, { lat: number; lng: number; monument: Monument }> = {
   // Spire axis from the OSM building data in our tiles; Wikipedia agrees within ~20 m.
-  taipei101: { lat: 25.033667, lng: 121.56481, monument: { custom: { color: "landmark", tiers: [
-    // A wide low base covers the real (grey) mall around the tower foot.
-    [62, 0, 18], [36, 18, 24], [24, 24, 30], [21, 30, 36],
-    ...Array.from({ length: 8 }, (_, i) => flare(36 + i * 8, 8, 14, 18.5)).flat(),
-    [12, 100, 106], [8, 106, 112], [4, 112, 116], [1.6, 116, 142],
-  ] } } },
+  taipei101: { lat: 25.033667, lng: 121.56481, monument: { custom: { color: "landmark", tiers: TAIPEI101_TIERS } } },
   // Senado Square: the fountain (wide round basin, inner bowl, small armillary globe) at the fountain basin in our tiles, and
   // the buildings lining the square (tile buildings within 3 m of OSM way 192573684; Leal Senado is across the road).
   senado: { lat: 22.193683, lng: 113.53989, monument: {
     buildings: { color: "landmark", real_top: 26.2, top: 12, ids: [35184577873359, 35185133855962, 35185133855963, 35184763410348, 35185029968552, 35185133855967, 35185133855964, 35185133855966, 35185133855960, 35185133855961, 35184763410351, 35185190550958, 35185133855953, 35184637522361, 35184702457087, 35185152337983, 35184702457086] },
-    custom: { color: "landmark", tiers: [
-      [13, 0, .5, { round: true }],
-      [9, .5, 3.5, { arc: { inner: 7.4, from: 0, to: 180 } }], [9, .5, 3.5, { arc: { inner: 7.4, from: 180, to: 360 } }],
-      [7.4, .5, 1.6, { round: true }],
-      [4, 1.6, 5, { round: true }], [1.6, 5, 7.5, { round: true }],
-      [2.2, 7.5, 8.5, { round: true }], [3.2, 8.5, 10, { round: true }], [3.6, 10, 11.5, { round: true }], [3.2, 11.5, 13, { round: true }], [2.2, 13, 14, { round: true }],
-      [1.5, 14, 15, { round: true }],
-      [4.6, 10.3, 11.2, { arc: { inner: 4.1, from: 0, to: 180 } }], [4.6, 10.3, 11.2, { arc: { inner: 4.1, from: 180, to: 360 } }],
-    ] } } },
+    custom: { color: "landmark", tiers: SENADO_TIERS } } },
   // HKUST: the curved academic building that wraps the Piazza, opening west towards the gate; every tile building inside
   // the campus outline (OSM way 40664120) is blue too; the Red Bird (OSM node 2439950828) stands at the seal.
   hkust: { lat: 22.3374255, lng: 114.2629606, monument: {
@@ -87,16 +113,7 @@ export const MONUMENT_SEED: Record<string, { lat: number; lng: number; monument:
       35185797136927, 35185797247856, 35185797247857, 35185930730155, 35185932128835, 35185932223402, 35185932693361, 35185932930162,
       35185932930163, 35185933216948, 52776561307952,
     ] },
-    custom: { color: "landmark", tiers: [
-      [64, 0, 14, { arc: { inner: 50, from: -80, to: 100 } }], [62, 14, 18, { arc: { inner: 53, from: -76, to: 96 } }],
-      [8, 0, .5, { round: true }],
-      [2.6, .5, 1.5, { round: true, dx: -9 }], [2.6, .5, 1.5, { round: true, dx: -7.5, dy: -1 }],
-      [1.7, .5, 3, { round: true, dx: -8, dy: 3.5 }], [1.5, 3, 5, { round: true, dx: -9, dy: 4.5 }],
-      [2.5, .5, 2.5, { round: true, dx: -5.5 }], [2.4, 2.5, 4.5, { round: true, dx: -3.5 }], [2.3, 4.5, 6.5, { round: true, dx: -1.5 }],
-      [2.2, 6.5, 8.5, { round: true }], [2, 8.5, 10.5, { round: true, dx: .8 }], [1.9, 10.5, 12.5, { round: true, dx: .8 }],
-      [1.8, 12.5, 14.5, { round: true }], [1.7, 14.5, 16, { round: true, dx: 1.5 }], [1.6, 16, 17.5, { round: true, dx: 3 }],
-      [1.5, 17.5, 19, { round: true, dx: 4.5 }], [1.5, 19, 20, { round: true, dx: 6 }],
-    ] } } },
+    custom: { color: "landmark", tiers: HKUST_TIERS } } },
 };
 
 /** The tiers a model draws at its size, turned by `rotate` degrees (clockwise seen from above, like a compass). */

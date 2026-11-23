@@ -17,7 +17,8 @@ import { ScenePicker } from "./WaypostEditor";
 import { numberedNames } from "../../services/waypostNames";
 import { gameArt } from "../../art/manifest";
 import type { LandmarkSettings } from "../../services/admin";
-import { LANDMARK_DEFAULTS } from "../../services/mapBuilder";
+import { LANDMARK_DEFAULTS, LANDMARK_MODELS } from "../../services/mapBuilder";
+import { asNamedModel } from "../journey/live/monuments";
 import { LandmarkFields, type BuildingTap } from "./LandmarkFields";
 import { useLandmarkText } from "./landmarkStrings";
 
@@ -157,9 +158,11 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
   const adding = !waypost;
   const isLandmark = !!landmark;
   const making = isLandmark && waypost?.kind === "common";
-  const startLandmark = React.useMemo(() => isLandmark ? waypost?.landmark ?? LANDMARK_DEFAULTS : null, [isLandmark, waypost?.id]);
+  // A Landmark still saved with a hand-made shape opens with it as the named model (same look), once the server takes them.
+  const savedLook = React.useMemo(() => waypost?.landmark && LANDMARK_MODELS ? { ...waypost.landmark, monument: asNamedModel(waypost.landmark.monument) } : waypost?.landmark ?? null, [waypost?.id, waypost?.landmark]);
+  const startLandmark = React.useMemo(() => isLandmark ? savedLook ?? LANDMARK_DEFAULTS : null, [isLandmark, waypost?.id]);
   const [look, setLook] = useState<LandmarkSettings | null>(startLandmark);
-  const lookChanged = !!look && JSON.stringify(look) !== JSON.stringify(waypost?.landmark ?? null);
+  const lookChanged = !!look && JSON.stringify(look) !== JSON.stringify(savedLook);
   useEffect(() => { landmark?.onPreview(look); }, [look]);
   useEffect(() => () => { landmark?.onPreview(null); landmark?.onPicking(false); }, []);
   const [nameZh, setNameZh] = useState(waypost?.name_zh ?? "");

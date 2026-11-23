@@ -54,7 +54,8 @@ import { SelectedCard } from "./SelectedCard";
 import { useCapsuleItems } from './useCapsuleItems';
 import { openCityHunt, useCityHuntPins } from './useCityHuntPins';
 import { useGamePins } from "./useGamePins";
-import { monumentsFor, paintMonuments } from "./live/monuments";
+import { monumentsFor, paintMonuments, placedMonument } from "./live/monuments";
+import { MAP_BUILDER_R2_BACKEND } from "../../services/mapBuilder";
 import { usePrivateQuestPins } from "./usePrivateQuestPins";
 import { usePinQuests, type PinQuest } from "./usePinQuests";
 import { QuestPlay } from "../quests/QuestPlay";
@@ -296,8 +297,10 @@ export default function JourneyScreen() {
   const allPins = useMemo<LivePin[]>(() => [...items.map<LivePin>((i) => i.kind === "publicCapsule"
     ? { id: i.id, lat: i.lat, lng: i.lng, kind: "publicCapsule", vessel: vesselUri("bottle"), portrait: portraitUri(i.publicCapsule.sender.avatar), near: i.meters <= PUBLIC_CAPSULE_PICKUP_RADIUS_M, far: i.meters > 600, selected: i.id === selectedId, tag: i.meters <= PUBLIC_CAPSULE_PICKUP_RADIUS_M ? undefined : distanceText(i.meters) }
     : placePin(i)), ...gamePins, ...huntPins, ...questPins, ...guidePins, ...pinQuestPins], [items, selectedId, language, gamePins, huntPins, questPins, guidePins, pinQuestPins, senders, now]);
-  // Map builder R2: each nearby Landmark's own monument (the built-in three until the server sends them).
-  const monuments = useMemo(() => paintMonuments(monumentsFor(nearby.wayposts)), [nearby.wayposts]);
+  // Map builder R2: each nearby Landmark's own monument. Once the server sends them, a Landmark out of range draws
+  // nothing rather than its old built-in shape (which would undo an admin's edit, e.g. HKUST's buildings).
+  const monuments = useMemo(() => paintMonuments(MAP_BUILDER_R2_BACKEND
+    ? nearby.wayposts.map(placedMonument).filter((m): m is NonNullable<typeof m> => !!m) : monumentsFor(nearby.wayposts)), [nearby.wayposts]);
   const mapState = useMemo(() => huntMap ? {
     // Today's Hunt: only its three pins, and your figure at the hunt instead of where you are; no pickup circle.
     you: huntMap.you, heading: null, reach: 0, portrait: portraitUri(profile?.avatar), figure: assetUri(figureFor(profile?.avatar)), youLabel: null, pins: huntMap.pins,

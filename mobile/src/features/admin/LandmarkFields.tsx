@@ -6,9 +6,10 @@ import { Image, Pressable, Text, View } from "react-native";
 import { LANDMARK_STAMPS, stamps } from "../../art/manifest";
 import { useLanguage } from "../../i18n";
 import type { LandmarkSettings } from "../../services/admin";
+import { LANDMARK_MODELS } from "../../services/mapBuilder";
 import { C, radii, sans, serif, spacing } from "../../theme";
 import { VESSELS } from "../shop/strings";
-import { COLOR_HEX, MODEL_KINDS, MONUMENT_COLORS, type ModelKind, type Monument, type MonumentColor } from "../journey/live/monuments";
+import { COLOR_HEX, MODEL_KINDS, MONUMENT_COLORS, NAMED_MODELS, type ModelKind, type Monument, type MonumentColor } from "../journey/live/monuments";
 import { useLandmarkText } from "./landmarkStrings";
 import { AButton, Choice, Stepper, VesselThumb } from "./ui";
 
@@ -62,7 +63,7 @@ export function LandmarkFields({ value, onChange, picking, onPicking, buildingTa
       </Sub>
       <Sub title={t.model}>
         <Choice<ModelKind | "none"> value={m.model?.kind ?? "none"}
-          options={[{ value: "none", label: t.none }, ...MODEL_KINDS.map((k) => ({ value: k, label: t.models[k] }))]}
+          options={[{ value: "none", label: t.none }, ...[...MODEL_KINDS, ...(LANDMARK_MODELS ? NAMED_MODELS : [])].map((k) => ({ value: k, label: t.models[k] }))]}
           onChange={(k) => setLook({ ...m, model: k === "none" ? null : { kind: k, size: m.model?.size ?? "m", rotate: m.model?.rotate ?? 0, color: m.model?.color ?? "landmark" } })} />
         {m.model && <>
           <Row label={t.size}><Choice value={m.model.size} options={(["s", "m", "l"] as const).map((s) => ({ value: s, label: t.sizes[s] }))}

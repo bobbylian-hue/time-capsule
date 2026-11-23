@@ -32,7 +32,7 @@ import { SpotForm, WaypostBuilderForm, WaypostNumbers, type Ask } from "./Waypos
 import { EditSheet, StatusActions, type SheetGuard } from "./EditSheet";
 import { FillPanel, useFill } from "./FillArea";
 import { DraftsCard } from "./DraftsCard";
-import { MAP_BUILDER_R2 } from "../../services/mapBuilder";
+import { LANDMARK_DEFAULTS, MAP_BUILDER_R2 } from "../../services/mapBuilder";
 import type { LandmarkSettings } from "../../services/admin";
 import { monumentTop, monumentsFor, paintMonuments, placedMonument } from "../journey/live/monuments";
 import type { BuildingTap } from "./LandmarkFields";
@@ -106,9 +106,16 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   const following = !draft && (mode === "add" || mode === "landmark" || mode === "spot") ? mode : null;
   useEffect(() => {
     if (!MAP_BUILDER_R1) return;
-    ref.current?.command(following ? { type: "placing", kind: following === "spot" ? "spot" : "waypost",
-      img: following === "spot" ? undefined : assetUri(following === "landmark" ? gameArt.landmarkGem : gameArt.waypostGemBlue) ?? undefined }
-      : { type: "placing", kind: null });
+    if (!following) { ref.current?.command({ type: "placing", kind: null }); return; }
+    if (following === "landmark") {
+      // The default model and its seal follow the pointer, painted once at the city's middle and moved by the page.
+      const c = everything.length ? { lat: everything.reduce((t, p) => t + p.lat, 0) / everything.length, lng: everything.reduce((t, p) => t + p.lng, 0) / everything.length } : { lat: 0, lng: 0 };
+      const look = LANDMARK_DEFAULTS.monument!;
+      ref.current?.command({ type: "placing", kind: "landmark", monument: { ...c, top: monumentTop(look) + 4, geo: paintMonuments([{ id: "ghost", ...c, monument: look }]).geo } });
+      return;
+    }
+    ref.current?.command({ type: "placing", kind: following === "spot" ? "spot" : "waypost",
+      img: following === "spot" ? undefined : assetUri(gameArt.waypostGemBlue) ?? undefined });
   }, [following]);
   // R2: while choosing a Landmark's buildings, map taps pick buildings instead.
   useEffect(() => { if (MAP_BUILDER_R2) ref.current?.command({ type: "pick", on: picking }); }, [picking]);
