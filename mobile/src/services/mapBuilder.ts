@@ -23,7 +23,7 @@ export const MAP_BUILDER_R15 = MAP_BUILDER_R15_BACKEND || ADMIN_SAMPLE;
 export const FILL_PUBLISH_BACKEND = true;
 const FILL_PUBLISH = FILL_PUBLISH_BACKEND || ADMIN_SAMPLE;
 /** Turn on once Codex's R2 migration is applied: Landmarks with a look, a reward and a fight, made in the builder. */
-export const MAP_BUILDER_R2_BACKEND = false;
+export const MAP_BUILDER_R2_BACKEND = true;
 export const MAP_BUILDER_R2 = MAP_BUILDER_R2_BACKEND || ADMIN_SAMPLE;
 /** What a new Landmark starts with: the seal alone, the default keepsake and stamp, and today's fight (40 HP, 150 s). */
 export const LANDMARK_DEFAULTS: LandmarkSettings = { monument: null, vessel: "landmark-keepsake", stamp: "landmark-default", fight_health: 40, fight_seconds: 150 };

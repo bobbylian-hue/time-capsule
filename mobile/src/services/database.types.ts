@@ -827,6 +827,7 @@ export type Database = {
           acquired_at: string
           copies: number | null
           edition_no: number | null
+          landmark_copies: number
           user_id: string
           vessel: string
         }
@@ -834,6 +835,7 @@ export type Database = {
           acquired_at?: string
           copies?: number | null
           edition_no?: number | null
+          landmark_copies?: number
           user_id: string
           vessel: string
         }
@@ -841,6 +843,7 @@ export type Database = {
           acquired_at?: string
           copies?: number | null
           edition_no?: number | null
+          landmark_copies?: number
           user_id?: string
           vessel?: string
         }
@@ -1246,12 +1249,17 @@ export type Database = {
         Row: {
           city_en: string
           city_zh: string
+          fight_health: number | null
+          fight_seconds: number | null
           game_enabled: boolean
           hidden_at: string | null
           id: string
           kind: string
+          landmark_stamp: string | null
+          landmark_vessel: string | null
           lat: number
           lng: number
+          monument: Json | null
           name_en: string
           name_zh: string
           photo: string | null
@@ -1266,12 +1274,17 @@ export type Database = {
         Insert: {
           city_en: string
           city_zh: string
+          fight_health?: number | null
+          fight_seconds?: number | null
           game_enabled?: boolean
           hidden_at?: string | null
           id?: string
           kind?: string
+          landmark_stamp?: string | null
+          landmark_vessel?: string | null
           lat: number
           lng: number
+          monument?: Json | null
           name_en: string
           name_zh: string
           photo?: string | null
@@ -1286,12 +1299,17 @@ export type Database = {
         Update: {
           city_en?: string
           city_zh?: string
+          fight_health?: number | null
+          fight_seconds?: number | null
           game_enabled?: boolean
           hidden_at?: string | null
           id?: string
           kind?: string
+          landmark_stamp?: string | null
+          landmark_vessel?: string | null
           lat?: number
           lng?: number
+          monument?: Json | null
           name_en?: string
           name_zh?: string
           photo?: string | null
@@ -1305,6 +1323,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "public_capsule_spots_landmark_vessel_fkey"
+            columns: ["landmark_vessel"]
+            isOneToOne: false
+            referencedRelation: "vessels"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "sea_shores_place_fkey"
             columns: ["place"]
             isOneToOne: false
@@ -1316,6 +1341,7 @@ export type Database = {
       vessels: {
         Row: {
           brand: string | null
+          earned_only: boolean
           earned_place: string | null
           edition_total: number | null
           id: string
@@ -1325,6 +1351,7 @@ export type Database = {
         }
         Insert: {
           brand?: string | null
+          earned_only?: boolean
           earned_place?: string | null
           edition_total?: number | null
           id: string
@@ -1334,6 +1361,7 @@ export type Database = {
         }
         Update: {
           brand?: string | null
+          earned_only?: boolean
           earned_place?: string | null
           edition_total?: number | null
           id?: string
@@ -1451,6 +1479,10 @@ export type Database = {
       admin_cities: { Args: never; Returns: Json }
       admin_city_drafts: { Args: { p_region: string }; Returns: Json }
       admin_city_map: { Args: { p_region: string }; Returns: Json }
+      admin_landmark_set: {
+        Args: { p_id: string; p_landmark: Json; p_note?: string }
+        Returns: number
+      }
       admin_me: { Args: never; Returns: Json }
       admin_member_add: {
         Args: { p_email: string; p_role: string }
@@ -1612,6 +1644,8 @@ export type Database = {
       admin_waypost_add: {
         Args: {
           p_checked?: boolean
+          p_kind?: string
+          p_landmark?: Json
           p_lat: number
           p_lng: number
           p_name_en: string
@@ -1912,9 +1946,11 @@ export type Database = {
           city_zh: string
           first_at: string
           how_earned: string
+          landmark: string
           name_en: string
           name_zh: string
           place: string
+          stamp: string
         }[]
       }
       open_capsule: {
