@@ -153,6 +153,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
       const look = on && preview ? preview.monument : w.landmark?.monument;
       const lift = w.kind === "landmark" || (on && preview) ? monumentTop(look ?? placedMonument(w)?.monument) : 0;
       return { id: `w:${w.id}`, lat: w.lat, lng: w.lng, kind: w.kind === "landmark" || (on && preview) ? "landmark" : "waypost", lift: lift ? lift + 4 : undefined,
+        mon: lift ? w.id : undefined,
         label: zh ? w.name_zh : w.name_en,
         vessel: assetUri(w.kind === "landmark" ? gameArt.landmarkGem : gameArt.waypostGemBlue) ?? "", selected: on, locked: status === "hidden", ghost: moved,
         // A saved draft looks like an unsaved place but says Draft.
@@ -163,7 +164,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     // Not saved yet: see-through with a dashed ring and a "Not saved" tag.
     ...(editing && (mode === "add" || mode === "landmark" || mode === "move") && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng,
       kind: mode === "landmark" || (mode === "move" && (picked?.kind === "landmark" || preview)) ? "landmark" : "waypost",
-      lift: preview?.monument ? monumentTop(preview.monument) + 4 : undefined,
+      lift: preview?.monument ? monumentTop(preview.monument) + 4 : undefined, mon: mode === "landmark" ? "draft" : picked?.id,
       vessel: mode === "landmark" ? assetUri(gameArt.landmarkGem) ?? "" : gem, selected: true, draft: true, tag: mb.notSaved, drag: MAP_BUILDER_R1, edit: MAP_BUILDER_R1 } as LivePin] : []),
     ...(editing && (mode === "spot" || mode === "moveSpot") && draft ? [{ id: "draft", lat: draft.lat, lng: draft.lng, kind: "spot", vessel: "", selected: true, draft: true, tag: mb.notSaved, drag: MAP_BUILDER_R1, edit: MAP_BUILDER_R1 } as LivePin] : []),
     ...(editing && (layers.spots || mode === "spot" || mode === "moveSpot" || fill?.kinds.includes("spot")) ? map.spots.map<LivePin>((x) => {
@@ -196,6 +197,9 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     const rows = map.wayposts.filter((w) => statusOf(w) !== "deleted" && w.id !== editingId)
       .map((w) => ({ ...w, monument: w.landmark ? w.landmark.monument : undefined }));
     const list = map.wayposts.some((w) => w.landmark) ? rows.map(placedMonument).filter((m) => !!m) as NonNullable<ReturnType<typeof placedMonument>>[] : monumentsFor(rows);
+    // A saved Landmark being moved leaves its model faintly where it was, with its faint seal (the ghost pin).
+    if (mode === "move" && draft && picked?.kind === "landmark" && picked.landmark?.monument)
+      list.push({ id: picked.id, lat: picked.lat, lng: picked.lng, monument: picked.landmark.monument, ghost: true });
     if (preview?.monument && editingId && at) list.push({ id: editingId, lat: at.lat, lng: at.lng, monument: preview.monument });
     else if (!preview && picked && picked.kind === "landmark") { const own = placedMonument({ ...picked, monument: picked.landmark ? picked.landmark.monument : undefined }); if (own) list.push({ ...own, ...(draft ?? {}) }); }
     return paintMonuments(list);
@@ -223,8 +227,10 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
   // Leaving an open popup some other way (another pin, the map) asks first when something is unsaved.
   const guard: SheetGuard = useRef(null);
   const leave = (go: () => void) => guard.current ? guard.current(go) : go();
-  const pick = (pinId: string) => {
-    if (pinId === "draft") return;
+  const pick = (tapped: string) => {
+    // Clicking a Landmark's model opens the Landmark, the same as clicking its seal.
+    const pinId = tapped.startsWith("monument-") ? `w:${tapped.slice(9)}` : tapped;
+    if (pinId === "draft" || pinId === "w:draft" || (tapped !== pinId && !map.wayposts.some((w) => `w:${w.id}` === pinId))) return;
     if (fill) { if (pinId.startsWith("f:")) fillApi.focus(Number(pinId.slice(2))); return; }
     leave(() => {
       stopPlacing(); setSelected(pinId);

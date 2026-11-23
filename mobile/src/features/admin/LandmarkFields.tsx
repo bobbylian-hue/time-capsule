@@ -50,9 +50,10 @@ export function LandmarkFields({ value, onChange, picking, onPicking, buildingTa
   return <View style={{ gap: spacing.lg }}>
     <Section title={t.look}>
       <Sub title={t.model}>
-        <Dropdown<ModelKind | "none"> label={t.model} value={m.model?.kind ?? "none"}
-          options={[{ value: "none", label: t.none }, ...[...MODEL_KINDS, ...(LANDMARK_MODELS ? NAMED_MODELS : [])].map((k) => ({ value: k, label: t.models[k] }))]}
-          onChange={(k) => setLook({ ...m, model: k === "none" ? null : { kind: k, size: m.model?.size ?? "m", rotate: m.model?.rotate ?? 0, color: m.model?.color ?? "landmark" } })} />
+        {/* Every Landmark has a model (Roy, 2026-11-24), so there is no "None". */}
+        <Dropdown<ModelKind> label={t.model} value={m.model?.kind ?? "column"}
+          options={[...MODEL_KINDS, ...(LANDMARK_MODELS ? NAMED_MODELS : [])].map((k) => ({ value: k, label: t.models[k] }))}
+          onChange={(k) => setLook({ ...m, model: { kind: k, size: m.model?.size ?? "m", rotate: m.model?.rotate ?? 0, color: m.model?.color ?? "landmark" } })} />
         {m.model && <>
           <Row label={t.size}><Choice value={m.model.size} options={(["s", "m", "l"] as const).map((s) => ({ value: s, label: t.sizes[s] }))}
             onChange={(size) => setLook({ ...m, model: { ...m.model!, size } })} /></Row>

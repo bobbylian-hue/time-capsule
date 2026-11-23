@@ -11,6 +11,7 @@ export type LivePin = { id: string; lat: number; lng: number; vessel: string; la
   /** A quest made by us (Today's Hunt, City Hunt): the blue quest pin instead of brass. */ blue?: boolean;
   /** Drops from the sky this many ms after it first appears (Today's Hunt). */ drop?: number; near?: boolean; far?: boolean; selected?: boolean; sealed?: boolean; private?: boolean; opened?: boolean; timer?: string;
   /** Admin map builder: not saved yet (see-through, dashed), and the faint old spot of a place being moved. */ draft?: boolean; ghost?: boolean;
+  /** Admin map builder: the monument this pin's seal sits on, so dragging the seal carries the model with it. */ mon?: string;
   /** Admin map builder: this pin can be dragged; the map reports the drop with a "drag" message. */ drag?: boolean;
   /** Admin map builder: a place the admin can edit (green ring on hover and when selected). */ edit?: boolean };
 export type LiveState = { you: { lat: number; lng: number } | null; heading?: number | null; portrait?: string | null; figure?: string | null; youLabel?: string | null; reach: number; pins: LivePin[];

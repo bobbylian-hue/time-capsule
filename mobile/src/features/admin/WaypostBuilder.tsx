@@ -18,7 +18,10 @@ import { numberedNames } from "../../services/waypostNames";
 import { gameArt } from "../../art/manifest";
 import type { LandmarkSettings } from "../../services/admin";
 import { LANDMARK_DEFAULTS, LANDMARK_MODELS } from "../../services/mapBuilder";
-import { asNamedModel, sameJson } from "../journey/live/monuments";
+import { asNamedModel, sameJson, type Monument } from "../journey/live/monuments";
+
+/** Every Landmark has a model (Roy, 2026-11-24): one saved without (seal only, or buildings only) opens with the default Column. */
+const withModel = (m: Monument | null): Monument => m?.model || m?.custom ? m : { ...(m ?? {}), model: LANDMARK_DEFAULTS.monument!.model };
 import { LandmarkFields, type BuildingTap } from "./LandmarkFields";
 import { useLandmarkText } from "./landmarkStrings";
 
@@ -159,7 +162,7 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
   const isLandmark = !!landmark;
   const making = isLandmark && waypost?.kind === "common";
   // A Landmark still saved with a hand-made shape opens with it as the named model (same look), once the server takes them.
-  const savedLook = React.useMemo(() => waypost?.landmark && LANDMARK_MODELS ? { ...waypost.landmark, monument: asNamedModel(waypost.landmark.monument) } : waypost?.landmark ?? null, [waypost?.id, waypost?.landmark]);
+  const savedLook = React.useMemo(() => waypost?.landmark && LANDMARK_MODELS ? { ...waypost.landmark, monument: withModel(asNamedModel(waypost.landmark.monument)) } : waypost?.landmark ?? null, [waypost?.id, waypost?.landmark]);
   const startLandmark = React.useMemo(() => isLandmark ? savedLook ?? LANDMARK_DEFAULTS : null, [isLandmark, waypost?.id]);
   const [look, setLook] = useState<LandmarkSettings | null>(startLandmark);
   const lookChanged = !!look && !sameJson(look, savedLook);
