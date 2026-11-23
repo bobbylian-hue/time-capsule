@@ -1449,6 +1449,7 @@ export type Database = {
         Returns: Json
       }
       admin_cities: { Args: never; Returns: Json }
+      admin_city_drafts: { Args: { p_region: string }; Returns: Json }
       admin_city_map: { Args: { p_region: string }; Returns: Json }
       admin_me: { Args: never; Returns: Json }
       admin_member_add: {
@@ -1541,7 +1542,13 @@ export type Database = {
         Returns: Json
       }
       admin_spot_add_batch: {
-        Args: { p_items: Json; p_note?: string; p_region: string }
+        Args: {
+          p_batch?: string
+          p_items: Json
+          p_note?: string
+          p_region: string
+          p_status?: string
+        }
         Returns: Json
       }
       admin_spot_move: {
@@ -1619,7 +1626,13 @@ export type Database = {
         Returns: Json
       }
       admin_waypost_add_batch: {
-        Args: { p_items: Json; p_note?: string; p_region: string }
+        Args: {
+          p_batch?: string
+          p_items: Json
+          p_note?: string
+          p_region: string
+          p_status?: string
+        }
         Returns: Json
       }
       admin_waypost_check: {
