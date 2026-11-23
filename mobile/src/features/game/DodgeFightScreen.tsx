@@ -121,7 +121,7 @@ export function DodgeFightScreen({ capsule, landmark, home, avatar, state, onSta
     const damage = stock.wax + 2 * stock.gold;
     // An online fight checks against the health the server returns: a resumed fight keeps its saved health, and the
     // server's Landmark health can differ from this app's (20 before the DF3 migration, 40 after). A Landmark start the
-    // server refuses for too few balls is rolled back, so its 150-second clock doesn't begin.
+    // server refuses for too few balls is rolled back, so its clock doesn't begin.
     const healthNeeded = fightHealth(mode, capsule.rarity);
     if (!home && !remote && damage < healthNeeded) {
       setNeeded(healthNeeded);
