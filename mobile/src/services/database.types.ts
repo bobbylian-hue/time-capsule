@@ -563,6 +563,7 @@ export type Database = {
           lat: number
           lng: number
           source_ref: string
+          status: string
           timezone: string
         }
         Insert: {
@@ -574,6 +575,7 @@ export type Database = {
           lat: number
           lng: number
           source_ref: string
+          status?: string
           timezone: string
         }
         Update: {
@@ -585,6 +587,7 @@ export type Database = {
           lat?: number
           lng?: number
           source_ref?: string
+          status?: string
           timezone?: string
         }
         Relationships: []
@@ -1258,6 +1261,7 @@ export type Database = {
           s2_cell17: string | null
           scene: string | null
           source_ref: string | null
+          status: string
         }
         Insert: {
           city_en: string
@@ -1277,6 +1281,7 @@ export type Database = {
           s2_cell17?: string | null
           scene?: string | null
           source_ref?: string | null
+          status?: string
         }
         Update: {
           city_en?: string
@@ -1296,6 +1301,7 @@ export type Database = {
           s2_cell17?: string | null
           scene?: string | null
           source_ref?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -1430,6 +1436,18 @@ export type Database = {
         Args: { p_before: number; p_limit: number }
         Returns: Json
       }
+      admin_area_suggest: {
+        Args: {
+          p_east: number
+          p_kind: string
+          p_north: number
+          p_region: string
+          p_south: number
+          p_spacing_m: number
+          p_west: number
+        }
+        Returns: Json
+      }
       admin_cities: { Args: never; Returns: Json }
       admin_city_map: { Args: { p_region: string }; Returns: Json }
       admin_me: { Args: never; Returns: Json }
@@ -1443,6 +1461,15 @@ export type Database = {
         Returns: undefined
       }
       admin_members_list: { Args: never; Returns: Json }
+      admin_place_set_status: {
+        Args: {
+          p_ids: string[]
+          p_kind: string
+          p_note?: string
+          p_status: string
+        }
+        Returns: Json
+      }
       admin_player_adjust_copies: {
         Args: {
           delta: number
@@ -1509,7 +1536,12 @@ export type Database = {
           p_lng: number
           p_note?: string
           p_region: string
+          p_status?: string
         }
+        Returns: Json
+      }
+      admin_spot_add_batch: {
+        Args: { p_items: Json; p_note?: string; p_region: string }
         Returns: Json
       }
       admin_spot_move: {
@@ -1582,7 +1614,12 @@ export type Database = {
           p_photo_credit?: string
           p_region: string
           p_scene: string
+          p_status?: string
         }
+        Returns: Json
+      }
+      admin_waypost_add_batch: {
+        Args: { p_items: Json; p_note?: string; p_region: string }
         Returns: Json
       }
       admin_waypost_check: {
