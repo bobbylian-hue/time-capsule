@@ -19,7 +19,7 @@ export const MAP_BUILDER_R15_BACKEND = true;
 export const MAP_BUILDER_R15 = MAP_BUILDER_R15_BACKEND || ADMIN_SAMPLE;
 /** Turn on once Codex's Fill an area follow-up is applied: batches saved as Live, their Activity ids back for Undo,
  * and the city's drafts grouped by the batch they came from (Roy, 2026-11-23). */
-export const FILL_PUBLISH_BACKEND = false;
+export const FILL_PUBLISH_BACKEND = true;
 const FILL_PUBLISH = FILL_PUBLISH_BACKEND || ADMIN_SAMPLE;
 
 export type CellNeighbour = { id: string; name_zh: string; name_en: string; meters: number };
