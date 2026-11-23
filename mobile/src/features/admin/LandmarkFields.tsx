@@ -11,7 +11,7 @@ import { C, radii, sans, serif, spacing } from "../../theme";
 import { VESSELS } from "../shop/strings";
 import { COLOR_HEX, MODEL_KINDS, MONUMENT_COLORS, NAMED_MODELS, type ModelKind, type Monument, type MonumentColor } from "../journey/live/monuments";
 import { useLandmarkText } from "./landmarkStrings";
-import { AButton, Choice, Stepper, VesselThumb } from "./ui";
+import { AButton, Choice, Dropdown, Stepper, VesselThumb } from "./ui";
 
 /** The Landmark reward vessels the catalogue has (earned ones), the default keepsake first. */
 export const LANDMARK_VESSELS = ["landmark-keepsake", "bamboo-tower", "senado-fountain", "red-bird", "lionfish-fountain", "clock-tower",
@@ -49,20 +49,8 @@ export function LandmarkFields({ value, onChange, picking, onPicking, buildingTa
 
   return <View style={{ gap: spacing.lg }}>
     <Section title={t.look}>
-      <Sub title={t.buildings}>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm }}>
-          <AButton small tone={picking ? "blue" : "ghost"} title={picking ? t.donePicking : t.pickBuildings} onPress={() => onPicking(!picking)} />
-          <Text style={{ fontFamily: sans, fontSize: 12, color: picking ? C.blue : C.muted }}>{picking ? t.picking : t.buildingCount(m.buildings?.ids.length ?? 0)}</Text>
-          {!!m.buildings && <AButton small tone="ghost" title={t.clear} onPress={() => setLook({ ...m, buildings: null })} />}
-        </View>
-        {m.buildings && <>
-          <Row label={t.height}><Stepper label={t.height} value={m.buildings.top} min={4} max={60} step={2} format={(v) => `${v} m`}
-            onChange={(top) => setLook({ ...m, buildings: { ...m.buildings!, top } })} /></Row>
-          <Colours value={m.buildings.color} onChange={(color) => setLook({ ...m, buildings: { ...m.buildings!, color } })} />
-        </>}
-      </Sub>
       <Sub title={t.model}>
-        <Choice<ModelKind | "none"> value={m.model?.kind ?? "none"}
+        <Dropdown<ModelKind | "none"> label={t.model} value={m.model?.kind ?? "none"}
           options={[{ value: "none", label: t.none }, ...[...MODEL_KINDS, ...(LANDMARK_MODELS ? NAMED_MODELS : [])].map((k) => ({ value: k, label: t.models[k] }))]}
           onChange={(k) => setLook({ ...m, model: k === "none" ? null : { kind: k, size: m.model?.size ?? "m", rotate: m.model?.rotate ?? 0, color: m.model?.color ?? "landmark" } })} />
         {m.model && <>
@@ -77,6 +65,18 @@ export function LandmarkFields({ value, onChange, picking, onPicking, buildingTa
         <Colours value={m.custom.color} onChange={(color) => setLook({ ...m, custom: { ...m.custom!, color } })} />
         <View style={{ alignItems: "flex-start" }}><AButton small tone="ghost" title={t.remove} onPress={() => setLook({ ...m, custom: null })} /></View>
       </Sub>}
+      <Sub title={t.buildings}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm }}>
+          <AButton small tone={picking ? "blue" : "ghost"} title={picking ? t.donePicking : t.pickBuildings} onPress={() => onPicking(!picking)} />
+          <Text style={{ fontFamily: sans, fontSize: 12, color: picking ? C.blue : C.muted }}>{picking ? t.picking : t.buildingCount(m.buildings?.ids.length ?? 0)}</Text>
+          {!!m.buildings && <AButton small tone="ghost" title={t.clear} onPress={() => setLook({ ...m, buildings: null })} />}
+        </View>
+        {m.buildings && <>
+          <Row label={t.height}><Stepper label={t.height} value={m.buildings.top} min={4} max={60} step={2} format={(v) => `${v} m`}
+            onChange={(top) => setLook({ ...m, buildings: { ...m.buildings!, top } })} /></Row>
+          <Colours value={m.buildings.color} onChange={(color) => setLook({ ...m, buildings: { ...m.buildings!, color } })} />
+        </>}
+      </Sub>
     </Section>
 
     <Section title={t.reward}>

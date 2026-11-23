@@ -196,6 +196,33 @@ export function Choice<T extends string | number>({ options, value, onChange }: 
   </View>;
 }
 
+/** Pick one from a long or growing list: the choice in a field, the list opening below it. */
+export function Dropdown<T extends string | number>({ options, value, onChange, label }: {
+  options: { value: T; label: string }[]; value: T; onChange: (v: T) => void; label: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.value === value)?.label ?? "";
+  return <View style={{ gap: 4, alignSelf: "stretch", maxWidth: 320 }}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${current}`} accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)}
+      style={({ hovered }: any) => ({ flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: open ? C.blue : C.line,
+        borderRadius: radii.sm, backgroundColor: hovered && !open ? "#F9FBFD" : C.white, paddingHorizontal: 12, paddingVertical: 9 })}>
+      <Text style={{ fontFamily: sans, fontSize: 14, color: C.ink }}>{current}</Text>
+      <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{open ? "▲" : "▼"}</Text>
+    </Pressable>
+    {open && <View accessibilityRole="radiogroup" accessibilityLabel={label}
+      style={{ borderWidth: 1, borderColor: C.line, borderRadius: radii.sm, backgroundColor: C.white, paddingVertical: 4, ...shadows.card }}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return <Pressable key={String(o.value)} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => { onChange(o.value); setOpen(false); }}
+          style={({ hovered }: any) => ({ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 8, backgroundColor: on ? "#E6EEF7" : hovered ? "#F4F7FA" : "transparent" })}>
+          <Text style={{ fontFamily: sans, fontSize: 14, color: on ? C.blue : C.ink }}>{o.label}</Text>
+          {on && <Text style={{ fontFamily: sans, fontSize: 14, color: C.blue }}>✓</Text>}
+        </Pressable>;
+      })}
+    </View>}
+  </View>;
+}
+
 /** A small − value + control for whole numbers. */
 export function Stepper({ value, onChange, min, max, step = 1, format = String, label }: {
   value: number; onChange: (v: number) => void; min: number; max: number; step?: number; format?: (v: number) => string; label: string;
