@@ -137,7 +137,7 @@ function PicturePicker({ region, scene, onScene, photo, onPhoto, credit, onCredi
 }
 
 /** Adding a Waypost at `at`, or editing one (moving it to `at` when that differs). */
-export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving, ask, onMove, onMoveHere, onSaved, onCancel, landmark }: {
+export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving, ask, onMove, onSaved, onCancel, landmark }: {
   /** Inside the map popup: no card frame, and the popup's title replaces the pill. */
   flat?: boolean;
   region: Region;
@@ -147,7 +147,6 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
   moving: boolean;
   ask: Ask;
   onMove: () => void;
-  onMoveHere: () => void;
   onSaved: (w: MapWaypost) => void;
   onCancel: () => void;
   /** R2: a Landmark (new, existing, or a Waypost being made one): its look previews on the map as it changes. */
@@ -244,10 +243,7 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
       {!flat && <Pill tone="blue" label={adding ? a.ed.newWaypost : a.commonWaypost} />}
       {!adding && <Text style={{ fontFamily: serif, fontSize: 18, color: C.ink }}>{language === "zh" ? waypost.name_zh : waypost.name_en}</Text>}
       <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{at.lat.toFixed(5)}, {at.lng.toFixed(5)}</Text>
-      {inSheet && <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.md }}>
-        <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.dragHint}</Text>
-        <Pressable accessibilityRole="button" onPress={onMoveHere} hitSlop={6}><Text style={{ fontFamily: sans, fontSize: 12, color: C.blue }}>{mb.moveHereLink}</Text></Pressable>
-      </View>}
+      {inSheet && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.dragHint}</Text>}
     </View>
     {(adding || moved) && <PlaceNotes region={region} at={at} wayposts={wayposts} check={check} names={names} />}
     <NameChips names={names} onPick={pick} />
@@ -269,7 +265,6 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
     {error && <Notice tone="stop" text={errorText(a, mb, error)} />}
     {!inSheet && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" }}>
       {!adding && !moving && <AButton small tone="ghost" title={a.ed.move} onPress={onMove} />}
-      {!adding && <AButton small tone="ghost" title={mb.moveHere} onPress={onMoveHere} />}
       <AButton small tone="ghost" title={a.ed.cancel} onPress={onCancel} />
       <AButton small title={busy ? a.ed.saving : a.ed.save} disabled={!ready} onPress={save} />
     </View>}
