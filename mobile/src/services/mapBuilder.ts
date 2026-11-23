@@ -27,7 +27,7 @@ export const MAP_BUILDER_R2_BACKEND = true;
 export const MAP_BUILDER_R2 = MAP_BUILDER_R2_BACKEND || ADMIN_SAMPLE;
 /** Turn on once Codex's migration accepts the named models (Taipei 101, Senado, HKUST) and converts the three
  * hand-made Landmarks to them (Roy, 2026-11-24: one model field for every Landmark). */
-export const LANDMARK_MODELS_BACKEND = false;
+export const LANDMARK_MODELS_BACKEND = true;
 export const LANDMARK_MODELS = LANDMARK_MODELS_BACKEND || ADMIN_SAMPLE;
 /** What a new Landmark starts with: a Column (so it's clear there's something to move), the default keepsake and
  * stamp, and today's fight (40 HP, 150 s). */
