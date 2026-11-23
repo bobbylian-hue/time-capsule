@@ -243,7 +243,6 @@ export function WaypostBuilderForm({ flat, region, wayposts, waypost, at, moving
       {!flat && <Pill tone="blue" label={adding ? a.ed.newWaypost : a.commonWaypost} />}
       {!adding && <Text style={{ fontFamily: serif, fontSize: 18, color: C.ink }}>{language === "zh" ? waypost.name_zh : waypost.name_en}</Text>}
       <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{at.lat.toFixed(5)}, {at.lng.toFixed(5)}</Text>
-      {inSheet && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.dragHint}</Text>}
     </View>
     {(adding || moved) && <PlaceNotes region={region} at={at} wayposts={wayposts} check={check} names={names} />}
     <NameChips names={names} onPick={pick} />

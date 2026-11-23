@@ -309,7 +309,6 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
               <View style={{ gap: 4 }}>
                 <Text style={{ fontFamily: sans, fontSize: 14, color: C.ink }}>{pickedSpot.habitat ? a.habitat[pickedSpot.habitat] : a.ed.spotTitle}</Text>
                 <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{pickedSpot.lat.toFixed(5)}, {pickedSpot.lng.toFixed(5)}</Text>
-                {statusOf(pickedSpot) !== "hidden" && <Text style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{mb.dragHint}</Text>}
               </View>
               {MAP_BUILDER_R15
                 ? <StatusActions key={`st:${pickedSpot.id}`} status={statusOf(pickedSpot)} name={a.ed.spotTitle} onStatus={(st) => changeStatus("spot", pickedSpot.id, st)} />
