@@ -114,7 +114,8 @@ export class DodgeFight {
 
   constructor(readonly mode: FightMode, private readonly rarity: Rarity, stock: BallStock,
     private readonly random = Math.random, remote?: { health: number; maxHealth: number; seconds?: number }) {
-    this.timer = Math.min(LANDMARK_SECONDS, remote?.seconds ?? LANDMARK_SECONDS);
+    // A hosted attempt brings its own length (admin sets 60–600 s per Landmark); 150 s is only the local default.
+    this.timer = remote?.seconds ?? LANDMARK_SECONDS;
     this.maxHp = remote?.maxHealth ?? fightHealth(mode, rarity);
     this.hp = remote?.health ?? this.maxHp;
     this.stock = { ...stock };

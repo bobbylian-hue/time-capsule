@@ -62,6 +62,14 @@ describe("dodge fight rules", () => {
     expect(fight.end).toBe("empty");
   });
 
+  it("runs a hosted Landmark fight for the server's length, longer or shorter than 150 s", () => {
+    const long = new DodgeFight("landmark", "common", { wax: 1, gold: 0 }, () => .5, { health: 40, maxHealth: 40, seconds: 180 });
+    expect(long.secondsLeft).toBe(180);
+    const short = new DodgeFight("landmark", "common", { wax: 1, gold: 0 }, () => .5, { health: 40, maxHealth: 40, seconds: 60 });
+    expect(short.secondsLeft).toBe(60);
+    expect(new DodgeFight("landmark", "common", { wax: 1, gold: 0 }).secondsLeft).toBe(150);
+  });
+
   it("uses gold automatically when wax runs out and wins with the last ball", () => {
     const fight = new DodgeFight("corrupted", "common", { wax: 1, gold: 1 }, () => .5, { health: 3, maxHealth: 5 });
     calm(fight, 1.12);
