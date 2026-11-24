@@ -7,7 +7,7 @@ import { supabase } from "./supabase";
 export const GAME_ENABLED = true;
 export const GAME_ACTION_RADIUS_M = 100;
 /** Codex's `city_landmarks(p_city)`: a city's live Landmarks and their monuments, wherever the player is. */
-export const CITY_LANDMARKS_BACKEND = false;
+export const CITY_LANDMARKS_BACKEND = true;
 
 /** A Landmark as the city cards and Today's Hunt draw it, from anywhere: the same row (id, spot, monument) game_nearby sends. */
 export type CityLandmark = { id: string; lat: number; lng: number; monument: Monument | null };

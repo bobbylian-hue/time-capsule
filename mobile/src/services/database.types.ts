@@ -1723,6 +1723,15 @@ export type Database = {
       city_hunt_list: { Args: { p_lat: number; p_lng: number }; Returns: Json }
       city_hunt_quest_attempt: { Args: { payload: Json }; Returns: Json }
       city_hunt_quests: { Args: { hunt_id: string }; Returns: Json }
+      city_landmarks: {
+        Args: { p_city: string }
+        Returns: {
+          id: string
+          lat: number
+          lng: number
+          monument: Json
+        }[]
+      }
       city_puzzle_guess: {
         Args: { p_city: string; p_usd: number }
         Returns: Json
