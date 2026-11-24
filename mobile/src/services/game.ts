@@ -6,6 +6,11 @@ import { supabase } from "./supabase";
 
 export const GAME_ENABLED = true;
 export const GAME_ACTION_RADIUS_M = 100;
+/** Codex's `city_landmarks(p_city)`: a city's live Landmarks and their monuments, wherever the player is. */
+export const CITY_LANDMARKS_BACKEND = false;
+
+/** A Landmark as the city cards and Today's Hunt draw it, from anywhere: the same row (id, spot, monument) game_nearby sends. */
+export type CityLandmark = { id: string; lat: number; lng: number; monument: Monument | null };
 
 export type Rarity = "common" | "uncommon" | "rare";
 export type BallKind = "wax" | "gold";
@@ -138,6 +143,16 @@ function refreshDevWave(at: Coords) {
 export const game = {
   setPosition(at: Coords) { position = at; },
   async state(): Promise<GameState> { return await live() ? liveState() : stateNow(); },
+  /** A city's Landmarks with their current monuments, for maps played from anywhere (Today's Hunt, the city cards). */
+  async cityLandmarks(city: string): Promise<CityLandmark[]> {
+    if (CITY_LANDMARKS_BACKEND && await live()) {
+      const { data, error } = await supabase.rpc("city_landmarks" as never, { p_city: city } as never);
+      fail(error);
+      return ((data ?? []) as unknown as CityLandmark[]).map((w) => ({ id: w.id, lat: w.lat, lng: w.lng, monument: w.monument ?? null }));
+    }
+    // No stand-in shapes: a Landmark is only ever drawn from its one saved row, the same one Explore uses.
+    return [];
+  },
   async nearby(at: Coords): Promise<Nearby> {
     position = at;
     if (await live()) {
