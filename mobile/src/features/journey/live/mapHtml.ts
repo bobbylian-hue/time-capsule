@@ -144,7 +144,7 @@ html,body,#map{margin:0;height:100%;width:100%;background:${C.paper};overflow:hi
 .pin.landmark .disc{left:calc(50% - var(--rw,20px));width:calc(var(--rw,20px)*2);height:calc(var(--rh,7px)*2);bottom:calc(3px - var(--rh,7px));background:none;transform:translate(var(--gx,0px),var(--gy,0px))}
 /* A Landmark is one thing, its model with the seal on top (like the Keeper): its ring sits outside the seal's scaled body
    and is sized to the model's footprint on the ground (--rw/--rh, set by ringSize). */
-.pin.ghost>.disc{opacity:.3}
+.pin.ghost>.disc{opacity:.3}.pin.landmark.ghost>.disc{border:2.5px solid #3E8E5A}
 .pin.waypost.edit.sel .disc{background:none;border:2.5px solid #3E8E5A;left:0;width:40px;height:14px;bottom:-4px}
 .pin.spot.edit.sel .dot{box-shadow:0 0 0 2px #fff,0 0 0 4.5px #3E8E5A}
 @media (hover:hover){
@@ -154,7 +154,7 @@ html,body,#map{margin:0;height:100%;width:100%;background:${C.paper};overflow:hi
 /* A place being added or moved but not saved yet is see-through with a dashed green ring and a tag, and a
    moving place leaves a faint ghost where it is now. The dashed ring shows while dragging too, not only after the drop. */
 .pin.draft .post{opacity:.55;animation:none}
-.pin.draft .disc,.pin.waypost.edit.draft .disc,.pin.waypost.edit.dragging .disc{background:none;border:2px dashed #3E8E5A;left:0;width:36px;height:12px;bottom:-3px}
+.pin.waypost.draft .disc,.pin.waypost.edit.draft .disc,.pin.waypost.edit.dragging .disc{background:none;border:2px dashed #3E8E5A;left:0;width:36px;height:12px;bottom:-3px}
 .pin.spot.draft .dot,.pin.spot.edit.draft .dot,.pin.spot.edit.dragging .dot{background:${C.plum}99;box-shadow:none;outline:2px dashed #3E8E5A;outline-offset:3px}
 .pin.draft .tag{bottom:-24px;background:#fff;color:${C.plum};border:1px dashed ${C.plum};box-shadow:none}
 .pin.spot.draft .tag{bottom:-26px}
@@ -308,7 +308,7 @@ map.on('resize',()=>{if(follow&&you)map.jumpTo({center:[you.lng,you.lat],zoom:pi
 let TILE_OWNER=${JSON.stringify(SEED.owner)},monumentsNow=null,monGeo=${JSON.stringify(SEED.geo)};
 // Map builder R2: each Landmark's monument comes in the state; the seed above shows until it does.
 function paintMonuments(p){const key=JSON.stringify(p);if(key===monumentsNow||!map.getSource('monuments'))return;monumentsNow=key;
-  monGeo=p.geo;monR={};map.getSource('monuments').setData(p.geo);TILE_OWNER=p.owner;const ids=Object.keys(p.tiles),nums=ids.map(Number);
+  monGeo=p.geo;monR=new Map();map.getSource('monuments').setData(p.geo);TILE_OWNER=p.owner;const ids=Object.keys(p.tiles),nums=ids.map(Number);
   const match=(i,f)=>ids.length?['match',['id'],...ids.flatMap(id=>[Number(id),p.tiles[id][i]]),f]:f;
   if(map.getLayer('buildings'))map.setFilter('buildings',['!',['in',['id'],['literal',nums]]]);
   if(map.getLayer('monument-tiles')){map.setFilter('monument-tiles',['in',['id'],['literal',nums]]);
@@ -358,13 +358,14 @@ const liftOffset=(ll,meters)=>{const t=map.transform;const mc=maplibregl.Mercato
 // The marker sits on top; --gx/--gy move its ground disc back down to the Landmark's point.
 const setLift=m=>{const o=m.lift?liftOffset(m.marker.getLngLat(),m.lift):[0,0],el=m.marker.getElement();m.marker.setOffset(o);
   el.style.setProperty('--gx',(-o[0]).toFixed(1)+'px');el.style.setProperty('--gy',(-o[1]).toFixed(1)+'px');ringSize(m)};
-// How far a Landmark's model reaches from its point, in metres (its own monument features, not ghosts); cached per paint.
-let monR={};
-function modelReach(m){const id=m.mon;if(!id)return 0;if(monR[id]!==undefined)return monR[id];
-  const c=m.start||m.marker.getLngLat(),k=Math.cos(c.lat*Math.PI/180);let r=0;
-  for(const f of monGeo.features){if(f.properties.id!==id||f.properties.ghost)continue;
+// How far a Landmark's model reaches from its point, in metres; cached per pin per paint. The faint copy left at the old
+// spot measures the faint model, the place itself its own model (both share the Landmark's id).
+let monR=new Map();
+function modelReach(m){const id=m.mon;if(!id)return 0;if(monR.has(m))return monR.get(m);
+  const faint=m.marker.getElement().classList.contains('ghost'),c=m.start||m.marker.getLngLat(),k=Math.cos(c.lat*Math.PI/180);let r=0;
+  for(const f of monGeo.features){if(f.properties.id!==id||!!f.properties.ghost!==faint)continue;
     for(const ring of f.geometry.coordinates)for(const [x,y] of ring){const dx=(x-c.lng)*111320*k,dy=(y-c.lat)*110540;r=Math.max(r,Math.hypot(dx,dy))}}
-  return monR[id]=r}
+  monR.set(m,r);return r}
 // The ring around the whole model at the current zoom and tilt; never smaller than the seal's own ring.
 function ringSize(m){const r=modelReach(m);if(!r)return;const el=m.marker.getElement(),c=m.marker.getLngLat();
   const mpp=40075016.686*Math.cos(c.lat*Math.PI/180)/(512*Math.pow(2,map.getZoom()));
@@ -475,7 +476,7 @@ function render(){
     if(m.html!==html){el.innerHTML=html;m.html=html}
     if(m.cls!==cls){if(m.cls)el.classList.remove(...m.cls.split(' '));el.classList.add(...cls.split(' '));m.cls=cls}
     el.style.zIndex=p.selected?20:p.kind==="keeper"?8:p.near?5:1;
-    if(window.__tcDragging!==p.id){m.marker.setLngLat([p.lng,p.lat]);m.start={lng:p.lng,lat:p.lat}}if(m.mon!==(p.mon||null)){m.mon=p.mon||null;delete monR[m.mon]}ringSize(m);
+    if(window.__tcDragging!==p.id){if(!m.start||m.start.lat!==p.lat||m.start.lng!==p.lng)monR.delete(m);m.marker.setLngLat([p.lng,p.lat]);m.start={lng:p.lng,lat:p.lat}}if(m.mon!==(p.mon||null)){m.mon=p.mon||null;monR.delete(m)}ringSize(m);
     // Admin map builder: the selected place can be dragged to move it; the page reports where it was dropped.
     if(m.drag!==!!p.drag){m.drag=!!p.drag;m.marker.setDraggable(m.drag);
       if(m.drag&&!m.wired){m.wired=true;const mk=m.marker,pid=p.id;
