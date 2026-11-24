@@ -14,7 +14,7 @@ import { CITIES, CITY_EXPLORER, cityAt, cityPuzzle, type ExplorerCity, type Gues
 import { HuntError, hunt as hunts, keeperMark, onHuntChange, type Hunt } from "../../services/cityHunt";
 import { distanceMeters } from "../../services/data";
 import type { PassportHunt } from "../../services/game";
-import { dodgeFights, game, GAME_ACTION_RADIUS_M, GAME_ENABLED, type CorruptedCapsule, type DevLetter, type GameState, type Nearby, type Waypost } from "../../services/game";
+import { dodgeFights, game, GAME_ACTION_RADIUS_M, GAME_ENABLED, type CityLandmark, type CorruptedCapsule, type DevLetter, type GameState, type Nearby, type Waypost } from "../../services/game";
 import { useCapsules, usePlaces } from "../../services/hooks";
 import { clockText } from "../../services/huntClock";
 import { atGuide, guideSpot, guideStage, inOrder, onPrivateHuntChange, placed, PrivateHuntError, privateHunt as privateHunts, type LeaderRow, type PrivateHunt, type Quest } from "../../services/privateHunt";
@@ -299,11 +299,25 @@ export default function JourneyScreen() {
     : placePin(i)), ...gamePins, ...huntPins, ...questPins, ...guidePins, ...pinQuestPins], [items, selectedId, language, gamePins, huntPins, questPins, guidePins, pinQuestPins, senders, now]);
   // Map builder R2: each nearby Landmark's own monument. Once the server sends them, a Landmark out of range draws
   // nothing rather than its old built-in shape (which would undo an admin's edit, e.g. HKUST's buildings).
-  const monuments = useMemo(() => paintMonuments(MAP_BUILDER_R2_BACKEND
-    ? nearby.wayposts.map(placedMonument).filter((m): m is NonNullable<typeof m> => !!m) : monumentsFor(nearby.wayposts)), [nearby.wayposts]);
+  // The city cards and Today's Hunt show a city from anywhere, so that city's Landmarks come by city, not by distance.
+  const shownCity = exploring ? huntCity ?? CITIES[cityIndex].id : null;
+  const [cityLandmarks, setCityLandmarks] = useState<{ city: string; list: CityLandmark[] } | null>(null);
+  useEffect(() => {
+    if (!shownCity) return;
+    let on = true;
+    game.cityLandmarks(shownCity).then((list) => { if (on) setCityLandmarks({ city: shownCity, list }); }).catch(() => {});
+    return () => { on = false; };
+  }, [shownCity]);
+  const monuments = useMemo(() => {
+    const near = MAP_BUILDER_R2_BACKEND
+      ? nearby.wayposts.map(placedMonument).filter((m): m is NonNullable<typeof m> => !!m) : monumentsFor(nearby.wayposts);
+    const far = cityLandmarks && cityLandmarks.city === shownCity ? cityLandmarks.list : [];
+    const have = new Set(near.map((m) => m.id));
+    return paintMonuments([...near, ...far.filter((w) => w.monument && !have.has(w.id)).map((w) => ({ id: w.id, lat: w.lat, lng: w.lng, monument: w.monument! }))]);
+  }, [nearby.wayposts, cityLandmarks, shownCity]);
   const mapState = useMemo(() => huntMap ? {
     // Today's Hunt: only its three pins, and your figure at the hunt instead of where you are; no pickup circle.
-    you: huntMap.you, heading: null, reach: 0, portrait: portraitUri(profile?.avatar), figure: assetUri(figureFor(profile?.avatar)), youLabel: null, pins: huntMap.pins,
+    you: huntMap.you, heading: null, reach: 0, portrait: portraitUri(profile?.avatar), figure: assetUri(figureFor(profile?.avatar)), youLabel: null, pins: huntMap.pins, monuments,
   } : {
     you, heading, reach: PUBLIC_CAPSULE_PICKUP_RADIUS_M,
     portrait: portraitUri(profile?.avatar),

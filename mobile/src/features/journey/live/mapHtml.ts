@@ -137,6 +137,8 @@ html,body,#map{margin:0;height:100%;width:100%;background:${C.paper};overflow:hi
    on hover and while selected, dashed while unsaved or being dragged. Each kind only sets where its disc sits. */
 .pin.edit.sel .disc{background:none;border:2.5px solid #3E8E5A}
 @media (hover:hover){.pin.edit:hover .disc{background:none;border:2.5px solid #3E8E5A}}
+/* Hovering a Landmark's model counts as hovering the Landmark (the page sets .hover; the model isn't part of the pin). */
+.pin.edit.hover .disc{background:none;border:2.5px solid #3E8E5A}
 .pin.draft .disc,.pin.edit.draft .disc,.pin.edit.dragging .disc{background:none;border:2px dashed #3E8E5A}
 /* A Landmark's disc is on the ground at its point, under the monument, even though its seal floats on top. */
 .pin.landmark .disc{left:0;width:40px;height:14px;bottom:-4px;background:none;transform:translate(var(--gx,0px),var(--gy,0px))}
@@ -339,9 +341,13 @@ function grabMonument(e){if(window.__tcPickOn||!map.getLayer('monuments')||(e.or
   const up=()=>{map.off('mousemove',move);map.off('touchmove',move);map.off('mouseup',up);map.off('touchend',up);if(moved){grabbedAt=Date.now();map.getCanvas().style.cursor='';dragEnd(mk,pid)}};
   map.on('mousemove',move);map.on('touchmove',move);map.on('mouseup',up);map.on('touchend',up)}
 map.on('mousedown',grabMonument);map.on('touchstart',grabMonument);
-const monumentAt=p=>{const layers=['monuments','monument-tiles'].filter(l=>map.getLayer(l));const hit=layers.length&&map.queryRenderedFeatures(p,{layers})[0];return hit?(hit.layer.id==='monuments'?hit.properties.id:TILE_OWNER[hit.id]):null};
+// Only a Landmark's model answers the pointer; its painted buildings are part of the map (Roy, 2026-11-24).
+const monumentAt=p=>{if(!map.getLayer('monuments'))return null;const hit=map.queryRenderedFeatures(p,{layers:['monuments']})[0];return hit?hit.properties.id:null};
 map.on('click',e=>{if(Date.now()-grabbedAt<400)return;if(window.__tcPick&&window.__tcPick(e))return;if(fan){fold();return}const id=monumentAt(e.point);if(id){send({type:'select',id:'monument-'+id});return}send({type:'tap',lat:e.lngLat.lat,lng:e.lngLat.lng})});
-map.on('mousemove',e=>{if(window.__tcPickOn||window.__tcDragging)return;const id=monumentAt(e.point);let grab=false;if(id)for(const [,m] of marks)if(m.drag&&m.mon===id)grab=true;map.getCanvas().style.cursor=grab?'grab':id?'pointer':''});
+map.on('mousemove',e=>{if(window.__tcPickOn||window.__tcDragging)return;const id=monumentAt(e.point);let grab=false;
+  for(const [,m] of marks){const on=!!id&&m.mon===id;if(on&&m.drag)grab=true;const el=m.marker.getElement();el.classList.toggle('hover',on&&el.classList.contains('edit'))}
+  map.getCanvas().style.cursor=grab?'grab':id?'pointer':''});
+map.getCanvas().addEventListener('mouseleave',()=>{for(const [,m] of marks)m.marker.getElement().classList.remove('hover')});
 // A badge "on top" of a building: the screen offset from its ground point to the same point raised
 // to the building's height, through the camera's own perspective, so it stays on the spire as the map moves.
 const liftOffset=(ll,meters)=>{const t=map.transform;const mc=maplibregl.MercatorCoordinate.fromLngLat(ll);
