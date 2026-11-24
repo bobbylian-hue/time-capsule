@@ -1,3 +1,4 @@
+import { gameArt } from "../../art/manifest";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -54,7 +55,7 @@ import { SelectedCard } from "./SelectedCard";
 import { useCapsuleItems } from './useCapsuleItems';
 import { openCityHunt, useCityHuntPins } from './useCityHuntPins';
 import { useGamePins } from "./useGamePins";
-import { monumentsFor, paintMonuments, placedMonument } from "./live/monuments";
+import { monumentsFor, monumentTop, paintMonuments, placedMonument } from "./live/monuments";
 import { MAP_BUILDER_R2_BACKEND } from "../../services/mapBuilder";
 import { usePrivateQuestPins } from "./usePrivateQuestPins";
 import { usePinQuests, type PinQuest } from "./usePinQuests";
@@ -308,6 +309,14 @@ export default function JourneyScreen() {
     game.cityLandmarks(shownCity).then((list) => { if (on) setCityLandmarks({ city: shownCity, list }); }).catch(() => {});
     return () => { on = false; };
   }, [shownCity]);
+  // A Landmark is one thing, its model with the seal on top: a far city's Landmark gets its seal too (look-only,
+  // since nothing answers a tap while exploring). Nearby ones already have theirs from the game pins.
+  const cityLandmarkPins = useMemo<LivePin[]>(() => {
+    if (!cityLandmarks || cityLandmarks.city !== shownCity) return [];
+    const have = new Set(nearby.wayposts.map((w) => w.id));
+    return cityLandmarks.list.filter((w) => w.monument && !have.has(w.id)).map((w) => ({
+      id: `way-${w.id}`, lat: w.lat, lng: w.lng, lift: monumentTop(w.monument!) + 4, kind: "landmark", vessel: assetUri(gameArt.landmarkGem) ?? "" }));
+  }, [cityLandmarks, shownCity, nearby.wayposts]);
   const monuments = useMemo(() => {
     const near = MAP_BUILDER_R2_BACKEND
       ? nearby.wayposts.map(placedMonument).filter((m): m is NonNullable<typeof m> => !!m) : monumentsFor(nearby.wayposts);
@@ -317,16 +326,16 @@ export default function JourneyScreen() {
   }, [nearby.wayposts, cityLandmarks, shownCity]);
   const mapState = useMemo(() => huntMap ? {
     // Today's Hunt: only its three pins, and your figure at the hunt instead of where you are; no pickup circle.
-    you: huntMap.you, heading: null, reach: 0, portrait: portraitUri(profile?.avatar), figure: assetUri(figureFor(profile?.avatar)), youLabel: null, pins: huntMap.pins, monuments,
+    you: huntMap.you, heading: null, reach: 0, portrait: portraitUri(profile?.avatar), figure: assetUri(figureFor(profile?.avatar)), youLabel: null, pins: [...huntMap.pins, ...cityLandmarkPins], monuments,
   } : {
     you, heading, reach: PUBLIC_CAPSULE_PICKUP_RADIUS_M,
     portrait: portraitUri(profile?.avatar),
     figure: assetUri(figureFor(profile?.avatar)),
     youLabel: youLabel && !throwing ? h.thisIsYou : null,
     // While throwing, the capsule is alone on the plain map.
-    pins: throwing ? [] : allPins.filter((p) => showsPin(filter, p)),
+    pins: throwing ? [] : [...allPins.filter((p) => showsPin(filter, p)), ...cityLandmarkPins],
     monuments,
-  }, [you?.lat, you?.lng, heading, profile?.avatar, allPins, filter, !!throwing, youLabel, h, huntMap, monuments]);
+  }, [you?.lat, you?.lng, heading, profile?.avatar, allPins, filter, !!throwing, youLabel, h, huntMap, monuments, cityLandmarkPins]);
   const counts = useMemo(() => filterCounts(allPins), [allPins]);
   const pickFilter = (f: MapFilter) => {
     setFilter(f); setFilterOpen(false);

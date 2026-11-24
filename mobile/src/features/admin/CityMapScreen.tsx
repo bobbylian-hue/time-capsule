@@ -257,6 +257,8 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     setDraft(at);
   };
   const saved = () => { stopPlacing(); onChanged(); refresh(); };
+  // Saving an edit closes it (Roy, 2026-11-24), like Save in the close prompt; Publish, Hide and Show keep it open.
+  const savedAndClose = () => { saved(); setSelected(null); };
   const leaveEdit = () => { setEditing(false); stopPlacing(); if (selected?.startsWith("s:")) setSelected(null); };
   const name = zh ? map.region.name_zh : map.region.name_en;
 
@@ -280,25 +282,25 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
     : fill ? { title: mb.fillTitle, edit: true, body: <FillPanel api={fillApi} />, onClose: fillApi.stop }
     : editing && mode === "add" && draft ? { title: mb.titleAddWaypost, edit: true, body:
         <WaypostBuilderForm flat key="new" region={map.region} wayposts={map.wayposts} waypost={null} at={draft} moving={false} ask={ask}
-          onMove={() => {}} onSaved={saved} onCancel={stopPlacing} /> }
+          onMove={() => {}} onSaved={savedAndClose} onCancel={stopPlacing} /> }
     : MAP_BUILDER_R2 && editing && mode === "landmark" && draft ? { title: lt.titleAdd, edit: true, body:
         <WaypostBuilderForm flat key="newLandmark" region={map.region} wayposts={map.wayposts} waypost={null} at={draft} moving={false} ask={ask} landmark={landmarkProps}
-          onMove={() => {}} onSaved={saved} onCancel={stopPlacing} /> }
+          onMove={() => {}} onSaved={savedAndClose} onCancel={stopPlacing} /> }
     : MAP_BUILDER_R2 && picked && editing && (picked.kind === "landmark" || making === picked.id) ? { title: making === picked.id ? lt.titleMake : lt.titleEdit, status: statusOf(picked), edit: true, body: <>
         {statusOf(picked) === "hidden"
           ? <Detail map={map} id={selected!} now={now} />
           : <WaypostBuilderForm flat key={`lm:${picked.id}`} region={map.region} wayposts={map.wayposts} waypost={picked} at={moving ? draft! : picked} moving={mode === "move"} ask={ask}
-              landmark={landmarkProps} onMove={() => {}} onSaved={saved} onCancel={closeSheet} />}
+              landmark={landmarkProps} onMove={() => {}} onSaved={savedAndClose} onCancel={closeSheet} />}
         {!moving && making !== picked.id && <StatusActions key={`st:${picked.id}`} status={statusOf(picked)} name={zh ? picked.name_zh : picked.name_en} onStatus={(st) => changeStatus("waypost", picked.id, st)} />}
       </> }
     : editing && mode === "spot" && draft ? { title: mb.titleAddSpot, edit: true, body:
-        <SpotForm flat key="newSpot" region={map.region} spot={null} at={draft} ask={ask} onSaved={saved} onCancel={stopPlacing} /> }
+        <SpotForm flat key="newSpot" region={map.region} spot={null} at={draft} ask={ask} onSaved={savedAndClose} onCancel={stopPlacing} /> }
     : picked && editing && picked.kind === "common" ? { title: mb.titleEditWaypost, status: statusOf(picked), edit: true, body: <>
         {statusOf(picked) === "hidden"
           ? <Detail map={map} id={selected!} now={now} />
           // Keyed by the Waypost only, so unsaved names, photo and note survive a drag.
           : <WaypostBuilderForm flat key={picked.id} region={map.region} wayposts={map.wayposts} waypost={picked} at={moving ? draft! : picked} moving={mode === "move"} ask={ask}
-              onMove={() => {}} onSaved={saved} onCancel={closeSheet} />}
+              onMove={() => {}} onSaved={savedAndClose} onCancel={closeSheet} />}
         {!moving && (MAP_BUILDER_R15
           ? <StatusActions key={`st:${picked.id}`} status={statusOf(picked)} name={zh ? picked.name_zh : picked.name_en} onStatus={(st) => changeStatus("waypost", picked.id, st)} />
           : <VisibilityCard key={`v:${picked.id}:${picked.game_enabled}`} region={map.region.id} waypost={picked} onSaved={saved} />)}
@@ -317,7 +319,7 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
       </> }
     : pickedSpot && editing ? { title: mb.titleEditSpot, status: statusOf(pickedSpot), edit: true, body:
         mode === "moveSpot" && draft
-          ? <SpotForm flat key={`move:${pickedSpot.id}`} region={map.region} spot={pickedSpot} at={draft} ask={ask} onSaved={saved} onCancel={stopPlacing} />
+          ? <SpotForm flat key={`move:${pickedSpot.id}`} region={map.region} spot={pickedSpot} at={draft} ask={ask} onSaved={savedAndClose} onCancel={stopPlacing} />
           : <>
               <View style={{ gap: 4 }}>
                 <Text style={{ fontFamily: sans, fontSize: 14, color: C.ink }}>{pickedSpot.habitat ? a.habitat[pickedSpot.habitat] : a.ed.spotTitle}</Text>
@@ -401,14 +403,14 @@ function CityMapView({ map, onChanged }: { map: CityMap; onChanged: () => void }
         </View>
       : <View style={{ alignItems: "flex-start" }}><AButton small tone="ghost" title={a.ed.editWayposts} onPress={() => setEditing(true)} /></View>)}
     {editing && mode === "add" && draft
-      ? <WaypostForm key={`new:${draft.lat}:${draft.lng}`} region={map.region.id} waypost={null} at={draft} moving={false} onMove={() => {}} onSaved={saved} onCancel={stopPlacing} />
+      ? <WaypostForm key={`new:${draft.lat}:${draft.lng}`} region={map.region.id} waypost={null} at={draft} moving={false} onMove={() => {}} onSaved={savedAndClose} onCancel={stopPlacing} />
       : editing && picked && picked.kind === "common"
         ? <>
             {picked.game_enabled
               ? <>
                   {mode === "move" && !draft && <Notice text={a.ed.tapToMove} />}
                   <WaypostForm key={picked.id} region={map.region.id} waypost={picked} at={mode === "move" && draft ? draft : picked} moving={mode === "move"}
-                    onMove={() => place("move")} onSaved={saved} onCancel={() => { stopPlacing(); setSelected(null); }} />
+                    onMove={() => place("move")} onSaved={savedAndClose} onCancel={() => { stopPlacing(); setSelected(null); }} />
                 </>
               : <Detail map={map} id={selected!} now={now} />}
             {mode !== "move" && <VisibilityCard key={`v:${picked.id}:${picked.game_enabled}`} region={map.region.id} waypost={picked} onSaved={saved} />}
